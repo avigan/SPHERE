@@ -1,0 +1,107 @@
+#
+# Tables giving the neutral density factor as a function of the CPI ND
+# filter and IRDIS filter combination.
+#
+# The values are given in terms of neutral density factor in each of the
+# IRDIS fields. To compensate the effect of the CPI ND filter in the
+# left/right images, one has to apply the following correction:
+#
+#   I_left_corrected  = I_left_raw  * 10^(ND_left)
+#   I_right_corrected = I_right_raw * 10^(ND_right)
+#
+# Arthur Vigan - arthur.vigan@lam.fr
+#
+
+CPI_ND    IRD_BBF   IRD_DBF    ND_left   ND_right
+-------------------------------------------------
+ND0.0     B_Y       CLEAR       0.0000    0.0000
+ND0.0     B_Y       D_Y23       0.0000    0.0000
+ND0.0     B_J       CLEAR       0.0000    0.0000
+ND0.0     B_J       D_J23       0.0000    0.0000
+ND0.0     B_H       CLEAR       0.0000    0.0000
+ND0.0     B_H       D_H23       0.0000    0.0000
+ND0.0     B_H       D_H32       0.0000    0.0000
+ND0.0     B_ND-H    CLEAR       0.5442    0.5442
+ND0.0     B_ND-H    D_H23       0.5395    0.5396
+ND0.0     B_ND-H    D_H32       0.5396    0.5395
+ND0.0     B_Ks      CLEAR       0.0000    0.0000
+ND0.0     B_Ks      D_K12       0.0000    0.0000
+ND0.0     N_BrG     CLEAR       0.0000    0.0000
+ND0.0     N_CntH    CLEAR       0.0000    0.0000
+ND0.0     N_CntJ    CLEAR       0.0000    0.0000
+ND0.0     N_CntK1   CLEAR       0.0000    0.0000
+ND0.0     N_CntK2   CLEAR       0.0000    0.0000
+ND0.0     N_CO      CLEAR       0.0000    0.0000
+ND0.0     N_FeII    CLEAR       0.0000    0.0000
+ND0.0     N_H2      CLEAR       0.0000    0.0000
+ND0.0     N_HeI     CLEAR       0.0000    0.0000
+ND0.0     N_PaB     CLEAR       0.0000    0.0000
+
+ND1.0     B_Y       CLEAR       1.0278    1.0278
+ND1.0     B_Y       D_Y23       1.0081    1.1091
+ND1.0     B_J       CLEAR       1.2025    1.2025
+ND1.0     B_J       D_J23       1.2096    1.2138
+ND1.0     B_H       CLEAR       0.8999    0.8999
+ND1.0     B_H       D_H23       0.9417    0.8559
+ND1.0     B_H       D_H32       0.8567    0.9410
+ND1.0     B_ND-H    CLEAR       1.4386    1.4386
+ND1.0     B_ND-H    D_H23       1.4811    1.3953
+ND1.0     B_ND-H    D_H32       1.3961    1.4803
+ND1.0     B_Ks      CLEAR       0.8388    0.8388
+ND1.0     B_Ks      D_K12       0.8272    0.8530
+ND1.0     N_BrG     CLEAR       0.8442    0.8442
+ND1.0     N_CntH    CLEAR       0.9579    0.9579
+ND1.0     N_CntJ    CLEAR       1.2177    1.2177
+ND1.0     N_CntK1   CLEAR       0.8250    0.8250
+ND1.0     N_CntK2   CLEAR       0.8541    0.8541
+ND1.0     N_CO      CLEAR       0.8475    0.8475
+ND1.0     N_FeII    CLEAR       0.8793    0.8793
+ND1.0     N_H2      CLEAR       0.8311    0.8311
+ND1.0     N_HeI     CLEAR       1.1242    1.1242
+ND1.0     N_PaB     CLEAR       1.2120    1.2120
+
+ND2.0     B_Y       CLEAR       2.0886    2.0886
+ND2.0     B_Y       D_Y23       2.0635    2.2736
+ND2.0     B_J       CLEAR       2.4716    2.4716
+ND2.0     B_J       D_J23       2.4838    2.4935
+ND2.0     B_H       CLEAR       1.8231    1.8231
+ND2.0     B_H       D_H23       1.9266    1.7493
+ND2.0     B_H       D_H32       1.7510    1.9250
+ND2.0     B_ND-H    CLEAR       2.3566    2.3566
+ND2.0     B_ND-H    D_H23       2.4656    2.2886
+ND2.0     B_ND-H    D_H32       2.2902    2.4640
+ND2.0     B_Ks      CLEAR       1.6492    1.6492
+ND2.0     B_Ks      D_K12       1.6543    1.6534
+ND2.0     N_BrG     CLEAR       1.6672    1.6672
+ND2.0     N_CntH    CLEAR       1.9612    1.9612
+ND2.0     N_CntJ    CLEAR       2.5041    2.5041
+ND2.0     N_CntK1   CLEAR       1.6535    1.6535
+ND2.0     N_CntK2   CLEAR       1.6522    1.6522
+ND2.0     N_CO      CLEAR       1.6307    1.6307
+ND2.0     N_FeII    CLEAR       1.7986    1.7986
+ND2.0     N_H2      CLEAR       1.6574    1.6574
+ND2.0     N_HeI     CLEAR       2.3070    2.3070
+ND2.0     N_PaB     CLEAR       2.4932    2.4932
+
+ND3.5     B_Y       CLEAR       3.5250    3.5250
+ND3.5     B_Y       D_Y23       3.5204    3.8768
+ND3.5     B_J       CLEAR       4.2128    4.2128
+ND3.5     B_J       D_J23       4.2253    4.2440
+ND3.5     B_H       CLEAR       3.0701    3.0701
+ND3.5     B_H       D_H23       3.2815    2.9800
+ND3.5     B_H       D_H32       2.9828    3.2787
+ND3.5     B_ND-H    CLEAR       3.5982    3.5982
+ND3.5     B_ND-H    D_H23       3.8206    3.5193
+ND3.5     B_ND-H    D_H32       3.5221    3.8178
+ND3.5     B_Ks      CLEAR       2.8441    2.8441
+ND3.5     B_Ks      D_K12       2.8542    2.8393
+ND3.5     N_BrG     CLEAR       2.8703    2.8703
+ND3.5     N_CntH    CLEAR       3.3418    3.3418
+ND3.5     N_CntJ    CLEAR       4.2688    4.2688
+ND3.5     N_CntK1   CLEAR       2.8515    2.8515
+ND3.5     N_CntK2   CLEAR       2.8351    2.8351
+ND3.5     N_CO      CLEAR       2.8103    2.8103
+ND3.5     N_FeII    CLEAR       3.0645    3.0645
+ND3.5     N_H2      CLEAR       2.8630    2.8630
+ND3.5     N_HeI     CLEAR       3.9386    3.9386
+ND3.5     N_PaB     CLEAR       4.2531    4.2531

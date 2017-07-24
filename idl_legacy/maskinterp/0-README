@@ -1,0 +1,110 @@
+	Mask-Based Image Interpolation Package for IDL
+
+	Design, supervision, contact:
+		Dr. Joseph Harrington
+		326 Space Sciences Building
+		Cornell University
+		Ithaca, NY 14853-6801
+		jh@oobleck.astro.cornell.edu
+
+	Programmers:
+		Siree Vatanavigkit (Cornell)	Version 1.0	 3 Aug 99
+			initial implementation
+		Alex Ruane (Cornell)		Version 1.1	20 Nov 00
+			second order surface fit
+			chebyshfit bug fixes
+			general bug fixes
+
+	Bug fixes and performance enhancements:
+		Wayne Landsman (NASA/GSFC)	Version 1.2	29 Oct 01
+			removal of loops
+
+EXPLANATION:
+	Given an image data array (2D) and a mask (of the same size)
+	which identifies bad pixels in the image with a 0 and 
+	good pixels with a 1, use function maskinterp to correct the
+        the bad pixels.  The user can select from six interpolating 
+	functions for maskinterp to use as a model for fitting data. 
+	Maskinterp interpolates only from surrounding good pixels,
+	but ensures that there are enough pixels for a good fit and
+	that their distribution is not spatially biased.  User
+	instructions appear in the header comment of each function.  
+	Examples are in testinterp.pro.
+	
+	The interpolating functions are described below.
+
+	plsfit.pro	plane surface fit:
+	z = ax +by +c
+	
+	gausfit.pro	gaussain surface fit: 
+	z = (1/(2*pi*thx*thy))*exp(-.5*(((x-mx)/thx)^2+((y-my)/thy)^2 ))-c
+
+	chebyshfit.pro	Chebyshev polynomial interpolation:
+	z = sum(Ti*Ci)  + .5*C0
+
+	csplinterp.pro	bicubic spline interpolation
+
+	splinterp.pro   bicubic spline interpolation
+
+			csplinterp and splinterp differ by the
+			functions used to calculate spline. More
+			details are in the header of each function.
+
+	twoordfit.pro   second-order polynomial surface interpolation
+	z = ax^2 + bxy + cy^2 + dx + ey + f
+
+TEST:
+	Run IDL from the directory that jup.fits and mask.fits reside in.
+	Run testinterp.pro.  These steps should produce six .fits files.  
+	If all the codes run correctly, the difference in these files
+	should be less than the tolerance of the average error per pixel
+	(default to 1e-7).
+	Given the following .fits files:
+	testcsplinterp0.fits   
+	testsplinterp0.fits
+        testginterp0.fits
+	testchebyinterp0.fits  
+	testplinterp0.fits
+	testtwoordinterp0.fits
+	Run the following commands.  It may take a few minutes to run
+	the codes.
+	idl
+	testinterp
+	exit
+	Expected results:
+	If the average error per pixel is close to the the precision
+	of your machine, the screen should display the following lines.
+	testplinterp.fits:good
+	testginterp.fits:good
+	testcsplinterp.fits:good
+	testsplinterp.fits:good
+	testchebyinterp.fits:good
+	testtwoordinterp.fits:good
+	Otherwise, the name of the file(s) and its average error per pixel is 
+	displayed.  User may specify the tolerance of the average error
+	per pixel by calling testinterp, eps = tolerance, for example
+	testinterp, eps = 1e-30.
+
+IDL FUNCTIONS:
+	maskinterp.pro
+	plsfit.pro
+	gausfit.pro
+	csplinterp.pro
+	splinterp.pro	
+	chebyshfit.pro
+	twoordfit.pro
+	disc.pro	
+	coord.pro
+	keyword_defined.pro
+	testinterp.pro
+	filecomp.pro
+	chvarchg.pro
+EXAMPLE/TEST DATA:
+	jup.fits
+	mask.fits
+	testcsplinterp0.fits   
+	testsplinterp0.fits
+        testginterp0.fits
+	testchebyinterp0.fits  
+	testplinterp0.fits
+	testtwoordinterp0.fits
