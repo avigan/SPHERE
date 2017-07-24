@@ -28,8 +28,8 @@ IFS:
 
 If you use parts of this pipeline, please cite the proper references:
 
- * SPHERE/IFS pipeline: `Vigan et al., 2015, MNRAS, 454, 129 <https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract>`_
- * SPHERE/IRDIS/LSS pipeline: `Vigan, 2016, ASCL:1603.001 <https://ui.adsabs.harvard.edu/#abs/2016ascl.soft03001V/abstract>`_
+* SPHERE/IFS pipeline: `Vigan et al., 2015, MNRAS, 454, 129 <https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract>`_
+* SPHERE/IRDIS/LSS pipeline: `Vigan, 2016, ASCL:1603.001 <https://ui.adsabs.harvard.edu/#abs/2016ascl.soft03001V/abstract>`_
 
 We are grateful for your effort, and hope that this tool will contribute to your scientific work and discoveries. Please feel free to report any bug or possible improvement to the author(s).
 
