@@ -301,9 +301,13 @@
 ;    * Long-Slit Spectroscopy mode: Vigan et al., 2008, A&A, 489, 1345
 ;
 ;   In addition, this analysis code is available on the Astrophysics
-;   Source Code Library and should be cited explicitely:
+;   Source Code Library:
 ;
-;    * 
+;    * http://ascl.net/1603.001
+;
+;   It can be cited explicitely:
+;
+;    * Vigan, 2016, ascl:1603.001
 ;
 ;   We are grateful for your effort, and hope that this tool will
 ;   contribute to your scientific work and discoveries. Please feel
