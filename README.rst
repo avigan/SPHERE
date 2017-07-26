@@ -11,11 +11,6 @@ It currently contains IDL legacy code that is progressively migrated to Python.
 Credits
 -------
 
-If you use parts of this pipeline, please cite the proper references:
-
-* SPHERE/IFS pipeline: `Vigan et al., 2015, MNRAS, 454, 129 <https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract>`_
-* SPHERE/IRDIS/LSS pipeline: `Vigan, 2016, ASCL:1603.001 <https://ui.adsabs.harvard.edu/#abs/2016ascl.soft03001V/abstract>`_
-
 The development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
 
 SPHERE:
