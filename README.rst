@@ -1,6 +1,11 @@
 pySPHERE
 ========
 
+**Warning**
+-----------
+
+**This module is under heavy development at the moment. The only usable part of the code is the filter/neutral density transmission module.**
+
 Information
 -----------
 
