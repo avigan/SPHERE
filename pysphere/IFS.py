@@ -842,7 +842,14 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     calibs_info.to_csv(os.path.join(root_path, 'calibs.csv'))
 
 
-def sph_ifs_preprocess(root_path, files_info, calibs_info):
+def sph_ifs_correct_xtalk(img):
+    return img
+
+    
+def sph_ifs_preprocess(root_path, files_info, calibs_info,
+                       subtract_background=True, correct_xtalk=True,
+                       collapse_science=False, collapse_type='mean', coadd_value=2,
+                       collapse_psf=False, collapse_center=False):
     '''Pre-processes the science frames.
 
     This function can perform multiple steps: collapsing of the data,
@@ -857,7 +864,6 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info):
     files_info : dataframe
         The data frame with all the information on raw science files
 
-    
     calibs_info : dataframe
         The data frame with all the information on calibration files
 
@@ -883,16 +889,16 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-files_info = sort_files(root_path)
+# files_info = sort_files(root_path)
 
-# files_info = pd.read_csv(root_path+'files.csv', index_col=0)
-calibs_info = files_association(root_path, files_info)
+files_info = pd.read_csv(root_path+'files.csv', index_col=0)
+# calibs_info = files_association(root_path, files_info)
 
-# calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
+calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_dark(root_path, calibs_info)
 # sph_ifs_cal_detector_flat(root_path, calibs_info)
 # sph_ifs_cal_specpos(root_path, calibs_info)
-# sph_ifs_cal_wave(root_path, calibs_info)
+sph_ifs_cal_wave(root_path, calibs_info, silent=False)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
 # sph_ifs_preprocess(root_path, files_info, calibs_info)

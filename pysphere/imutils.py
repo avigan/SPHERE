@@ -7,13 +7,11 @@ Images utility library
 
 import collections
 import numpy as np
-#import numpy.fft as fft
 import scipy.fftpack as fft
 import scipy.ndimage as ndimage
 import warnings
 
 from astropy.convolution import convolve, Box2DKernel
-
 
 ####################################################################################
 #
@@ -815,94 +813,62 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
         return img_clip
 
     
-def fix_bad_pixels(img, bpm, neighbor_box=3, min_neighbors=3):
-    '''
-    Clean an image according to the provided bad pixel map
+def fix_badpix(img, bpm, size=5):
+    '''Corrects the bad pixels, marked in the bad pixel mask.
+
+    The bad pixels are replaced by the median of the adjacent pixels
+    in a box of the povided size. This function is very fast but works
+    best with isolated (sparse) pixels or very small clusters.
 
     Copied and adapted from the the Vortex Image Processing package,
     https://github.com/vortex-exoplanet/VIP, in which the function is
-    called sigma_filter, although it's not technically a sigma filter
-    since it just takes a bad pixel map.
+    called fix_badpix_isolated.
+
+    This version is improved with respect to the VIP one by replacing
+    the bad pixels with NaNs in the image before applying the
+    median_filter. This allows to make sure that adjacent bad pixels
+    will not be taken into account when calculating the median.
     
     Parameters
     ----------
-    img : array_like 
-        Input 2d array, image.
+    img : array_like
+        Input 2D image
     
-    bpm: array_like
-        Input array of the same size as img, indicating the locations of 
-        bad/nan pixels by 1 (the rest of the array is set to 0)
+    bpm : array_like, optional
+        Input bad pixel map. Good pixels have a value of 0, bad pixels
+        a value of 1.
+
+    size : odd int, optional
+        The size the box (size x size) of adjacent pixels for the
+        median filter. Default value is 5
     
-    neighbor_box : int, optional
-        The side of the square window around each pixel where the sigma and 
-        median are calculated.
-    
-    min_neighbors : int, optional
-        Minimum number of good neighboring pixels to be able to correct the 
-        bad/nan pixels
-        
-    Returns
-    -------
-    img_corr : array_like
-        Output array with corrected bad/nan pixels
+    Return
+    ------
+    img_clean : array_like
+        Cleaned image
 
     '''
     
     if not img.ndim == 2:
-        raise ValueError('Input array must be an 2D image')
-
-    sz_y = img.shape[0]    # get image y-dim
-    sz_x = img.shape[1]    # get image x-dim
-    bp = bpm.copy()        # temporary bpix map; important to make a copy!
-    im = img.copy()        # corrected image
-    nb = int(np.sum(bpm))  # number of bad pixels remaining    
-    nit = 0                # number of iterations
+        raise ValueError('Main input is not a 2D array')
     
-    # iteratively corrects only the bad pixels with sufficient good neighbours
-    while nb > 0:
-        nit += 1
-        wb = np.where(bp)                   # find bad pixels
-        gp = 1 - bp                         # temporary good pixel map
-        
-        for n in range(nb):
-            # Determine the box around each pixel
-            half_box = np.floor(neighbor_box/2.)
+    if not bpm.ndim == 2:
+        raise ValueError('Bad pixel map input is not a 2D array')
+    
+    if size % 2 == 0:
+        raise ValueError('Size of the median blur kernel must be an odd integer')
 
-            # half size of the box at the bottom of the pixel
-            hbox_b = min(half_box, wb[0][n])         
+    bpm = bpm.astype('bool')
 
-            # half size of the box at the top of the pixel
-            hbox_t = min(half_box, sz_y-1-wb[0][n])  
+    bp = np.where(bpm)
+    
+    img_clean = img.copy()
+    img_clean[bp] = np.nan
 
-            # half size of the box to the left of the pixel
-            hbox_l = min(half_box, wb[1][n])         
+    smoothed = ndimage.median_filter(img_clean, size, mode='mirror')
+    img_clean[bp] = smoothed[bp]
 
-            # half size of the box to the right of the pixel
-            hbox_r = min(half_box, sz_x-1-wb[1][n])
-            
-            # in case we are at an edge, we want to extend the box by one 
-            # row/column of pixels in the direction opposite to the edge to 
-            # have 9 px instead of 6: 
-            if half_box == 1:
-                if wb[0][n] == sz_y-1:
-                    hbox_b = hbox_b+1 
-                elif wb[0][n] == 0:
-                    hbox_t = hbox_t+1
-                if wb[1][n] == sz_x-1:
-                    hbox_l = hbox_l+1 
-                elif wb[1][n] == 0:
-                    hbox_r = hbox_r+1
-
-            sgp = gp[int(wb[0][n]-hbox_b):int(wb[0][n]+hbox_t+1),
-                     int(wb[1][n]-hbox_l):int(wb[1][n]+hbox_r+1)]
-            if int(np.sum(sgp)) >= min_neighbors:
-                sim = im[int(wb[0][n]-hbox_b):int(wb[0][n]+hbox_t+1),
-                         int(wb[1][n]-hbox_l):int(wb[1][n]+hbox_r+1)]
-                im[wb[0][n], wb[1][n]] = np.median(sim[np.where(sgp)])
-                bp[wb[0][n], wb[1][n]] = 0
-        nb = int(np.sum(bp))
-        
-    return im
+    return img_clean
 
 
 ####################################################################################
