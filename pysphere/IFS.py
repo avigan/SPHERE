@@ -350,7 +350,38 @@ def sph_ifs_cal_dark(root_path, calibs_info, silent=True):
     calibs_info.to_csv(os.path.join(root_path, 'calibs.csv'))
 
 
-def compute_detector_flat(raw_flat_files, bpm_files=None):
+def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
+    '''
+    Compute a combined bad pixel map provided a list of files
+
+    Parameters
+    ----------
+    bpm_files : list
+        List of names for the bpm files
+
+    dtype : data type
+        Data type for the final bpm
+    
+    Returns
+    bpm : array_like
+        Combined bad pixel map
+    '''
+
+    # star with empty bpm
+    bpm = np.zeros((2048, 2048), dtype=np.uint8)
+
+    # fill if files are provided
+    if len(bpm_files) != 0:
+        for f in bpm_files:
+            data = fits.getdata(f)
+            bpm = np.logical_or(bpm, data)
+
+    bpm = bpm.astype(dtype)
+
+    return bpm
+
+
+def compute_detector_flat(raw_flat_files, bpm_files=[]):
     '''
     Compute a master detector flat and associated bad pixel map
 
@@ -372,15 +403,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=None):
     '''
 
     # read bad pixel maps
-    if bpm_files is None:
-        bpm_in = np.zeros((2048, 2048), dtype=np.uint8)
-    else:
-        bpm_in = np.zeros((2048, 2048), dtype=np.uint8)
-        for f in bpm_files:
-            data = fits.getdata(f)
-            bpm_in = np.logical_or(bpm_in, data)
-        
-        bpm_in = bpm_in.astype(np.uint8)
+    bpm_in = compute_bad_pixel_map(bpm_files, dtype=np.uint8)
 
     # read data
     ff0, hdr0 = fits.getdata(raw_flat_files[0], header=True)
@@ -843,20 +866,55 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     calibs_info.to_csv(os.path.join(root_path, 'calibs.csv'))
 
 
+def extract_frame_information(root_path, file):
+    '''
+    Extract relevant frames information from a raw file
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    files_info : dataframe
+        The data frame with all the information on raw science files
+    
+    '''
+    pass
+
+
 def sph_ifs_correct_xtalk(img):
+    '''
+    Corrects a IFS frame from the spectral crosstalk
+
+    Parameters
+    ----------
+    img : array_like
+        Input IFS science frame
+    '''
     return img
 
     
 def sph_ifs_preprocess(root_path, files_info, calibs_info,
-                       subtract_background=True, correct_xtalk=True,
+                       subtract_background=True, fix_badpix=True, correct_xtalk=True,
                        collapse_science=False, collapse_type='mean', coadd_value=2,
                        collapse_psf=False, collapse_center=False):
     '''Pre-processes the science frames.
 
-    This function can perform multiple steps: collapsing of the data,
-    background subtraction, bad pixel correction and IFS cross-talk
-    correction.
+    This function can perform multiple steps:
+      - collapse of the frames according to different schemes
+      - subtract the background
+      - correct bad pixels
+      - correct the spectral crosstalk
 
+    For the science, 2 collapse methods are available: mean or
+    coadd. With mean, the full cubes are mean-combined into a single
+    frame. With coadd, the frames are coadded following the
+    coadd_value. This can result in lost frames if the number of NDIT
+    is not a multiple of coadd_value.
+
+    For the PSFs and star center frames, there is either no collapse
+    or a mean collapse.
+    
     Parameters
     ----------
     root_path : str
@@ -883,10 +941,45 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
     if not os.path.exists(preproc_path):
         os.makedirs(preproc_path)
 
-    obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
-    sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT')]
+    # bpm
+    if fix_badpix:
+        bpm_files = calibs_info[calibs_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+        bpm_files = [os.path.join(calib_path, f) for f in bpm_files]
 
+        bpm = compute_bad_pixel_map(bpm_files)
 
+    # loop on the different type of science files
+    sci_types = ['OBJECT', 'OBJECT,CENTER', 'OBJECT,FLUX']
+    dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
+    for t in sci_types:    
+        # science files
+        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == t)]
+        sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
+        
+        if len(sci_files) == 0:
+            continue        
+
+        for DIT in sci_DITs:
+            sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
+            
+            print(' * {0} files of type {1} with DIT={2} sec'.format(len(sfiles), t, DIT))
+
+            if subtract_background:
+                # look for sky, then background, then darks
+                # normally there should be only one with the proper DIT
+                dfiles = []
+                for d in dark_types:
+                    dfiles = calibs_info[(calibs_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                                         (calibs_info['DPR TYPE'] == d) & (calibs_info['DET SEQ1 DIT'].round(2) == DIT)]
+                    if len(dfiles) != 0:
+                        break
+                print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
+
+                if len(dfiles) != 1:
+                    raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
+
+                
+    
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
@@ -897,9 +990,9 @@ files_info = pd.read_csv(root_path+'files.csv', index_col=0)
 
 calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_dark(root_path, calibs_info)
-sph_ifs_cal_detector_flat(root_path, calibs_info)
+# sph_ifs_cal_detector_flat(root_path, calibs_info)
 # sph_ifs_cal_specpos(root_path, calibs_info)
 # sph_ifs_cal_wave(root_path, calibs_info, silent=False)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-# sph_ifs_preprocess(root_path, files_info, calibs_info)
+sph_ifs_preprocess(root_path, files_info, calibs_info)
