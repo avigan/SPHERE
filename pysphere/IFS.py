@@ -402,21 +402,22 @@ def compute_detector_flat(raw_flat_files, bpm_files=None):
     else:
         flat = ff1 - ff0
     
-    # bad pixels correction
-    # flat = imutils.fix_bad_pixels(flat, bpm_in, neighbor_box=3, min_neighbors=5)
+    # bad pixels correction    
+    flat = imutils.fix_badpix(flat, bpm_in, box=5)    
     flat = imutils.sigma_filter(flat, box=5, nsigma=3, iterate=True)
     flat = imutils.sigma_filter(flat, box=7, nsigma=3, iterate=True)
 
+    # normalized flat
     flat = flat / np.median(flat)
-
-    # final bad pixel map
-    bpm = (flat <= 0.9) | (flat >= 1.1)
-    bpm = bpm.astype(np.uint8)
 
     # additional rounad of bad pixels correction
-    # flat = imutils.fix_bad_pixels(flat, bpm_in, neighbor_box=3, min_neighbors=5)
+    bpm = (flat <= 0.9) | (flat >= 1.1)
+    bpm = bpm.astype(np.uint8)
+    flat = imutils.fix_badpix(flat, bpm, box=5)
 
+    # final products
     flat = flat / np.median(flat)
+    
     bpm = (flat <= 0.9) | (flat >= 1.1)
     bpm = bpm.astype(np.uint8)
     
@@ -504,7 +505,7 @@ def sph_ifs_cal_detector_flat(root_path, calibs_info, silent=True):
         fits.writeto(os.path.join(calib_path, flat_file), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
         fits.writeto(os.path.join(calib_path, bpm_file), bpm, header=hdu[0].header, output_verify='silentfix', overwrite=True)
         hdu.close()
-        
+
         # store products
         calibs_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
         calibs_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
@@ -896,9 +897,9 @@ files_info = pd.read_csv(root_path+'files.csv', index_col=0)
 
 calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_dark(root_path, calibs_info)
-# sph_ifs_cal_detector_flat(root_path, calibs_info)
+sph_ifs_cal_detector_flat(root_path, calibs_info)
 # sph_ifs_cal_specpos(root_path, calibs_info)
-sph_ifs_cal_wave(root_path, calibs_info, silent=False)
+# sph_ifs_cal_wave(root_path, calibs_info, silent=False)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
 # sph_ifs_preprocess(root_path, files_info, calibs_info)
