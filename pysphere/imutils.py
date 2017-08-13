@@ -813,12 +813,13 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
         return img_clip
 
     
-def fix_badpix(img, bpm, size=5):
-    '''Corrects the bad pixels, marked in the bad pixel mask.
+def fix_badpix(img, bpm, box=5):
+    '''
+    Corrects the bad pixels, marked in the bad pixel mask.
 
     The bad pixels are replaced by the median of the adjacent pixels
-    in a box of the povided size. This function is very fast but works
-    best with isolated (sparse) pixels or very small clusters.
+    in a box of the povided box size. This function is very fast but
+    works best with isolated (sparse) pixels or very small clusters.
 
     Copied and adapted from the the Vortex Image Processing package,
     https://github.com/vortex-exoplanet/VIP, in which the function is
@@ -838,8 +839,8 @@ def fix_badpix(img, bpm, size=5):
         Input bad pixel map. Good pixels have a value of 0, bad pixels
         a value of 1.
 
-    size : odd int, optional
-        The size the box (size x size) of adjacent pixels for the
+    box : odd int, optional
+        The size the box (box x box) of adjacent pixels for the
         median filter. Default value is 5
     
     Return
@@ -855,8 +856,8 @@ def fix_badpix(img, bpm, size=5):
     if not bpm.ndim == 2:
         raise ValueError('Bad pixel map input is not a 2D array')
     
-    if size % 2 == 0:
-        raise ValueError('Size of the median blur kernel must be an odd integer')
+    if box % 2 == 0:
+        raise ValueError('Box size of the median blur kernel must be an odd integer')
 
     bpm = bpm.astype('bool')
 
@@ -865,7 +866,7 @@ def fix_badpix(img, bpm, size=5):
     img_clean = img.copy()
     img_clean[bp] = np.nan
 
-    smoothed = ndimage.median_filter(img_clean, size, mode='mirror')
+    smoothed = ndimage.median_filter(img_clean, box, mode='mirror')
     img_clean[bp] = smoothed[bp]
 
     return img_clean
