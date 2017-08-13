@@ -258,6 +258,10 @@ def sph_ifs_cal_dark(root_path, calibs_info, silent=True):
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
         
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+        
     # get list of files
     raw = calibs_info[np.logical_not(calibs_info['PROCESSED'])]
     calibs = raw[(calibs_info['DPR TYPE'] == 'DARK') | (calibs_info['DPR TYPE'] == 'DARK,BACKGROUND') |
@@ -303,9 +307,9 @@ def sph_ifs_cal_dark(root_path, calibs_info, silent=True):
                     sof]
 
             if silent:
-                proc = subprocess.run(args, stdout=subprocess.DEVNULL)
+                proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
             else:
-                proc = subprocess.run(args)
+                proc = subprocess.run(args, cwd=tmp_path)
 
             if proc.returncode != 0:
                 raise ValueError('esorex process was not successful')
@@ -429,7 +433,11 @@ def sph_ifs_cal_detector_flat(root_path, calibs_info, silent=True):
     sof_path = os.path.join(root_path, 'sof/')
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
-    
+
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+
     # get list of files
     raw = calibs_info[np.logical_not(calibs_info['PROCESSED'])]
     calibs = raw[(calibs_info['DPR TYPE'] == 'FLAT,LAMP') | (calibs_info['DPR TECH'] == 'IMAGE')]
@@ -525,6 +533,10 @@ def sph_ifs_cal_specpos(root_path, calibs_info, silent=True):
     sof_path = os.path.join(root_path, 'sof/')
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
+
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
     
     # get list of files
     specpos_file = calibs_info[np.logical_not(calibs_info['PROCESSED']) & (calibs_info['DPR TYPE'] == 'SPECPOS,LAMP')]
@@ -563,9 +575,9 @@ def sph_ifs_cal_specpos(root_path, calibs_info, silent=True):
             sof]
 
     if silent:
-        proc = subprocess.run(args, stdout=subprocess.DEVNULL)
+        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
     else:
-        proc = subprocess.run(args)
+        proc = subprocess.run(args, cwd=tmp_path)
 
     if proc.returncode != 0:
         raise ValueError('esorex process was not successful')
@@ -611,6 +623,10 @@ def sph_ifs_cal_wave(root_path, calibs_info, silent=True):
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
     
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+        
     # get list of files
     wave_file = calibs_info[np.logical_not(calibs_info['PROCESSED']) & (calibs_info['DPR TYPE'] == 'WAVE,LAMP')]
     if len(wave_file) != 1:
@@ -661,9 +677,9 @@ def sph_ifs_cal_wave(root_path, calibs_info, silent=True):
                 sof]
 
     if silent:
-        proc = subprocess.run(args, stdout=subprocess.DEVNULL)
+        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
     else:
-        proc = subprocess.run(args)
+        proc = subprocess.run(args, cwd=tmp_path)
 
     if proc.returncode != 0:
         raise ValueError('esorex process was not successful')
@@ -709,6 +725,10 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
 
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+        
     # IFS obs mode
     mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
     if mode == 'OBS_YJ':
@@ -785,9 +805,9 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
             sof]
 
     if silent:
-        proc = subprocess.run(args, stdout=subprocess.DEVNULL)
+        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
     else:
-        proc = subprocess.run(args)
+        proc = subprocess.run(args, cwd=tmp_path)
 
     if proc.returncode != 0:
         raise ValueError('esorex process was not successful')
@@ -845,16 +865,16 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-# files_info = sort_files(root_path)
+files_info = sort_files(root_path)
 
-files_info = pd.read_csv(root_path+'files.csv', index_col=0)
-# calibs_info = files_association(root_path, files_info)
+# files_info = pd.read_csv(root_path+'files.csv', index_col=0)
+calibs_info = files_association(root_path, files_info)
 
-calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
-# sph_ifs_cal_dark(root_path, calibs_info)
-# sph_ifs_cal_detector_flat(root_path, calibs_info)
-# sph_ifs_cal_specpos(root_path, calibs_info)
-# sph_ifs_cal_wave(root_path, calibs_info)
-# sph_ifs_cal_ifu_flat(root_path, calibs_info)
+# calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
+sph_ifs_cal_dark(root_path, calibs_info)
+sph_ifs_cal_detector_flat(root_path, calibs_info)
+sph_ifs_cal_specpos(root_path, calibs_info)
+sph_ifs_cal_wave(root_path, calibs_info)
+sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-sph_ifs_preprocess(root_path, files_info, calibs_info)
+# sph_ifs_preprocess(root_path, files_info, calibs_info)
