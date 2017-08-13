@@ -103,7 +103,7 @@ def sort_files(root_path):
     files_info.insert(len(files_info.columns), 'PROCESSED', False)
         
     # save files_info
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(root_path, 'files.csv'))    
     
     return files_info
 
@@ -144,52 +144,63 @@ def files_association(root_path, files_info):
     ###############################################
     # static calibrations not dependent on science
     ###############################################
+    error_flag = 0
+    warning_flag = 0
     
     # white flat
     cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
     if len(cfiles) != 2:
+        error_flag += 1
         print(' * Error: there should be 2 flat files for white lamp!')
         
     # 1020 nm flat
     cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
     if len(cfiles) != 2:
+        error_flag += 1
         print(' * Error: there should be 2 flat files for 1020 nm filter!')
 
     # 1230 nm flat
     cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
     if len(cfiles) != 2:
+        error_flag += 1
         print(' * Error: there should be 2 flat files for 1230 nm filter!')
 
     # 1300 nm flat
     cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
     if len(cfiles) != 2:
+        error_flag += 1
         print(' * Error: there should be 2 flat files for 1300 nm filter!')
 
     # 1550 nm flat (YJH mode only)
     if mode_short == 'YJH':
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
         if len(cfiles) != 2:
+            error_flag += 1
             print(' * Error: there should be 2 flat files for 1550 nm filter!')
 
     # spectra position
     cfiles = calibs[(calibs['DPR TYPE'] == 'SPECPOS,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
     if len(cfiles) != 1:
+        error_flag += 1
         print(' * Error: there should be 1 spectra position file!')
 
     # wavelength
     cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
     if len(cfiles) != 1:
+        error_flag += 1
         print(' * Error: there should be 1 wavelength calibration file!')
     
     # IFU flat
     cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
     if len(cfiles) != 1:
+        error_flag += 1
         print(' * Error: there should be 1 IFU flat file!')
     
     # calibs dark file
     cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
                     (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
     if len(cfiles) != 1:
+        warning_flag += 1
         print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.6 sec). ' +
               'It is *highly recommended* to include one to obtain the best data reduction. ' +
               'A single dark/background file is sufficient, and it can easily be downloaded ' +
@@ -208,6 +219,7 @@ def files_association(root_path, files_info):
         cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
                         (calibs['DET SEQ1 DIT'].round(2) == DIT)]
         if len(cfiles) == 0:
+            warning_flag += 1
             print(' * Warning: there is no dark/background for science files with DIT={0} sec. '.format(DIT) +
                   'it is *highly recommended* to include one to obtain the best data reduction. ' +
                   'A single dark/background file is sufficient, and it can easily be downloaded ' +
@@ -216,6 +228,7 @@ def files_association(root_path, files_info):
         # sky backgrounds
         cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(cfiles) == 0:
+            warning_flag += 1
             print(' * Warning: there is no sky background for science files with DIT={0} sec. '.format(DIT) +
                   'Using a sky background instead of an internal instrumental background can ' +
                   'usually provide a cleaner data reduction')
@@ -225,6 +238,11 @@ def files_association(root_path, files_info):
             
     # save
     calibs.to_csv(os.path.join(root_path, 'calibs.csv'))
+
+    # error reporting
+    print('There are {0} warnings and {1} error in the classification of files'.format(warning_flag, error_flag))
+    if error_flag:
+        raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
     
     return calibs
 
@@ -871,10 +889,10 @@ files_info = sort_files(root_path)
 calibs_info = files_association(root_path, files_info)
 
 # calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
-sph_ifs_cal_dark(root_path, calibs_info)
-sph_ifs_cal_detector_flat(root_path, calibs_info)
-sph_ifs_cal_specpos(root_path, calibs_info)
-sph_ifs_cal_wave(root_path, calibs_info)
-sph_ifs_cal_ifu_flat(root_path, calibs_info)
+# sph_ifs_cal_dark(root_path, calibs_info)
+# sph_ifs_cal_detector_flat(root_path, calibs_info)
+# sph_ifs_cal_specpos(root_path, calibs_info)
+# sph_ifs_cal_wave(root_path, calibs_info)
+# sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
 # sph_ifs_preprocess(root_path, files_info, calibs_info)
