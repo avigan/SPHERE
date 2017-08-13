@@ -869,6 +869,10 @@ def fix_badpix(img, bpm, box=5):
     smoothed = ndimage.median_filter(img_clean, box, mode='mirror')
     img_clean[bp] = smoothed[bp]
 
+    # replace uncorrected bad pixels with original value
+    mask = ~np.isfinite(img_clean)
+    img_clean[mask] = img[mask]
+    
     return img_clean
 
 
