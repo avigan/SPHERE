@@ -815,7 +815,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
         return img_clip
 
     
-def fixpix(img, bpm, neighbor_box=3, min_neighbors=3):
+def fix_bad_pixels(img, bpm, neighbor_box=3, min_neighbors=3):
     '''
     Clean an image according to the provided bad pixel map
 
