@@ -173,14 +173,9 @@ def sort_frames(root_path, files_info):
     # create new dataframe
     frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
     
-    # go through each frames
-    for file, finfo in sci_files.iterrows():
-        NDIT = int(finfo['DET NDIT'])
-        print(' * {0}: {1:3d} DITs'.format(file, NDIT))
-
-        for d in range(NDIT):
-            frames_info.loc[(file, d)] = files_info.loc[file]
-
+    # expand files_info into frames_info
+    frames_info = frames_info.align(files_info, level=0)[1]    
+    
     # calculate time stamps
     time_start = np.array(frames_info['DATE-OBS'].values+'+0000', dtype='datetime64[ms]')
     time_end   = np.array(frames_info['DET FRAM UTC'].values+'+0000', dtype='datetime64[ms]')
@@ -1091,11 +1086,11 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
         bpm = compute_bad_pixel_map(bpm_files)
 
     # loop on the different type of science files
-    sci_types = ['OBJECT', 'OBJECT,CENTER', 'OBJECT,FLUX']
+    sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
     dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
-    for t in sci_types:    
+    for typ in sci_types:    
         # science files
-        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == t)]
+        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
         sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
         
         if len(sci_files) == 0:
@@ -1104,7 +1099,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
         for DIT in sci_DITs:
             sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
             
-            print(' * {0} files of type {1} with DIT={2} sec'.format(len(sfiles), t, DIT))
+            print('{0} files of type {1} with DIT={2} sec'.format(len(sfiles), typ, DIT))
 
             if subtract_background:
                 # look for sky, then background, then darks
@@ -1119,6 +1114,59 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
 
                 if len(dfiles) != 1:
                     raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
+
+                bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]))
+                
+            # process files
+            for fname, finfo in sci_files.iterrows():
+                print(' * {0}'.format(fname))
+                
+                # read data
+                print('   ==> read data')
+                img = fits.getdata(os.path.join(raw_path, fname))
+                
+                # collapse (separate OBJECT from the others)
+                if (typ == 'OBJECT,CENTER') and collapse_center:
+                    print('   ==> collapse: mean')
+                    if img.ndim == 3:
+                        img = np.mean(img, axis=0)
+                elif (typ == 'OBJECT,FLUX') and collapse_psf:
+                    print('   ==> collapse: mean')
+
+                    if img.ndim == 3:
+                        img = np.mean(img, axis=0)
+                elif (typ == 'OBJECT'):                    
+                    if collapse_science:
+                        if collapse_type == 'mean':
+                            print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
+                            if img.ndim == 3:
+                                img = np.mean(img, axis=0)
+                        elif collapse_type == 'coadd':
+                            if img.ndim == 2:
+                                print('   ==> no collapse: data is not a cube')
+                            elif img.ndim == 3:
+                                coadd_value = int(coadd_value)
+                                NDIT = len(img)
+                                NDIT_new = NDIT // coadd_value
+                                dropped = NDIT % coadd_value
+                            
+                                print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+
+                                fidx = 0
+                                for frame in img:
+                                    
+                                    
+                        else:
+                            raise ValueError('Unknown collapse type {0}'.format(collapse_type))
+                        
+
+                # subtract background
+                if subtract_background:
+                    print('   ==> subtract background')
+                    img -= bkg
+
+                
+        print()
 
 
 def clean(root_path):
@@ -1136,17 +1184,20 @@ def clean(root_path):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-files_info = sort_files(root_path)
+# files_info = sort_files(root_path)
 
-# files_info = pd.read_csv(root_path+'files.csv', index_col=0)
-frames_info = sort_frames(root_path, files_info)
-calibs_info = files_association(root_path, files_info)
+files_info = pd.read_csv(root_path+'files.csv', index_col=0)
+# frames_info = sort_frames(root_path, files_info)
+# calibs_info = files_association(root_path, files_info)
 
-# calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
-sph_ifs_cal_dark(root_path, calibs_info)
-sph_ifs_cal_detector_flat(root_path, calibs_info)
-sph_ifs_cal_specpos(root_path, calibs_info)
-sph_ifs_cal_wave(root_path, calibs_info)
-sph_ifs_cal_ifu_flat(root_path, calibs_info)
+calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
+# sph_ifs_cal_dark(root_path, calibs_info)
+# sph_ifs_cal_detector_flat(root_path, calibs_info)
+# sph_ifs_cal_specpos(root_path, calibs_info)
+# sph_ifs_cal_wave(root_path, calibs_info)
+# sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-# sph_ifs_preprocess(root_path, files_info, calibs_info)
+sph_ifs_preprocess(root_path, files_info, calibs_info,
+                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                   collapse_science=True, collapse_type='coadd', coadd_value=2,
+                   collapse_psf=True, collapse_center=True)
