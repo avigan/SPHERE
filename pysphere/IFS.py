@@ -81,7 +81,7 @@ def sort_files(root_path):
     
     # list files
     files = glob.glob(os.path.join(root_path, 'raw', '*.fits'))
-    files = [os.path.basename(f) for f in files]
+    files = [os.path.splitext(os.path.basename(f))[0] for f in files]
     
     if len(files) == 0:
         raise ValueError('No raw FITS files in root_path directory')
@@ -93,7 +93,7 @@ def sort_files(root_path):
 
     raw_path = os.path.join(root_path, 'raw/')
     for f in files:
-        hdu = fits.open(os.path.join(raw_path, f))
+        hdu = fits.open(os.path.join(raw_path, f+'.fits'))
         hdr = hdu[0].header
 
         for k, sk in zip(keywords, keywords_short):
@@ -457,12 +457,12 @@ def sph_ifs_cal_dark(root_path, calibs_info, silent=True):
             sof = os.path.join(sof_path, 'dark_DIT={0:.2f}.sof'.format(DIT))
             file = open(sof, 'w')
             for f in files:
-                file.write('{0}{1}     {2}\n'.format(raw_path, f, 'IFS_DARK_RAW'))
+                file.write('{0}{1}.fits     {2}\n'.format(raw_path, f, 'IFS_DARK_RAW'))
             file.close()
 
             # products
-            dark_file = 'dark_DIT={0:.2f}.fits'.format(DIT)
-            bpm_file  = 'dark_bpm_DIT={0:.2f}.fits'.format(DIT)
+            dark_file = 'dark_DIT={0:.2f}'.format(DIT)
+            bpm_file  = 'dark_bpm_DIT={0:.2f}'.format(DIT)
 
             # execute esorex    
             args = ['esorex',
@@ -473,8 +473,8 @@ def sph_ifs_cal_dark(root_path, calibs_info, silent=True):
                     '--ifs.master_dark.smoothing=5',
                     '--ifs.master_dark.min_acceptable=0.0',
                     '--ifs.master_dark.max_acceptable=2000.0',
-                    '--ifs.master_dark.outfilename={0}{1}'.format(calib_path, dark_file),
-                    '--ifs.master_dark.badpixfilename={0}{1}'.format(calib_path, bpm_file),
+                    '--ifs.master_dark.outfilename={0}{1}.fits'.format(calib_path, dark_file),
+                    '--ifs.master_dark.badpixfilename={0}{1}.fits'.format(calib_path, bpm_file),
                     sof]
 
             if silent:
@@ -648,7 +648,7 @@ def sph_ifs_cal_detector_flat(root_path, calibs_info, silent=True):
 
     # bpm files
     cfiles = calibs_info[calibs_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-    bpm_files = [os.path.join(calib_path, f) for f in cfiles]
+    bpm_files = [os.path.join(calib_path, f+'.fits') for f in cfiles]
     
     # loop on wavelengths
     waves = [         0,        1020,        1230,        1300,        1550]
@@ -659,7 +659,7 @@ def sph_ifs_cal_detector_flat(root_path, calibs_info, silent=True):
         print(' * flat for wavelength {0} nm (filter {1}, lamp {2})'.format(wave, comb, lamp))
         
         cfiles = calibs[calibs['INS2 COMB IFS'] == '{0}_{1}'.format(comb, mode_short)]
-        files = [os.path.join(raw_path, f) for f in cfiles.index]
+        files = [os.path.join(raw_path, f+'.fits') for f in cfiles.index]
 
         if len(files) == 0:
             continue
@@ -674,12 +674,12 @@ def sph_ifs_cal_detector_flat(root_path, calibs_info, silent=True):
             wav = 'white'
         else:
             wav = str(int(wave))
-        flat_file = 'master_detector_flat_{0}_l{1}.fits'.format(wav, lamp)
-        bpm_file  = 'dff_badpixels_{0}_l{1}.fits'.format(wav, lamp)        
+        flat_file = 'master_detector_flat_{0}_l{1}'.format(wav, lamp)
+        bpm_file  = 'dff_badpixels_{0}_l{1}'.format(wav, lamp)        
 
         hdu = fits.open(os.path.join(raw_path, files[0]))
-        fits.writeto(os.path.join(calib_path, flat_file), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
-        fits.writeto(os.path.join(calib_path, bpm_file), bpm, header=hdu[0].header, output_verify='silentfix', overwrite=True)
+        fits.writeto(os.path.join(calib_path, flat_file+'.fits'), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
+        fits.writeto(os.path.join(calib_path, bpm_file+'.fits'), bpm, header=hdu[0].header, output_verify='silentfix', overwrite=True)
         hdu.close()
 
         # store products
@@ -755,18 +755,18 @@ def sph_ifs_cal_specpos(root_path, calibs_info, silent=True):
     # create sof
     sof = os.path.join(sof_path, 'specpos.sof')
     file = open(sof, 'w')
-    file.write('{0}{1}     {2}\n'.format(raw_path, specpos_file.index[0], 'IFS_SPECPOS_RAW'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
+    file.write('{0}{1}.fits     {2}\n'.format(raw_path, specpos_file.index[0], 'IFS_SPECPOS_RAW'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
     file.close()
     
     # products
-    specp_file = 'spectra_positions.fits'
+    specp_file = 'spectra_positions'
 
     # execute esorex    
     args = ['esorex',
             'sph_ifs_spectra_positions',
             '--ifs.spectra_positions.hmode={0}'.format(Hmode),
-            '--ifs.spectra_positions.outfilename={0}{1}'.format(calib_path, specp_file),
+            '--ifs.spectra_positions.outfilename={0}{1}.fits'.format(calib_path, specp_file),
             sof]
 
     if silent:
@@ -842,33 +842,33 @@ def sph_ifs_cal_wave(root_path, calibs_info, silent=True):
     # create sof
     sof = os.path.join(sof_path, 'wave.sof')
     file = open(sof, 'w')
-    file.write('{0}{1}     {2}\n'.format(raw_path, wave_file.index[0], 'IFS_WAVECALIB_RAW'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, specpos_file.index[0], 'IFS_SPECPOS'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
+    file.write('{0}{1}.fits     {2}\n'.format(raw_path, wave_file.index[0], 'IFS_WAVECALIB_RAW'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, specpos_file.index[0], 'IFS_SPECPOS'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
     file.close()
     
     # products
-    wav_file = 'wave_calib.fits'
+    wav_file = 'wave_calib'
 
     # execute esorex
     if mode == 'OBS_YJ':
         args = ['esorex',
                 'sph_ifs_wave_calib',
                 '--ifs.wave_calib.number_lines=3',
-                '--ifs.wave_calib.outfilename={0}{1}'.format(calib_path, wav_file),
                 '--ifs.wave_calib.wavelength_line1=0.9877',
                 '--ifs.wave_calib.wavelength_line2=1.1237',
                 '--ifs.wave_calib.wavelength_line3=1.3094',
+                '--ifs.wave_calib.outfilename={0}{1}.fits'.format(calib_path, wav_file),
                 sof]
     elif mode == 'OBS_YJH':
         args = ['esorex',
                 'sph_ifs_wave_calib',
                 '--ifs.wave_calib.number_lines=3',
-                '--ifs.wave_calib.outfilename={0}{1}'.format(calib_path, wav_file),
                 '--ifs.wave_calib.wavelength_line1=0.9877',
                 '--ifs.wave_calib.wavelength_line2=1.1237',
                 '--ifs.wave_calib.wavelength_line3=1.3094',
                 '--ifs.wave_calib.wavelength_line4=1.5451',
+                '--ifs.wave_calib.outfilename={0}{1}.fits'.format(calib_path, wav_file),
                 sof]
 
     if silent:
@@ -977,26 +977,26 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     # create sof
     sof = os.path.join(sof_path, 'ifu_flat.sof')
     file = open(sof, 'w')
-    file.write('{0}{1}     {2}\n'.format(raw_path, ifu_flat_file.index[0], 'IFS_FLAT_FIELD_RAW'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
-    file.write('{0}{1}     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
+    file.write('{0}{1}.fits     {2}\n'.format(raw_path, ifu_flat_file.index[0], 'IFS_FLAT_FIELD_RAW'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
     if mode == 'OBS_YJH':
         file.write('{0}{1}     {2}\n'.format(calib_path, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
     file.close()
 
     # products
-    ifu_file = 'ifu_flat.fits'
+    ifu_file = 'ifu_flat'
 
     # execute esorex
     args = ['esorex',
             'sph_ifs_instrument_flat',
-            '--ifs.instrument_flat.ifu_filename={0}{1}'.format(calib_path, ifu_file),
             '--ifs.instrument_flat.nofit=TRUE',
+            '--ifs.instrument_flat.ifu_filename={0}{1}.fits'.format(calib_path, ifu_file),
             sof]
 
     if silent:
@@ -1081,7 +1081,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
     # bpm
     if fix_badpix:
         bpm_files = calibs_info[calibs_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-        bpm_files = [os.path.join(calib_path, f) for f in bpm_files]
+        bpm_files = [os.path.join(calib_path, f+'.fits') for f in bpm_files]
 
         bpm = compute_bad_pixel_map(bpm_files)
 
@@ -1115,7 +1115,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 if len(dfiles) != 1:
                     raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
 
-                bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]))
+                bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]+'.fits'))
                 
             # process files
             for fname, finfo in sci_files.iterrows():
@@ -1123,7 +1123,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 
                 # read data
                 print('   ==> read data')
-                img = fits.getdata(os.path.join(raw_path, fname))
+                img = fits.getdata(os.path.join(raw_path, fname+'.fits'))
                 
                 # collapse (separate OBJECT from the others)
                 if (typ == 'OBJECT,CENTER') and collapse_center:
@@ -1141,7 +1141,10 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                             print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             if img.ndim == 3:
                                 img = np.mean(img, axis=0)
-                        elif collapse_type == 'coadd':
+                        elif collapse_type == 'coadd' and (coadd_value > 1):
+                            if not isinstance(coadd_value, int):
+                                raise TypeError('coadd_value must be an integer >1')
+                            
                             if img.ndim == 2:
                                 print('   ==> no collapse: data is not a cube')
                             elif img.ndim == 3:
@@ -1152,9 +1155,11 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                             
                                 print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
 
-                                fidx = 0
-                                for frame in img:
-                                    
+                                # coadd frames
+                                nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
+                                for f in range(NDIT_new):
+                                    nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
+                                img = nimg
                                     
                         else:
                             raise ValueError('Unknown collapse type {0}'.format(collapse_type))
