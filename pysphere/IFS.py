@@ -1074,11 +1074,25 @@ def sph_ifs_correct_spectral_xtalk(img):
 
     return img_corr
 
+
+def collapse_frames_info(frames_info, collapse_type, coadd_value=2):
+    '''
+    Collapse frame info to match the collapse operated on the data
+
+    Parameters
+    ----------
+    frames_info : dataframe
+        The data frame with all the information on science frames
+    
+    
+    '''
+
+
     
 def sph_ifs_preprocess(root_path, files_info, calibs_info,
                        subtract_background=True, fix_badpix=True, correct_xtalk=True,
                        collapse_science=False, collapse_type='mean', coadd_value=2,
-                       collapse_psf=False, collapse_center=False):
+                       collapse_psf=True, collapse_center=True):
     '''Pre-processes the science frames.
 
     This function can perform multiple steps:
@@ -1107,6 +1121,33 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
     calibs_info : dataframe
         The data frame with all the information on calibration files
 
+    subtract_background : bool
+        Performs background subtraction. Default is True
+
+    fix_badpix : bool
+        Performs correction of bad pixels. Default is True
+
+    correct_xtalk : bool
+        Performs spectral crosstalk correction. Default is True
+
+    collapse_science :  bool
+        Collapse data for OBJECT cubes. Default is False
+
+    collapse_type : str
+        Type of collapse. Possible values are mean or coadd. Default
+        is mean.
+
+    coadd_value : int
+        Number of consecutive frames to be coadded when collapse_type
+        is coadd. Default is 2
+
+    collapse_psf :  bool
+        Collapse data for OBJECT,FLUX cubes. Default is True. Note
+        that the collapse type is mean and cannot be changed.
+    
+    collapse_center :  bool
+        Collapse data for OBJECT,CENTER cubes. Default is True. Note
+        that the collapse type is mean and cannot be changed.    
     '''
 
     print('Pre-processing science files')
@@ -1216,12 +1257,13 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
 
                 # bad pixels correction
                 if fix_badpix:
+                    print('   ==> correct bad pixels')
                     for f in range(len(img)):
                         frame = img[f]
-                        # frame = imutils.fix_badpix(frame, bpm, box=5)
-                        # frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                        # frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
-                        # img[f] = frame
+                        frame = imutils.fix_badpix(frame, bpm, box=5)
+                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
+                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
+                        img[f] = frame
 
                 # spectral crosstalk correction
                 if correct_xtalk:
@@ -1231,12 +1273,10 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                         frame = sph_ifs_correct_spectral_xtalk(frame)
                         img[f] = frame
 
-                # save in preproc path
-                img = img.squeeze()
-                fits.writeto(os.path.join(preproc_path, fname+'_preproc.fits'), img, hdr, overwrite=True, output_verify='silentfix')
-                
-                print()
-                        
+                # save DITs individually
+                for f in range(len(img)):
+                    fits.writeto(os.path.join(preproc_path, fname+'_frame{0:03d}_preproc.fits'.format(f)), img, hdr, overwrite=True, output_verify='silentfix')
+                                        
                 print()
                 
         print()
@@ -1271,6 +1311,6 @@ calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
 sph_ifs_preprocess(root_path, files_info, calibs_info,
-                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                   subtract_background=True, fix_badpix=False, correct_xtalk=False,
                    collapse_science=True, collapse_type='coadd', coadd_value=2,
                    collapse_psf=True, collapse_center=True)
