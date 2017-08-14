@@ -3,11 +3,13 @@ import glob
 import pandas as pd
 import subprocess
 import numpy as np
+import astropy.coordinates as coord
+import astropy.units as units
 
 import imutils
 
 from astropy.io import fits
-
+from astropy.time import Time
 
 # keywords to be saved
 keywords = [
@@ -19,8 +21,8 @@ keywords = [
     'HIERARCH ESO DPR CATG', 'HIERARCH ESO DPR TYPE', 'HIERARCH ESO DPR TECH',
         
     # coordinates
-    'HIERARCH ESO TEL GEOLAT', 'HIERARCH ESO TEL GEOLON',
-    'HIERARCH ESO INS4 DROT1 RA', 'HIERARCH ESO INS4 DROT1 DEC',
+    'HIERARCH ESO TEL GEOLAT', 'HIERARCH ESO TEL GEOLON', 'HIERARCH ESO TEL GEOELEV',
+    'HIERARCH ESO INS4 DROT2 RA', 'HIERARCH ESO INS4 DROT2 DEC',
     'HIERARCH ESO TEL ALT', 'HIERARCH ESO TEL AZ',    
 
     # SAXO
@@ -87,7 +89,7 @@ def sort_files(root_path):
     print(' * found {0} FITS files in {1}'.format(len(files), root_path))
 
     # files table
-    files_info = pd.DataFrame(index=files, columns=keywords_short, dtype='float')
+    files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
     raw_path = os.path.join(root_path, 'raw/')
     for f in files:
@@ -108,6 +110,157 @@ def sort_files(root_path):
     return files_info
 
 
+def parallatic_angle(ha, dec, geolat):
+    '''
+    Parallactic angle of a source in degrees
+
+    Parameters
+    ----------
+    ha : array_like
+        Hour angle, in hours
+
+    dec : float
+        Declination, in degrees
+
+    geolat : float
+        Observatory declination, in degrees
+
+    Returns
+    -------
+    pa : array_like
+        Parallactic angle values
+    '''
+    pa = -np.arctan2(-np.sin(ha),
+                     np.cos(dec) * np.tan(geolat) - np.sin(dec) * np.cos(ha))
+
+    if (dec >= geolat):
+        pa[ha < 0] += 360*units.degree
+    
+    return np.degrees(pa)
+
+
+def sort_frames(root_path, files_info):
+    '''
+    Extract the frames information from the science files
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+    
+    files_info : dataframe
+        The data frame with all the information on raw files
+
+    Returns
+    -------
+    calibs : dataframe
+        A data frame with the information on all frames
+    '''
+
+    print('Extracting frames information')
+    
+    sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
+
+    # build indices
+    files = []
+    img   = []
+    for file, finfo in sci_files.iterrows():
+        NDIT = int(finfo['DET NDIT'])
+
+        files.extend(np.repeat(file, NDIT))
+        img.extend(list(np.arange(NDIT)))
+
+    # create new dataframe
+    frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+    
+    # go through each frames
+    for file, finfo in sci_files.iterrows():
+        NDIT = int(finfo['DET NDIT'])
+        print(' * {0}: {1:3d} DITs'.format(file, NDIT))
+
+        for d in range(NDIT):
+            frames_info.loc[(file, d)] = files_info.loc[file]
+
+    # calculate time stamps
+    time_start = np.array(frames_info['DATE-OBS'].values+'+0000', dtype='datetime64[ms]')
+    time_end   = np.array(frames_info['DET FRAM UTC'].values+'+0000', dtype='datetime64[ms]')
+    time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
+    DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+
+    idx = frames_info.index.get_level_values(1).values
+    ts_start = time_start + time_delta * idx
+    ts       = time_start + time_delta * idx + DIT/2
+    ts_end   = time_start + time_delta * idx + DIT
+
+    frames_info['TIME START'] = ts_start
+    frames_info['TIME']       = ts
+    frames_info['TIME END']   = ts_end
+
+    # RA/DEC
+    ra_drot = frames_info['INS4 DROT2 RA'].values.astype(np.float)
+    ra_drot_h = np.floor(ra_drot/1e4)
+    ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
+    ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
+    ra = coord.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
+    frames_info['RA'] = ra
+
+    dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float)
+    sign = np.sign(dec_drot)
+    udec_drot  = np.abs(dec_drot)
+    dec_drot_d = np.floor(udec_drot/1e4)
+    dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
+    dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
+    dec_drot_d *= sign
+    dec = coord.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
+    frames_info['DEC'] = dec
+    
+    # calculate parallactic angles
+    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
+    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
+    geoelev = frames_info['TEL GEOELEV'].values[0]
+
+    utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    lst = utc.sidereal_time('apparent')
+    ha  = lst - ra
+    pa  = parallatic_angle(ha, dec[0], geolat)    
+    frames_info['PARANG START'] = pa
+
+    utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    lst = utc.sidereal_time('apparent')
+    ha  = lst - ra
+    pa  = parallatic_angle(ha, dec[0], geolat)    
+    frames_info['PARANG'] = pa
+
+    utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    lst = utc.sidereal_time('apparent')
+    ha  = lst - ra
+    pa  = parallatic_angle(ha, dec[0], geolat)    
+    frames_info['PARANG END'] = pa
+
+    # pupil offset
+    # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
+    #   PUPOFFSET = 135.99±0.11
+    #   IFSOFFSET = 100.48±0.0.10
+    drot_mode = frames_info['INS4 DROT2 MODE'].unique()
+    if len(drot_mode) != 1:
+        raise ValueError('Derotator mode has several values in the sequence')
+    if drot_mode == 'ELEV':
+        pupoff = 135.99 - 100.48
+    elif drot_mode == 'SKY':
+        pupoff = -100.48
+    else:
+        raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
+    frames_info['PUPIL OFFSET'] = pa
+
+    # final derotation value
+    frames_info['DEROT ANGLES'] = pa + pupoff * units.degree
+    
+    # save
+    frames_info.to_csv(os.path.join(root_path, 'frames.csv'))
+    
+    return frames_info
+
+
 def files_association(root_path, files_info):
     '''
     Performs the calibration files association and a sanity check
@@ -119,9 +272,14 @@ def files_association(root_path, files_info):
     
     files_info : dataframe
         The data frame with all the information on raw files
+
+    Returns
+    -------
+    calibs : dataframe
+        A data frame with the information on all calibrations
     '''
 
-    print('Performing file associtation for calibrations')
+    print('Performing file association for calibrations')
     
     # IFS obs mode
     modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS']
@@ -866,22 +1024,6 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     calibs_info.to_csv(os.path.join(root_path, 'calibs.csv'))
 
 
-def extract_frame_information(root_path, file):
-    '''
-    Extract relevant frames information from a raw file
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on raw science files
-    
-    '''
-    pass
-
-
 def sph_ifs_correct_xtalk(img):
     '''
     Corrects a IFS frame from the spectral crosstalk
@@ -978,21 +1120,33 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 if len(dfiles) != 1:
                     raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
 
-                
+
+def clean(root_path):
+    '''
+    Clean everything exact raw data
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+    '''
+    pass
+    
     
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-# files_info = sort_files(root_path)
+files_info = sort_files(root_path)
 
-files_info = pd.read_csv(root_path+'files.csv', index_col=0)
-# calibs_info = files_association(root_path, files_info)
+# files_info = pd.read_csv(root_path+'files.csv', index_col=0)
+frames_info = sort_frames(root_path, files_info)
+calibs_info = files_association(root_path, files_info)
 
-calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
-# sph_ifs_cal_dark(root_path, calibs_info)
-# sph_ifs_cal_detector_flat(root_path, calibs_info)
-# sph_ifs_cal_specpos(root_path, calibs_info)
-# sph_ifs_cal_wave(root_path, calibs_info, silent=False)
-# sph_ifs_cal_ifu_flat(root_path, calibs_info)
+# calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
+sph_ifs_cal_dark(root_path, calibs_info)
+sph_ifs_cal_detector_flat(root_path, calibs_info)
+sph_ifs_cal_specpos(root_path, calibs_info)
+sph_ifs_cal_wave(root_path, calibs_info)
+sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-sph_ifs_preprocess(root_path, files_info, calibs_info)
+# sph_ifs_preprocess(root_path, files_info, calibs_info)
