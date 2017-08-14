@@ -5,6 +5,7 @@ import subprocess
 import numpy as np
 import astropy.coordinates as coord
 import astropy.units as units
+import scipy.ndimage as ndimage
 
 import imutils
 
@@ -1019,16 +1020,59 @@ def sph_ifs_cal_ifu_flat(root_path, calibs_info, silent=True):
     calibs_info.to_csv(os.path.join(root_path, 'calibs.csv'))
 
 
-def sph_ifs_correct_xtalk(img):
+def sph_ifs_correct_spectral_xtalk(img):
     '''
     Corrects a IFS frame from the spectral crosstalk
 
+    This routines corrects for the SPHERE/IFS spectral crosstalk at
+    small scales and (optionally) at large scales. This correction is
+    necessary to correct the signal that is "leaking" between
+    lenslets. See Antichi et al. (2009ApJ...695.1042A) for a
+    theoretical description of the IFS crosstalk. Some informations
+    regarding its correction are provided in Vigan et al. (2015), but
+    this procedure still lacks a rigorous description and performance
+    analysis.
+
+    Since the correction of the crosstalk involves a convolution by a
+    kernel of size 41x41, the values at the edges of the frame depend
+    on how you choose to apply the convolution. Current implementation
+    is EDGE_TRUNCATE. In other parts of the image (i.e. far from the
+    edges), the result is identical to original routine by Dino
+    Mesa. Note that in the original routine, the convolution that was
+    coded did not treat the edges in a clean way defined
+    mathematically. The scipy.ndimage.convolve() function offers
+    different possibilities for the edges that are all documented.
+    
     Parameters
     ----------
     img : array_like
         Input IFS science frame
+
+    Returns
+    -------
+    img_corr : array_like
+        Science frame corrected from the spectral crosstalk
+
     '''
-    return img
+    
+    # definition of the dimension of the matrix
+    sepmax = 20
+    dim    = sepmax*2+1
+    bfac   = 0.727986/1.8
+
+    # defines a matrix to be used around each pixel
+    # (the value of the matrix is lower for greater
+    # distances form the center.
+    x, y = np.meshgrid(np.arange(dim)-sepmax, np.arange(dim)-sepmax)
+    rdist  = np.sqrt(x**2 + y**2)
+    kernel = 1 / (1+rdist**3 / bfac**3)
+    kernel[(np.abs(x) <= 1) & (np.abs(y) <= 1)] = 0
+
+    # convolution and subtraction
+    conv = ndimage.convolve(img, kernel, mode='reflect')
+    img_corr = img - conv
+
+    return img_corr
 
     
 def sph_ifs_preprocess(root_path, files_info, calibs_info,
@@ -1123,53 +1167,77 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 
                 # read data
                 print('   ==> read data')
-                img = fits.getdata(os.path.join(raw_path, fname+'.fits'))
+                img, hdr = fits.getdata(os.path.join(raw_path, fname+'.fits'), header=True)
+
+                # add extra dimension to single images to make cubes
+                if img.ndim == 2:
+                    img = img[np.newaxis, ...]
                 
-                # collapse (separate OBJECT from the others)
+                # collapse
                 if (typ == 'OBJECT,CENTER') and collapse_center:
                     print('   ==> collapse: mean')
-                    if img.ndim == 3:
-                        img = np.mean(img, axis=0)
+                    img = np.mean(img, axis=0, keepdims=True)
                 elif (typ == 'OBJECT,FLUX') and collapse_psf:
                     print('   ==> collapse: mean')
-
-                    if img.ndim == 3:
-                        img = np.mean(img, axis=0)
-                elif (typ == 'OBJECT'):                    
+                    img = np.mean(img, axis=0, keepdims=True)
+                elif (typ == 'OBJECT'):
                     if collapse_science:
                         if collapse_type == 'mean':
                             print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
-                            if img.ndim == 3:
-                                img = np.mean(img, axis=0)
-                        elif collapse_type == 'coadd' and (coadd_value > 1):
-                            if not isinstance(coadd_value, int):
+                            img = np.mean(img, axis=0, keepdims=True)
+                        elif collapse_type == 'coadd':
+                            if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                 raise TypeError('coadd_value must be an integer >1')
                             
-                            if img.ndim == 2:
-                                print('   ==> no collapse: data is not a cube')
-                            elif img.ndim == 3:
-                                coadd_value = int(coadd_value)
-                                NDIT = len(img)
-                                NDIT_new = NDIT // coadd_value
-                                dropped = NDIT % coadd_value
-                            
-                                print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+                            coadd_value = int(coadd_value)
+                            NDIT = len(img)
+                            NDIT_new = NDIT // coadd_value
+                            dropped = NDIT % coadd_value
 
-                                # coadd frames
-                                nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
-                                for f in range(NDIT_new):
-                                    nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
-                                img = nimg
+                            if coadd_value > NDIT:
+                                raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
+                            
+                            print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+
+                            # coadd frames
+                            nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
+                            for f in range(NDIT_new):
+                                nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
+                            img = nimg
                                     
                         else:
                             raise ValueError('Unknown collapse type {0}'.format(collapse_type))
                         
-
-                # subtract background
+                # background subtraction
                 if subtract_background:
                     print('   ==> subtract background')
-                    img -= bkg
+                    for f in range(len(img)):
+                        img[f] -= bkg
 
+                # bad pixels correction
+                if fix_badpix:
+                    for f in range(len(img)):
+                        frame = img[f]
+                        # frame = imutils.fix_badpix(frame, bpm, box=5)
+                        # frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
+                        # frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
+                        # img[f] = frame
+
+                # spectral crosstalk correction
+                if correct_xtalk:
+                    print('   ==> correct spectral crosstalk')
+                    for f in range(len(img)):
+                        frame = img[f]
+                        frame = sph_ifs_correct_spectral_xtalk(frame)
+                        img[f] = frame
+
+                # save in preproc path
+                img = img.squeeze()
+                fits.writeto(os.path.join(preproc_path, fname+'_preproc.fits'), img, hdr, overwrite=True, output_verify='silentfix')
+                
+                print()
+                        
+                print()
                 
         print()
 
