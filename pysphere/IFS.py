@@ -145,14 +145,43 @@ def parallatic_angle(ha, dec, geolat):
     return np.degrees(pa)
 
 
-def compute_angles(frames_info):
+def compute_times(frames_info):
     '''
-    Compute the various angles associated to frames (RA, DEC, PARANG)
+    Compute the various timestamps associated to frames
 
     Parameters
     ----------
     frames_info : dataframe
-        The data frame with all the information on science frames    
+        The data frame with all the information on science frames
+    '''
+
+    # get necessary values
+    time_start = frames_info['DATE-OBS'].values
+    time_end   = frames_info['DET FRAM UTC'].values
+    time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
+    DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+
+    # calculate time stamps
+    idx = frames_info.index.get_level_values(1).values
+    ts_start = time_start + time_delta * idx
+    ts       = time_start + time_delta * idx + DIT/2
+    ts_end   = time_start + time_delta * idx + DIT
+
+    # update frames_info
+    frames_info['TIME START'] = ts_start
+    frames_info['TIME']       = ts
+    frames_info['TIME END']   = ts_end
+
+
+def compute_angles(frames_info):
+    '''
+    Compute the various angles associated to frames: RA, DEC, parang,
+    pupil offset, final derotation angle
+
+    Parameters
+    ----------
+    frames_info : dataframe
+        The data frame with all the information on science frames
     '''
 
     # RA/DEC
@@ -196,6 +225,25 @@ def compute_angles(frames_info):
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG END'] = pa
 
+    # pupil offset
+    # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
+    #   PUPOFFSET = 135.99±0.11
+    #   IFSOFFSET = 100.48±0.0.10
+    drot_mode = frames_info['INS4 DROT2 MODE'].unique()
+    if len(drot_mode) != 1:
+        raise ValueError('Derotator mode has several values in the sequence')
+    if drot_mode == 'ELEV':
+        pupoff = 135.99 - 100.48
+    elif drot_mode == 'SKY':
+        pupoff = -100.48
+    else:
+        raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
+
+    frames_info['PUPIL OFFSET'] = pupoff
+
+    # final derotation value
+    frames_info['DEROT ANGLES'] = frames_info['PARANG'] + pupoff
+    
 
 def sort_frames(root_path, files_info):
     '''
@@ -239,44 +287,13 @@ def sort_frames(root_path, files_info):
     
     # expand files_info into frames_info
     frames_info = frames_info.align(files_info, level=0)[1]    
+
+    # compute timestamps
+    compute_times(frames_info)
     
-    # calculate time stamps
-    time_start = frames_info['DATE-OBS'].values
-    time_end   = frames_info['DET FRAM UTC'].values
-    time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
-    DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
-
-    idx = frames_info.index.get_level_values(1).values
-    ts_start = time_start + time_delta * idx
-    ts       = time_start + time_delta * idx + DIT/2
-    ts_end   = time_start + time_delta * idx + DIT
-
-    frames_info['TIME START'] = ts_start
-    frames_info['TIME']       = ts
-    frames_info['TIME END']   = ts_end    
-
     # compute angles (ra, dec, parang)
     compute_angles(frames_info)
-    
-    # pupil offset
-    # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
-    #   PUPOFFSET = 135.99±0.11
-    #   IFSOFFSET = 100.48±0.0.10
-    drot_mode = frames_info['INS4 DROT2 MODE'].unique()
-    if len(drot_mode) != 1:
-        raise ValueError('Derotator mode has several values in the sequence')
-    if drot_mode == 'ELEV':
-        pupoff = 135.99 - 100.48
-    elif drot_mode == 'SKY':
-        pupoff = -100.48
-    else:
-        raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
-
-    frames_info['PUPIL OFFSET'] = pupoff
-
-    # final derotation value
-    frames_info['DEROT ANGLES'] = frames_info['PARANG'] + pupoff
-    
+        
     # save
     frames_info.to_csv(os.path.join(root_path, 'frames.csv'))
     
@@ -1132,6 +1149,7 @@ def collapse_frames_info(frames_info, filename, collapse_type, coadd_value=2):
     cfiles = frames_info.loc[filename]
     idx = cfiles.index.values
 
+    nframes_info = None
     if collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[filename], [0]], names=['FILE', 'IMG'])
         nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
@@ -1140,23 +1158,32 @@ def collapse_frames_info(frames_info, filename, collapse_type, coadd_value=2):
         min = idx.min()
         max = idx.max()
         
-        # update values
+        # update time values
         nframes_info.loc[(filename, 0), 'DET NDIT'] = 1
         nframes_info.loc[(filename, 0), 'TIME START'] = cfiles.loc[min, 'TIME START']
         nframes_info.loc[(filename, 0), 'TIME END'] = cfiles.loc[max, 'TIME END']
         nframes_info.loc[(filename, 0), 'TIME'] = cfiles.loc[min, 'TIME START'] + \
                                                   (cfiles.loc[max, 'TIME END'] - cfiles.loc[min, 'TIME START']) / 2
-
-        # recompute angles
-        compute_angles(nframes_info)
-
     elif collapse_type == 'coadd':
-        pass
+        coadd_value = int(coadd_value)
+        NDIT = len(idx)
+        NDIT_new = NDIT // coadd_value
+
+        index = pd.MultiIndex.from_arrays([np.full(NDIT_new, filename), np.arange(NDIT_new)], names=['FILE', 'IMG'])
+        nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
+
+        # for f in range(NDIT_new):
+        #     nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
+        
+        
+        print(nframes_info)
     else:
         raise ValueError('Unknown collapse type {0}'.format(collapse_type))        
+
+    # recompute angles
+    compute_angles(nframes_info)
     
-    stop
-    return None
+    return nframes_info
     
 
     
@@ -1289,16 +1316,16 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 if (typ == 'OBJECT,CENTER') and collapse_center:
                     print('   ==> collapse: mean')
                     img = np.mean(img, axis=0, keepdims=True)
-
-                    info = collapse_frames_info(frames_info, fname, 'mean')
                 elif (typ == 'OBJECT,FLUX') and collapse_psf:
                     print('   ==> collapse: mean')
                     img = np.mean(img, axis=0, keepdims=True)
                 elif (typ == 'OBJECT'):
-                    if collapse_science:
+                    if collapse_science:                        
                         if collapse_type == 'mean':
                             print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
+
+                            # info = collapse_frames_info(frames_info, fname, 'mean')
                         elif collapse_type == 'coadd':
                             if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                 raise TypeError('coadd_value must be an integer >1')
@@ -1318,7 +1345,8 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                             for f in range(NDIT_new):
                                 nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
                             img = nimg
-                                    
+
+                            info = collapse_frames_info(frames_info, fname, 'coadd', coadd_value=coadd_value)
                         else:
                             raise ValueError('Unknown collapse type {0}'.format(collapse_type))
                         
@@ -1370,7 +1398,7 @@ def clean(root_path):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-files_info = sort_files(root_path)
+# files_info = sort_files(root_path)
 
 files_info = pd.read_csv(root_path+'files.csv', index_col=0, parse_dates=True)
 # frames_info = sort_frames(root_path, files_info)
@@ -1383,7 +1411,7 @@ calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_wave(root_path, calibs_info)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-# sph_ifs_preprocess(root_path, files_info, calibs_info,
-#                    subtract_background=True, fix_badpix=False, correct_xtalk=False,
-#                    collapse_science=True, collapse_type='coadd', coadd_value=2,
-#                    collapse_psf=True, collapse_center=True)
+sph_ifs_preprocess(root_path, files_info, calibs_info,
+                   subtract_background=True, fix_badpix=False, correct_xtalk=False,
+                   collapse_science=True, collapse_type='coadd', coadd_value=2,
+                   collapse_psf=True, collapse_center=True)
