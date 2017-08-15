@@ -1141,48 +1141,54 @@ def collapse_frames_info(frames_info, filename, collapse_type, coadd_value=2):
     
     print('   ==> collapse frames information')
 
-    # ['INS4 DROT2 BEGIN','INS4 DROT2 END', 'DET NDIT',
-    #  'TIME START', 'TIME', 'TIME END', 'PARANG START', 'PARANG', 'PARANG END',
-    #  'DEROT ANGLES']
-
-    
     cfiles = frames_info.loc[filename]
-    idx = cfiles.index.values
 
     nframes_info = None
     if collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[filename], [0]], names=['FILE', 'IMG'])
         nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
-        
-        nframes_info.loc[(filename, 0)] = cfiles.loc[0]
-        min = idx.min()
-        max = idx.max()
+
+        # get min/max indices
+        imin = cfiles.index.min()
+        imax = cfiles.index.max()
+
+        # copy data
+        nframes_info.loc[(filename, 0)] = cfiles.loc[imin]
         
         # update time values
         nframes_info.loc[(filename, 0), 'DET NDIT'] = 1
-        nframes_info.loc[(filename, 0), 'TIME START'] = cfiles.loc[min, 'TIME START']
-        nframes_info.loc[(filename, 0), 'TIME END'] = cfiles.loc[max, 'TIME END']
-        nframes_info.loc[(filename, 0), 'TIME'] = cfiles.loc[min, 'TIME START'] + \
-                                                  (cfiles.loc[max, 'TIME END'] - cfiles.loc[min, 'TIME START']) / 2
+        nframes_info.loc[(filename, 0), 'TIME START'] = cfiles.loc[imin, 'TIME START']
+        nframes_info.loc[(filename, 0), 'TIME END'] = cfiles.loc[imax, 'TIME END']
+        nframes_info.loc[(filename, 0), 'TIME'] = cfiles.loc[imin, 'TIME START'] + \
+                                                  (cfiles.loc[imax, 'TIME END'] - cfiles.loc[imin, 'TIME START']) / 2
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
-        NDIT = len(idx)
+        NDIT = len(cfiles)
         NDIT_new = NDIT // coadd_value
 
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, filename), np.arange(NDIT_new)], names=['FILE', 'IMG'])
         nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
 
-        # for f in range(NDIT_new):
-        #     nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
-        
-        
-        print(nframes_info)
+        for f in range(NDIT_new):
+            # get min/max indices
+            imin = f*coadd_value
+            imax = (f+1)*coadd_value-1
+
+            # copy data
+            nframes_info.loc[(filename, f)] = cfiles.loc[imin]
+
+            # update time values
+            nframes_info.loc[(filename, f), 'DET NDIT'] = 1
+            nframes_info.loc[(filename, f), 'TIME START'] = cfiles.loc[imin, 'TIME START']
+            nframes_info.loc[(filename, f), 'TIME END'] = cfiles.loc[imax, 'TIME END']
+            nframes_info.loc[(filename, f), 'TIME'] = cfiles.loc[imin, 'TIME START'] + \
+                                                      (cfiles.loc[imax, 'TIME END'] - cfiles.loc[imin, 'TIME START']) / 2
     else:
         raise ValueError('Unknown collapse type {0}'.format(collapse_type))        
 
     # recompute angles
     compute_angles(nframes_info)
-    
+
     return nframes_info
     
 
