@@ -63,6 +63,67 @@ for idx in range(len(keywords_short)):
         keywords_short[idx] = key[13:]
         
 
+def read_info(root_path):
+    '''
+    Read the files, calibs and frames information
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    Returns
+    -------
+    files_info : dataframe
+        The data frame with all the information on raw science files
+
+    calibs_info : dataframe
+        The data frame with all the information on calibration files
+
+    frames_info : dataframe
+        The data frame with all the information on science frames
+
+    frames_info_preproc : dataframe
+        The data frame with all the information on science frames after pre-processing
+    '''
+
+    # files info
+    fname = os.path.join(root_path, 'files.csv')
+    if os.path.exists(fname):
+        files_info = pd.read_csv(fname, index_col=0)
+    else:
+        files_info = None
+
+    fname = os.path.join(root_path, 'files.csv')
+    if os.path.exists(fname):
+        calibs_info = pd.read_csv(fname, index_col=0)
+    else:
+        calibs_info = None
+
+    fname = os.path.join(root_path, 'frames.csv')
+    if os.path.exists(fname):
+        frames_info = pd.read_csv(fname, index_col=(0, 1))
+    else:
+        frames_info = None
+
+    fname = os.path.join(root_path, 'frames_proproc.csv')
+    if os.path.exists(fname):
+        frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
+    else:
+        frames_info_preproc = None
+ 
+    # convert times
+    for df in [files_info, frames_info, frames_info_preproc]:
+        if df is None:
+            continue
+        
+        df['DATE-OBS'] = pd.to_datetime(df['DATE-OBS'], utc=True)
+        df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
+        df['DET FRAM UTC'] = pd.to_datetime(df['DET FRAM UTC'], utc=True)
+       
+    return files_info, calibs_info, frames_info, frames_info_preproc
+
+    
 def sort_files(root_path):
     '''
     Sort all raw files and save result in a data frame
@@ -1420,9 +1481,9 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
         print()
 
     # save final dataframe
-    frames_info_collapse.to_csv(os.path.join(preproc_path, 'frames_collapse.csv'))
+    frames_info_collapse.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
         
-        
+
 
 def clean(root_path):
     '''
@@ -1440,19 +1501,20 @@ def clean(root_path):
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 # files_info = sort_files(root_path)
-
-files_info = pd.read_csv(root_path+'files.csv', index_col=0, parse_dates=True)
-frames_info = sort_frames(root_path, files_info)
+# frames_info = sort_frames(root_path, files_info)
 # calibs_info = files_association(root_path, files_info)
 
-calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
-# sph_ifs_cal_dark(root_path, calibs_info)
-# sph_ifs_cal_detector_flat(root_path, calibs_info)
-# sph_ifs_cal_specpos(root_path, calibs_info)
-# sph_ifs_cal_wave(root_path, calibs_info)
-# sph_ifs_cal_ifu_flat(root_path, calibs_info)
+files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
+sph_ifs_cal_dark(root_path, calibs_info)
+sph_ifs_cal_detector_flat(root_path, calibs_info)
+sph_ifs_cal_specpos(root_path, calibs_info)
+sph_ifs_cal_wave(root_path, calibs_info)
+sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info, 
-                   subtract_background=True, fix_badpix=False, correct_xtalk=False,
-                   collapse_science=True, collapse_type='coadd', coadd_value=2,
-                   collapse_psf=True, collapse_center=False)
+# files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
+# sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
+#                    subtract_background=True, fix_badpix=False, correct_xtalk=False,
+#                    collapse_science=True, collapse_type='coadd', coadd_value=2,
+#                    collapse_psf=True, collapse_center=False)
+
+# files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
