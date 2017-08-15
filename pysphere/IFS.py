@@ -561,15 +561,19 @@ def sph_ifs_cal_dark(root_path, files_info, silent=True):
             file.close()
 
             # products
-            dark_file = 'dark_DIT={0:.2f}'.format(DIT)
-            bpm_file  = 'dark_bpm_DIT={0:.2f}'.format(DIT)
+            if ctype == 'SKY':
+                loc = 'sky'
+            else:
+                loc = 'internal'
+            dark_file = 'dark_{0}_DIT={1:.2f}'.format(loc, DIT)
+            bpm_file  = 'dark_{0}_bpm_DIT={1:.2f}'.format(loc, DIT)
 
             # execute esorex    
             args = ['esorex',
                     '--msg-level=debug',
                     'sph_ifs_master_dark',
                     '--ifs.master_dark.coll_alg=2',
-                    '--ifs.master_dark.sigma_clip=5.0',
+                    '--ifs.master_dark.sigma_clip=3.0',
                     '--ifs.master_dark.smoothing=5',
                     '--ifs.master_dark.min_acceptable=0.0',
                     '--ifs.master_dark.max_acceptable=2000.0',
@@ -634,7 +638,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     return bpm
 
 
-def compute_detector_flat(raw_flat_files, bpm_files=[]):
+def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     '''
     Compute a master detector flat and associated bad pixel map
 
@@ -646,6 +650,11 @@ def compute_detector_flat(raw_flat_files, bpm_files=[]):
     bpm_files : list
         List of bad pixel map files
 
+    mask_vignetting : bool
+        Apply a mask on the flats to compensate the optical
+        vignetting. The areas of the detector that are vignetted are
+        replaced by a value of 1 in the flats. Default is True
+    
     Returns
     -------
     flat : array
@@ -653,6 +662,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[]):
 
     bpm : array
         Bad pixel map from flat
+
     '''
 
     # read bad pixel maps
@@ -696,6 +706,13 @@ def compute_detector_flat(raw_flat_files, bpm_files=[]):
     
     bpm = (flat <= 0.9) | (flat >= 1.1)
     bpm = bpm.astype(np.uint8)
+
+    # apply IFU mask to avoid "edge effects" in the final images,
+    # where the the lenslets are vignetted
+    if mask_vignetting:
+        package_directory = os.path.dirname(os.path.abspath(__file__))
+        ifu_mask = fits.getdata(os.path.join(package_directory, 'data', 'ifu_mask.fits'))
+        flat[ifu_mask == 0] = 1
     
     return flat, bpm
 
@@ -767,7 +784,7 @@ def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
             raise ValueError('There should be exactly 2 raw flat files. Found {0}.'.format(len(files)))
 
         # create the flat and bpm
-        flat, bpm = compute_detector_flat(files, bpm_files=bpm_files)
+        flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True)
     
         # products
         if wave == 0:
@@ -775,7 +792,7 @@ def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
         else:
             wav = str(int(wave))
         flat_file = 'master_detector_flat_{0}_l{1}'.format(wav, lamp)
-        bpm_file  = 'dff_badpixels_{0}_l{1}'.format(wav, lamp)        
+        bpm_file  = 'dff_badpixelname_{0}_l{1}'.format(wav, lamp)        
 
         hdu = fits.open(os.path.join(raw_path, files[0]))
         fits.writeto(os.path.join(calib_path, flat_file+'.fits'), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
@@ -1451,9 +1468,9 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                     print('   ==> correct bad pixels')
                     for f in range(len(img)):
                         frame = img[f]
-                        frame = imutils.fix_badpix(frame, bpm, box=5)
+                        # frame = imutils.fix_badpix(frame, bpm, box=5)
+                        frame = imutils.sigma_filter(frame, box=5, nsigma=5)
                         frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
                         img[f] = frame
 
                 # spectral crosstalk correction
@@ -1540,11 +1557,6 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     if len(wave_file) != 1:
         raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
     
-    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                            (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(dark_file) == 0:
-        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-
     flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                   (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
     if len(flat_white_file) != 1:
@@ -1578,7 +1590,6 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
         file.write('{0}     {1}\n'.format(f, 'IFS_SCIENCE_DR_RAW'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, ifu_flat_file.index[0], 'IFS_IFU_FLAT_FIELD'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
@@ -1636,17 +1647,17 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # check_files_association(root_path, files_info)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_cal_dark(root_path, files_info)
-sph_ifs_cal_detector_flat(root_path, files_info)
-sph_ifs_cal_specpos(root_path, files_info)
-sph_ifs_cal_wave(root_path, files_info)
-sph_ifs_cal_ifu_flat(root_path, files_info)
+# sph_ifs_cal_dark(root_path, files_info)
+# sph_ifs_cal_detector_flat(root_path, files_info)
+# sph_ifs_cal_specpos(root_path, files_info)
+# sph_ifs_cal_wave(root_path, files_info)
+# sph_ifs_cal_ifu_flat(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_preprocess(root_path, files_info, frames_info,
-#                    subtract_background=True, fix_badpix=True, correct_xtalk=True,
-#                    collapse_science=True, collapse_type='mean', coadd_value=2,
-#                    collapse_psf=True, collapse_center=True)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_preprocess(root_path, files_info, frames_info,
+                   subtract_background=True, fix_badpix=True, correct_xtalk=False,
+                   collapse_science=True, collapse_type='mean', coadd_value=2,
+                   collapse_psf=True, collapse_center=True)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_science_cubes(root_path, files_info)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_science_cubes(root_path, files_info)
