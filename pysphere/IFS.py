@@ -1376,10 +1376,10 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                 
             # process files
             for fname, finfo in sci_files.iterrows():
-                print(' * {0}'.format(fname))
-
                 # frames_info extract
                 finfo = frames_info.loc[(fname, slice(None)), :]
+
+                print(' * {0}, NDIT={1}'.format(fname, len(finfo)))
                 
                 # read data
                 print('   ==> read data')
@@ -1466,16 +1466,154 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
 
                 # save DITs individually
                 for f in range(len(img)):
-                    fits.writeto(os.path.join(preproc_path, fname+'_frame{0:03d}_preproc.fits'.format(f)), img, hdr, overwrite=True, output_verify='silentfix')
+                    frame = img[f].squeeze()
+                    hdr['HIERARCH ESO DET NDIT'] = 1
+                    fits.writeto(os.path.join(preproc_path, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
+                                 overwrite=True, output_verify='silentfix')
                                         
                 print()
                 
         print()
 
-    # save final dataframe
-    frames_info_preproc.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
-        
+    # sort and save final dataframe
+    frames_info_preproc.sort_values(by='TIME', inplace=True)
+    frames_info_preproc.to_csv(os.path.join(root_path, 'frames_preproc.csv'))
 
+
+def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
+    '''
+    Create the science cubes from the preprocessed frames
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    files_info : dataframe
+        The data frame with all the information on files
+
+    postprocess : bool Performs a post-processing of the cubes to
+        remove the unnecessary FITS extensions
+
+    silent : bool
+        Suppress esorex output. Optional, default is True
+    '''
+
+    print('Creating the (x,y,lambda science cubes)')
+
+    # check directories
+    sof_path = os.path.join(root_path, 'sof/')
+    if not os.path.exists(sof_path):
+        os.makedirs(sof_path)
+        
+    calib_path = os.path.join(root_path, 'calib/')
+    if not os.path.exists(calib_path):
+        os.makedirs(calib_path)
+    
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
+    product_path = os.path.join(root_path, 'product/')
+    if not os.path.exists(product_path):
+        os.makedirs(product_path)
+
+    # IFS obs mode
+    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+    if mode == 'OBS_YJ':
+        mode_short = 'YJ'
+    elif mode == 'OBS_H':
+        mode_short = 'YJH'
+    else:
+        raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+    # get list of science files
+    sci_files = glob.glob(preproc_path+'*.fits')
+    print(' * found {0} pre-processed science files'.format(len(sci_files)))
+    
+    # get list of calibration files
+    ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
+    if len(ifu_flat_file) != 1:
+        raise ValueError('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
+    
+    wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
+    if len(wave_file) != 1:
+        raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
+    
+    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                            (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+    if len(dark_file) == 0:
+        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+
+    flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                  (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
+    if len(flat_white_file) != 1:
+        raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
+    
+    flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                 (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
+    if len(flat_1020_file) != 1:
+        raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
+    
+    flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                 (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
+    if len(flat_1230_file) != 1:
+        raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
+
+    flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                 (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
+    if len(flat_1300_file) != 1:
+        raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
+    
+    if mode == 'OBS_YJH':
+        flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
+        if len(flat_1550_file) != 1:
+            raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
+    
+    # create sof
+    sof = os.path.join(sof_path, 'science.sof')
+    file = open(sof, 'w')
+    for f in sci_files:
+        file.write('{0}     {1}\n'.format(f, 'IFS_SCIENCE_DR_RAW'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, ifu_flat_file.index[0], 'IFS_IFU_FLAT_FIELD'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
+    if mode == 'OBS_YJH':
+        file.write('{0}{1}     {2}\n'.format(calib_path, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
+    file.close()
+
+    # execute esorex
+    print(' * starting esorex')
+    args = ['esorex',
+            'sph_ifs_science_dr',
+            '--ifs.science_dr.use_adi=0',
+            '--ifs.science_dr.spec_deconv=FALSE',
+            sof]
+    
+    if silent:
+        proc = subprocess.run(args, cwd=product_path, stdout=subprocess.DEVNULL)
+    else:
+        proc = subprocess.run(args, cwd=product_path)
+
+    if proc.returncode != 0:
+        raise ValueError('esorex process was not successful')
+
+    # post-process
+    if postprocess:
+        print(' * post-processing files')
+        files = glob.glob(product_path+'*.fits')
+
+        for f in files:
+            # read and save only primary extension
+            data, header = fits.getdata(f, header=True)
+            fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
+    
 
 def clean(root_path):
     '''
@@ -1504,10 +1642,11 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # sph_ifs_cal_wave(root_path, files_info)
 # sph_ifs_cal_ifu_flat(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess(root_path, files_info, frames_info,
-                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                   collapse_science=False, collapse_type='coadd', coadd_value=2,
-                   collapse_psf=True, collapse_center=True)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_preprocess(root_path, files_info, frames_info,
+#                    subtract_background=True, fix_badpix=True, correct_xtalk=True,
+#                    collapse_science=True, collapse_type='mean', coadd_value=2,
+#                    collapse_psf=True, collapse_center=True)
 
-# files_info, files_info, frames_info, frames_info_preproc = read_info(root_path)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_science_cubes(root_path, files_info)
