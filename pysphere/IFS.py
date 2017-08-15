@@ -91,10 +91,15 @@ def read_info(root_path):
     fname = os.path.join(root_path, 'files.csv')
     if os.path.exists(fname):
         files_info = pd.read_csv(fname, index_col=0)
+
+        # convert times
+        files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
+        files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
+        files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
     else:
         files_info = None
 
-    fname = os.path.join(root_path, 'files.csv')
+    fname = os.path.join(root_path, 'calibs.csv')
     if os.path.exists(fname):
         calibs_info = pd.read_csv(fname, index_col=0)
     else:
@@ -103,24 +108,31 @@ def read_info(root_path):
     fname = os.path.join(root_path, 'frames.csv')
     if os.path.exists(fname):
         frames_info = pd.read_csv(fname, index_col=(0, 1))
+
+        # convert times
+        frames_info['DATE-OBS'] = pd.to_datetime(frames_info['DATE-OBS'], utc=True)
+        frames_info['DATE'] = pd.to_datetime(frames_info['DATE'], utc=True)
+        frames_info['DET FRAM UTC'] = pd.to_datetime(frames_info['DET FRAM UTC'], utc=True)
+        frames_info['TIME START'] = pd.to_datetime(frames_info['TIME START'], utc=True)
+        frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=True)
+        frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=True)
     else:
         frames_info = None
 
-    fname = os.path.join(root_path, 'frames_proproc.csv')
+    fname = os.path.join(root_path, 'frames_preproc.csv')
     if os.path.exists(fname):
         frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
+
+        # convert times
+        frames_info_preproc['DATE-OBS'] = pd.to_datetime(frames_info_preproc['DATE-OBS'], utc=True)
+        frames_info_preproc['DATE'] = pd.to_datetime(frames_info_preproc['DATE'], utc=True)
+        frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=True)
+        frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
+        frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
+        frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)
     else:
         frames_info_preproc = None
- 
-    # convert times
-    for df in [files_info, frames_info, frames_info_preproc]:
-        if df is None:
-            continue
-        
-        df['DATE-OBS'] = pd.to_datetime(df['DATE-OBS'], utc=True)
-        df['DATE'] = pd.to_datetime(df['DATE'], utc=True)
-        df['DET FRAM UTC'] = pd.to_datetime(df['DET FRAM UTC'], utc=True)
-       
+           
     return files_info, calibs_info, frames_info, frames_info_preproc
 
     
@@ -1504,17 +1516,17 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # frames_info = sort_frames(root_path, files_info)
 # calibs_info = files_association(root_path, files_info)
 
-files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
-sph_ifs_cal_dark(root_path, calibs_info)
-sph_ifs_cal_detector_flat(root_path, calibs_info)
-sph_ifs_cal_specpos(root_path, calibs_info)
-sph_ifs_cal_wave(root_path, calibs_info)
-sph_ifs_cal_ifu_flat(root_path, calibs_info)
-
 # files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
-# sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
-#                    subtract_background=True, fix_badpix=False, correct_xtalk=False,
-#                    collapse_science=True, collapse_type='coadd', coadd_value=2,
-#                    collapse_psf=True, collapse_center=False)
+# sph_ifs_cal_dark(root_path, calibs_info)
+# sph_ifs_cal_detector_flat(root_path, calibs_info)
+# sph_ifs_cal_specpos(root_path, calibs_info)
+# sph_ifs_cal_wave(root_path, calibs_info)
+# sph_ifs_cal_ifu_flat(root_path, calibs_info)
+
+files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
+sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
+                   subtract_background=True, fix_badpix=False, correct_xtalk=False,
+                   collapse_science=True, collapse_type='coadd', coadd_value=2,
+                   collapse_psf=True, collapse_center=False)
 
 # files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
