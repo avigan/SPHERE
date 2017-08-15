@@ -364,9 +364,9 @@ def sort_frames(root_path, files_info):
     return frames_info
 
 
-def files_association(root_path, files_info):
+def check_files_association(root_path, files_info):
     '''
-    Performs the calibration files association and a sanity check
+    Performs the calibration files association as a sanity check
 
     Parameters
     ----------
@@ -1633,14 +1633,14 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # files_info = sort_files(root_path)
 # frames_info = sort_frames(root_path, files_info)
 
-# files_association(root_path, files_info)
+# check_files_association(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_cal_dark(root_path, files_info)
-# sph_ifs_cal_detector_flat(root_path, files_info)
-# sph_ifs_cal_specpos(root_path, files_info)
-# sph_ifs_cal_wave(root_path, files_info)
-# sph_ifs_cal_ifu_flat(root_path, files_info)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_cal_dark(root_path, files_info)
+sph_ifs_cal_detector_flat(root_path, files_info)
+sph_ifs_cal_specpos(root_path, files_info)
+sph_ifs_cal_wave(root_path, files_info)
+sph_ifs_cal_ifu_flat(root_path, files_info)
 
 # files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_preprocess(root_path, files_info, frames_info,
@@ -1648,5 +1648,5 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 #                    collapse_science=True, collapse_type='mean', coadd_value=2,
 #                    collapse_psf=True, collapse_center=True)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_science_cubes(root_path, files_info)
