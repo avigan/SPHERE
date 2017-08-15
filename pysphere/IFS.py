@@ -1118,17 +1118,17 @@ def sph_ifs_correct_spectral_xtalk(img):
     return img_corr
 
 
-def collapse_frames_info(frames_info, filename, collapse_type, coadd_value=2):
+def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
     '''
     Collapse frame info to match the collapse operated on the data
 
     Parameters
     ----------
-    frames_info : dataframe
+    finfo : dataframe
         The data frame with all the information on science frames
 
-    filename : str
-        File for which the information must be collapsed
+    fname : str
+       The name of the current file
     
     collapse_type : str
         Type of collapse. Possible values are mean or coadd. Default
@@ -1136,64 +1136,72 @@ def collapse_frames_info(frames_info, filename, collapse_type, coadd_value=2):
 
     coadd_value : int
         Number of consecutive frames to be coadded when collapse_type
-        is coadd. Default is 2    
+        is coadd. Default is 2
+
+    Returns
+    -------
+    nfinfo : dataframe
+        Collapsed data frame
     '''
     
     print('   ==> collapse frames information')
 
-    cfiles = frames_info.loc[filename]
-
-    nframes_info = None
-    if collapse_type == 'mean':
-        index = pd.MultiIndex.from_arrays([[filename], [0]], names=['FILE', 'IMG'])
-        nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
+    nfinfo = None
+    if collapse_type == 'none':
+        nfinfo = finfo
+    elif collapse_type == 'mean':
+        index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
         # get min/max indices
-        imin = cfiles.index.min()
-        imax = cfiles.index.max()
+        imin = finfo.index.get_level_values(1).min()
+        imax = finfo.index.get_level_values(1).max()
 
         # copy data
-        nframes_info.loc[(filename, 0)] = cfiles.loc[imin]
+        nfinfo.loc[(fname, 0)] = finfo.loc[(fname, imin)]
         
         # update time values
-        nframes_info.loc[(filename, 0), 'DET NDIT'] = 1
-        nframes_info.loc[(filename, 0), 'TIME START'] = cfiles.loc[imin, 'TIME START']
-        nframes_info.loc[(filename, 0), 'TIME END'] = cfiles.loc[imax, 'TIME END']
-        nframes_info.loc[(filename, 0), 'TIME'] = cfiles.loc[imin, 'TIME START'] + \
-                                                  (cfiles.loc[imax, 'TIME END'] - cfiles.loc[imin, 'TIME START']) / 2
+        nfinfo.loc[(fname, 0), 'DET NDIT'] = 1
+        nfinfo.loc[(fname, 0), 'TIME START'] = finfo.loc[(fname, imin), 'TIME START']
+        nfinfo.loc[(fname, 0), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
+        nfinfo.loc[(fname, 0), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
+                                         (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
+        
+        # recompute angles
+        compute_angles(nfinfo)            
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
-        NDIT = len(cfiles)
+        NDIT = len(finfo)
         NDIT_new = NDIT // coadd_value
 
-        index = pd.MultiIndex.from_arrays([np.full(NDIT_new, filename), np.arange(NDIT_new)], names=['FILE', 'IMG'])
-        nframes_info = pd.DataFrame(columns=frames_info.columns, index=index)
+        index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
         for f in range(NDIT_new):
             # get min/max indices
-            imin = f*coadd_value
-            imax = (f+1)*coadd_value-1
+            imin = int(f*coadd_value)
+            imax = int((f+1)*coadd_value-1)
 
             # copy data
-            nframes_info.loc[(filename, f)] = cfiles.loc[imin]
+            nfinfo.loc[(fname, f)] = finfo.loc[(fname, imin)]
 
             # update time values
-            nframes_info.loc[(filename, f), 'DET NDIT'] = 1
-            nframes_info.loc[(filename, f), 'TIME START'] = cfiles.loc[imin, 'TIME START']
-            nframes_info.loc[(filename, f), 'TIME END'] = cfiles.loc[imax, 'TIME END']
-            nframes_info.loc[(filename, f), 'TIME'] = cfiles.loc[imin, 'TIME START'] + \
-                                                      (cfiles.loc[imax, 'TIME END'] - cfiles.loc[imin, 'TIME START']) / 2
+            nfinfo.loc[(fname, f), 'DET NDIT'] = 1
+            nfinfo.loc[(fname, f), 'TIME START'] = finfo.loc[(fname, imin), 'TIME START']
+            nfinfo.loc[(fname, f), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
+            nfinfo.loc[(fname, f), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
+                                             (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
+
+        # recompute angles
+        compute_angles(nfinfo)
     else:
         raise ValueError('Unknown collapse type {0}'.format(collapse_type))        
 
-    # recompute angles
-    compute_angles(nframes_info)
-
-    return nframes_info
+    return nfinfo
     
 
     
-def sph_ifs_preprocess(root_path, files_info, calibs_info,
+def sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
                        subtract_background=True, fix_badpix=True, correct_xtalk=True,
                        collapse_science=False, collapse_type='mean', coadd_value=2,
                        collapse_psf=True, collapse_center=True):
@@ -1224,6 +1232,9 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
 
     calibs_info : dataframe
         The data frame with all the information on calibration files
+
+    frames_info : dataframe
+        The data frame with all the information on science frames
 
     subtract_background : bool
         Performs background subtraction. Default is True
@@ -1274,6 +1285,10 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
 
         bpm = compute_bad_pixel_map(bpm_files)
 
+    # final dataframe
+    index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
+    frames_info_collapse = pd.DataFrame(index=index, columns=frames_info.columns)
+        
     # loop on the different type of science files
     sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
     dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
@@ -1309,6 +1324,9 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
             # process files
             for fname, finfo in sci_files.iterrows():
                 print(' * {0}'.format(fname))
+
+                # frames_info extract
+                finfo = frames_info.loc[(fname, slice(None)), :]
                 
                 # read data
                 print('   ==> read data')
@@ -1319,19 +1337,27 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                     img = img[np.newaxis, ...]
                 
                 # collapse
-                if (typ == 'OBJECT,CENTER') and collapse_center:
-                    print('   ==> collapse: mean')
-                    img = np.mean(img, axis=0, keepdims=True)
-                elif (typ == 'OBJECT,FLUX') and collapse_psf:
-                    print('   ==> collapse: mean')
-                    img = np.mean(img, axis=0, keepdims=True)
+                if (typ == 'OBJECT,CENTER'):
+                    if collapse_center:
+                        print('   ==> collapse: mean')
+                        img = np.mean(img, axis=0, keepdims=True)
+                        frames_info_new = collapse_frames_info(finfo, fname, 'mean')
+                    else:
+                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
+                elif (typ == 'OBJECT,FLUX'):
+                    if collapse_psf:
+                        print('   ==> collapse: mean')
+                        img = np.mean(img, axis=0, keepdims=True)
+                        frames_info_new = collapse_frames_info(finfo, fname, 'mean')
+                    else:
+                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
                 elif (typ == 'OBJECT'):
                     if collapse_science:                        
                         if collapse_type == 'mean':
                             print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
 
-                            # info = collapse_frames_info(frames_info, fname, 'mean')
+                            frames_info_new = collapse_frames_info(finfo, fname, 'mean')
                         elif collapse_type == 'coadd':
                             if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                 raise TypeError('coadd_value must be an integer >1')
@@ -1352,9 +1378,14 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                                 nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
                             img = nimg
 
-                            info = collapse_frames_info(frames_info, fname, 'coadd', coadd_value=coadd_value)
+                            frames_info_new = collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value)
                         else:
                             raise ValueError('Unknown collapse type {0}'.format(collapse_type))
+                    else:
+                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
+
+                # merge collapse collapsed frames_info
+                frames_info_collapse = pd.concat((frames_info_collapse, frames_info_new))
                         
                 # background subtraction
                 if subtract_background:
@@ -1388,6 +1419,10 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info,
                 
         print()
 
+    # save final dataframe
+    frames_info_collapse.to_csv(os.path.join(preproc_path, 'frames_collapse.csv'))
+        
+        
 
 def clean(root_path):
     '''
@@ -1407,7 +1442,7 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # files_info = sort_files(root_path)
 
 files_info = pd.read_csv(root_path+'files.csv', index_col=0, parse_dates=True)
-# frames_info = sort_frames(root_path, files_info)
+frames_info = sort_frames(root_path, files_info)
 # calibs_info = files_association(root_path, files_info)
 
 calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
@@ -1417,7 +1452,7 @@ calibs_info = pd.read_csv(root_path+'calibs.csv', index_col=0)
 # sph_ifs_cal_wave(root_path, calibs_info)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-sph_ifs_preprocess(root_path, files_info, calibs_info,
+sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info, 
                    subtract_background=True, fix_badpix=False, correct_xtalk=False,
                    collapse_science=True, collapse_type='coadd', coadd_value=2,
-                   collapse_psf=True, collapse_center=True)
+                   collapse_psf=True, collapse_center=False)
