@@ -1360,7 +1360,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
 
     # final dataframe
     index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
-    frames_info_collapse = pd.DataFrame(index=index, columns=frames_info.columns)
+    frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
         
     # loop on the different type of science files
     sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
@@ -1458,7 +1458,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
                         frames_info_new = collapse_frames_info(finfo, fname, 'none')
 
                 # merge collapse collapsed frames_info
-                frames_info_collapse = pd.concat((frames_info_collapse, frames_info_new))
+                frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
                         
                 # background subtraction
                 if subtract_background:
@@ -1493,7 +1493,7 @@ def sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
         print()
 
     # save final dataframe
-    frames_info_collapse.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
+    frames_info_preproc.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
         
 
 
@@ -1516,17 +1516,17 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # frames_info = sort_frames(root_path, files_info)
 # calibs_info = files_association(root_path, files_info)
 
-# files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
+# files_info, calibs_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_cal_dark(root_path, calibs_info)
 # sph_ifs_cal_detector_flat(root_path, calibs_info)
 # sph_ifs_cal_specpos(root_path, calibs_info)
 # sph_ifs_cal_wave(root_path, calibs_info)
 # sph_ifs_cal_ifu_flat(root_path, calibs_info)
 
-files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
-sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
-                   subtract_background=True, fix_badpix=False, correct_xtalk=False,
-                   collapse_science=True, collapse_type='coadd', coadd_value=2,
-                   collapse_psf=True, collapse_center=False)
+# files_info, calibs_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_preprocess(root_path, files_info, calibs_info, frames_info,
+#                    subtract_background=True, fix_badpix=False, correct_xtalk=False,
+#                    collapse_science=True, collapse_type='coadd', coadd_value=2,
+#                    collapse_psf=True, collapse_center=False)
 
-# files_info, calibs_info, frames_info, frames_info_collapse = read_info(root_path)
+files_info, calibs_info, frames_info, frames_info_preproc = read_info(root_path)
