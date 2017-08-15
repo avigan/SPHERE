@@ -1468,7 +1468,7 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                     print('   ==> correct bad pixels')
                     for f in range(len(img)):
                         frame = img[f]
-                        # frame = imutils.fix_badpix(frame, bpm, box=5)
+                        frame = imutils.fix_badpix(frame, bpm, box=5)
                         frame = imutils.sigma_filter(frame, box=5, nsigma=5)
                         frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
                         img[f] = frame
@@ -1549,6 +1549,9 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     print(' * found {0} pre-processed science files'.format(len(sci_files)))
     
     # get list of calibration files
+    bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
+                          (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]    
+    
     ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
     if len(ifu_flat_file) != 1:
         raise ValueError('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
@@ -1592,6 +1595,7 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
+    file.write('{0}{1}.fits     {2}\n'.format(calib_path, bpm_file.index[0], 'IFS_STATIC_BADPIXELMAP'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
     file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
@@ -1653,11 +1657,11 @@ files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_cal_wave(root_path, files_info)
 # sph_ifs_cal_ifu_flat(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess(root_path, files_info, frames_info,
-                   subtract_background=True, fix_badpix=True, correct_xtalk=False,
-                   collapse_science=True, collapse_type='mean', coadd_value=2,
-                   collapse_psf=True, collapse_center=True)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_preprocess(root_path, files_info, frames_info,
+#                    subtract_background=True, fix_badpix=True, correct_xtalk=False,
+#                    collapse_science=True, collapse_type='mean', coadd_value=2,
+#                    collapse_psf=True, collapse_center=True)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
 sph_ifs_science_cubes(root_path, files_info)
