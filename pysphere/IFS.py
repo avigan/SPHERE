@@ -1499,7 +1499,7 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
         Suppress esorex output. Optional, default is True
     '''
 
-    print('Creating the (x,y,lambda science cubes)')
+    print('Creating the (x,y,lambda) science cubes')
 
     # check directories
     sof_path = os.path.join(root_path, 'sof/')
@@ -1514,9 +1514,9 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     if not os.path.exists(preproc_path):
         os.makedirs(preproc_path)
     
-    product_path = os.path.join(root_path, 'product/')
-    if not os.path.exists(product_path):
-        os.makedirs(product_path)
+    products_path = os.path.join(root_path, 'products/')
+    if not os.path.exists(products_path):
+        os.makedirs(products_path)
 
     # IFS obs mode
     mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
@@ -1597,9 +1597,9 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
             sof]
     
     if silent:
-        proc = subprocess.run(args, cwd=product_path, stdout=subprocess.DEVNULL)
+        proc = subprocess.run(args, cwd=products_path, stdout=subprocess.DEVNULL)
     else:
-        proc = subprocess.run(args, cwd=product_path)
+        proc = subprocess.run(args, cwd=products_path)
 
     if proc.returncode != 0:
         raise ValueError('esorex process was not successful')
@@ -1607,7 +1607,7 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     # post-process
     if postprocess:
         print(' * post-processing files')
-        files = glob.glob(product_path+'*.fits')
+        files = glob.glob(products_path+'*.fits')
 
         for f in files:
             # read and save only primary extension
