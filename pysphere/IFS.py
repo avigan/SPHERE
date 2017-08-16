@@ -1360,10 +1360,10 @@ def sph_ifs_fix_badpix(img, bpm):
     
 
     
-def sph_ifs_preprocess(root_path, files_info, frames_info,
-                       subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                       collapse_science=False, collapse_type='mean', coadd_value=2,
-                       collapse_psf=True, collapse_center=True):
+def sph_ifs_preprocess_science(root_path, files_info, frames_info,
+                               subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                               collapse_science=False, collapse_type='mean', coadd_value=2,
+                               collapse_psf=True, collapse_center=True):
     '''Pre-processes the science frames.
 
     This function can perform multiple steps:
@@ -1441,11 +1441,6 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
 
         bpm = compute_bad_pixel_map(bpm_files)
 
-    # specpos
-    specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
-    specpos = fits.getdata(os.path.join(calib_path, specpos_file.index[0]+'.fits'), extname='PDT.SPECID')
-    specpos_mask = (specpos != 0).astype(np.uint8)    
-    
     # final dataframe
     index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
     frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
@@ -1560,25 +1555,9 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                     for f in range(len(img)):
                         frame = img[f]
 
-                        frame, bpm0 = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
-                        frame, bpm1 = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
-                        
-                        fits.writeto(root_path+'bpm0.fits', bpm, overwrite=True)
-                        
-                        nbpm = bpm.copy()
-                        nbpm[b0] = 1
-                        nbpm[b1] = 1
-
-                        fits.writeto(root_path+'bpm1.fits', nbpm, overwrite=True)
-
-                        stop
-                        
                         frame = sph_ifs_fix_badpix(frame, bpm)
-                        
-                        
-                        # frame = sph_ifs_fix_badpix(frame, bpm)
-                        # frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
-                        # frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
+                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
+                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
                         img[f] = frame
 
                 # spectral crosstalk correction
@@ -1604,6 +1583,81 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
     frames_info_preproc.sort_values(by='TIME', inplace=True)
     frames_info_preproc.to_csv(os.path.join(root_path, 'frames_preproc.csv'))
 
+
+def sph_ifs_preprocess_wave(root_path, files_info):
+    '''
+    Pre-processes the wavelegth calibration frame for later
+    recalibration of the wavelength
+    
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    files_info : dataframe
+        The data frame with all the information on files
+    '''
+
+    print('Pre-processing wavelength calibration file')
+
+    # check directories
+    raw_path = os.path.join(root_path, 'raw/')
+    
+    calib_path = os.path.join(root_path, 'calib/')
+    if not os.path.exists(calib_path):
+        os.makedirs(calib_path)
+
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+
+    # bpm
+    bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+    bpm_files = [os.path.join(calib_path, f+'.fits') for f in bpm_files]
+    bpm = compute_bad_pixel_map(bpm_files)
+
+    # dark
+    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                           (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+    if len(dark_file) == 0:
+        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+    bkg = fits.getdata(os.path.join(calib_path, dark_file.index[0]+'.fits'))
+    
+    # wavelength calibration
+    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+    if len(wave_file) != 1:
+        raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+    fname = wave_file.index[0]
+    
+    # read data
+    print(' * {0}'.format(fname))
+    print('   ==> read data')
+    img, hdr = fits.getdata(os.path.join(raw_path, fname+'.fits'), header=True)
+                
+    # collapse
+    print('   ==> collapse: mean')
+    img = np.mean(img, axis=0, keepdims=False)
+                        
+    # background subtraction
+    print('   ==> subtract background')
+    img -= bkg
+
+    # bad pixels correction
+    print('   ==> correct bad pixels')
+    img = sph_ifs_fix_badpix(img, bpm)
+
+    # spectral crosstalk correction
+    print('   ==> correct spectral crosstalk')
+    img = sph_ifs_correct_spectral_xtalk(img)
+
+    # add fake coordinates
+    hdr['HIERARCH ESO TEL TARG ALPHA'] = 120000.0
+    hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
+
+    # save
+    fits.writeto(os.path.join(preproc_path, fname+'_preproc.fits'), img, hdr,
+                 overwrite=True, output_verify='silentfix')
+    
 
 def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     '''
@@ -1654,7 +1708,7 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
 
     # get list of science files
     sci_files = glob.glob(preproc_path+'*.fits')
-    print(' * found {0} pre-processed science files'.format(len(sci_files)))
+    print(' * found {0} pre-processed files'.format(len(sci_files)))
     
     # get list of calibration files
     bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
@@ -1766,10 +1820,11 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # sph_ifs_cal_ifu_flat(root_path, files_info)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess(root_path, files_info, frames_info,
-                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                   collapse_science=True, collapse_type='mean', coadd_value=2,
-                   collapse_psf=True, collapse_center=True)
+# sph_ifs_preprocess_science(root_path, files_info, frames_info,
+#                            subtract_background=True, fix_badpix=True, correct_xtalk=True,
+#                            collapse_science=True, collapse_type='mean', coadd_value=2,
+#                            collapse_psf=True, collapse_center=True)
+sph_ifs_preprocess_wave(root_path, files_info)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
 sph_ifs_science_cubes(root_path, files_info)
