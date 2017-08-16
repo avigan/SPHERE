@@ -6,6 +6,7 @@ import numpy as np
 import astropy.coordinates as coord
 import astropy.units as units
 import scipy.ndimage as ndimage
+import shutil
 
 import imutils
 
@@ -1555,9 +1556,9 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
                     for f in range(len(img)):
                         frame = img[f]
 
-                        frame = sph_ifs_fix_badpix(frame, bpm)
                         frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
                         frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
+                        frame = sph_ifs_fix_badpix(frame, bpm)
                         img[f] = frame
 
                 # spectral crosstalk correction
@@ -1657,9 +1658,9 @@ def sph_ifs_preprocess_wave(root_path, files_info):
     # save
     fits.writeto(os.path.join(preproc_path, fname+'_preproc.fits'), img, hdr,
                  overwrite=True, output_verify='silentfix')
-    
 
-def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
+
+def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, silent=True):
     '''
     Create the science cubes from the preprocessed frames
 
@@ -1670,6 +1671,9 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
 
     files_info : dataframe
         The data frame with all the information on files
+
+    frames_info : dataframe
+        The data frame with all the information on science frames
 
     postprocess : bool Performs a post-processing of the cubes to
         remove the unnecessary FITS extensions
@@ -1684,6 +1688,10 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
     sof_path = os.path.join(root_path, 'sof/')
     if not os.path.exists(sof_path):
         os.makedirs(sof_path)
+        
+    tmp_path = os.path.join(root_path, 'tmp/')
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
         
     calib_path = os.path.join(root_path, 'calib/')
     if not os.path.exists(calib_path):
@@ -1772,25 +1780,32 @@ def sph_ifs_science_cubes(root_path, files_info, postprocess=True, silent=True):
             '--ifs.science_dr.use_adi=0',
             '--ifs.science_dr.spec_deconv=FALSE',
             sof]
-    
+
     if silent:
-        proc = subprocess.run(args, cwd=products_path, stdout=subprocess.DEVNULL)
+        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
     else:
-        proc = subprocess.run(args, cwd=products_path)
+        proc = subprocess.run(args, cwd=tmp_path)
 
     if proc.returncode != 0:
         raise ValueError('esorex process was not successful')
 
     # post-process
+    files = glob.glob(tmp_path+'*_preproc_*.fits')
     if postprocess:
         print(' * post-processing files')
-        files = glob.glob(products_path+'*.fits')
 
         for f in files:
             # read and save only primary extension
             data, header = fits.getdata(f, header=True)
             fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
     
+    # move files to final directory
+    for file in files:
+        shutil.move(file, products_path)
+
+    # save final data frame with files
+    frames_info.to_csv(os.path.join(products_path, 'frames_preproc.csv'))
+
 
 def clean(root_path):
     '''
@@ -1819,13 +1834,13 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # sph_ifs_cal_wave(root_path, files_info)
 # sph_ifs_cal_ifu_flat(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_preprocess_science(root_path, files_info, frames_info,
 #                            subtract_background=True, fix_badpix=True, correct_xtalk=True,
 #                            collapse_science=True, collapse_type='mean', coadd_value=2,
 #                            collapse_psf=True, collapse_center=True)
-sph_ifs_preprocess_wave(root_path, files_info)
+# sph_ifs_preprocess_wave(root_path, files_info)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info)
+sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
