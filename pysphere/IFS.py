@@ -1273,6 +1273,92 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
     return nfinfo
     
 
+def sph_ifs_fix_badpix(img, bpm):
+    '''
+    Clean the bad pixels in an IFU image
+
+    Extremely effective routine to remove bad pixels. It goes through
+    all bad pixels and fit a line beween the first good pixels
+    encountered along the same column as the bad pixel, i.e. along the
+    spectral axis of each micro-spectrum. Works very well because as
+    zeroth-order the spectrum is very smooth and can be approximated
+    by a line over one (or a few) bad pixels.
+
+    Parameters
+    ----------
+    img : array_like
+        The image to be cleaned
+
+    bpm : array_like
+        Bad pixel map
+
+    Returns
+    -------
+    img_clean : array_like
+        The cleaned image
+    '''
+
+    # copy the original image
+    img_clean = img.copy()
+
+    # extension over which the good pixels will be looked for along
+    # the spectral direction starting from the bad pixel
+    ext = 10
+
+    # remove edges in bad pixel map
+    bpm[:ext+1, :] = 0
+    bpm[:, :ext+1] = 0
+    bpm[-ext-1:, :] = 0
+    bpm[:, -ext-1:] = 0
+
+    # use NaN for identifying bad pixels directly in the image 
+    img_clean[bpm == 1] = np.nan
+
+    # static indices for searching good pixels and for the linear fit
+    idx = np.arange(2*ext+1)
+    idx_lh = np.arange(ext)+1
+
+    # loop over bad pixels
+    badpix = np.where(bpm == 1)
+    for y, x in zip(badpix[0], badpix[1]):
+        # extract sub-region along the spectral direction
+        sub = img_clean[y-ext:y+ext+1, x]
+
+        # sub-regions "above" and "below" the bad pixel
+        sub_low = np.flip(img_clean[y-ext//2:y, x], axis=0)
+        sub_hig = img_clean[y+1:y+1+ext//2, x]
+
+        # if any of the two is completely bad: skip
+        # occurs only in the vignetted areas
+        if np.all(np.isnan(sub_low)) or np.all(np.isnan(sub_hig)):
+            continue
+
+        # indices of the first good pixels "above" and "below" the bad pixel
+        imin_low = idx_lh[~np.isnan(sub_low)].min()
+        imin_hig = idx_lh[~np.isnan(sub_hig)].min()
+
+        # linear fit
+        xl = idx[ext-imin_low]
+        yl = sub[ext-imin_low]
+
+        xh = idx[ext+imin_hig]
+        yh = sub[ext+imin_hig]
+
+        a = (yh - yl) / (xh - xl)
+        b = yh - a*xh
+
+        fit = a*idx + b
+
+        # replace bad pixel with the fit
+        img_clean[y-imin_low+1:y+imin_hig, x] = fit[ext-imin_low+1:ext+imin_hig]
+
+    # put back original value in regions that could not be corrected
+    mask = np.isnan(img_clean)
+    img_clean[mask] = img[mask]
+
+    return img_clean
+    
+
     
 def sph_ifs_preprocess(root_path, files_info, frames_info,
                        subtract_background=True, fix_badpix=True, correct_xtalk=True,
@@ -1355,6 +1441,11 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
 
         bpm = compute_bad_pixel_map(bpm_files)
 
+    # specpos
+    specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
+    specpos = fits.getdata(os.path.join(calib_path, specpos_file.index[0]+'.fits'), extname='PDT.SPECID')
+    specpos_mask = (specpos != 0).astype(np.uint8)    
+    
     # final dataframe
     index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
     frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
@@ -1468,9 +1559,9 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                     print('   ==> correct bad pixels')
                     for f in range(len(img)):
                         frame = img[f]
-                        frame = imutils.fix_badpix(frame, bpm, box=5)
-                        frame = imutils.sigma_filter(frame, box=5, nsigma=5)
+                        frame = sph_ifs_fix_badpix(frame, bpm)
                         frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
+                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
                         img[f] = frame
 
                 # spectral crosstalk correction
@@ -1483,7 +1574,7 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
 
                 # save DITs individually
                 for f in range(len(img)):
-                    frame = img[f].squeeze()
+                    frame = img[f].squeeze()                    
                     hdr['HIERARCH ESO DET NDIT'] = 1
                     fits.writeto(os.path.join(preproc_path, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
                                  overwrite=True, output_verify='silentfix')
@@ -1657,11 +1748,12 @@ files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_cal_wave(root_path, files_info)
 # sph_ifs_cal_ifu_flat(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_preprocess(root_path, files_info, frames_info,
-#                    subtract_background=True, fix_badpix=True, correct_xtalk=False,
-#                    collapse_science=True, collapse_type='mean', coadd_value=2,
-#                    collapse_psf=True, collapse_center=True)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_preprocess(root_path, files_info, frames_info,
+                   subtract_background=True, fix_badpix=True, correct_xtalk=False,
+                   collapse_science=True, collapse_type='mean', coadd_value=2,
+                   collapse_psf=True, collapse_center=True)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
 sph_ifs_science_cubes(root_path, files_info)
+
