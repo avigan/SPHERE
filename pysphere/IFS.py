@@ -710,7 +710,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # apply IFU mask to avoid "edge effects" in the final images,
     # where the the lenslets are vignetted
     if mask_vignetting:
-        package_directory = os.path.dirname(os.path.abspath(__file__))
+        package_directory = os.path.dirname(os.path.abspath(imutils.__file__))
         ifu_mask = fits.getdata(os.path.join(package_directory, 'data', 'ifu_mask.fits'))
         flat[ifu_mask == 0] = 1
     
@@ -1559,9 +1559,26 @@ def sph_ifs_preprocess(root_path, files_info, frames_info,
                     print('   ==> correct bad pixels')
                     for f in range(len(img)):
                         frame = img[f]
+
+                        frame, bpm0 = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
+                        frame, bpm1 = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
+                        
+                        fits.writeto(root_path+'bpm0.fits', bpm, overwrite=True)
+                        
+                        nbpm = bpm.copy()
+                        nbpm[b0] = 1
+                        nbpm[b1] = 1
+
+                        fits.writeto(root_path+'bpm1.fits', nbpm, overwrite=True)
+
+                        stop
+                        
                         frame = sph_ifs_fix_badpix(frame, bpm)
-                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
+                        
+                        
+                        # frame = sph_ifs_fix_badpix(frame, bpm)
+                        # frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
+                        # frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
                         img[f] = frame
 
                 # spectral crosstalk correction
@@ -1741,7 +1758,7 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 # check_files_association(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_cal_dark(root_path, files_info)
 # sph_ifs_cal_detector_flat(root_path, files_info)
 # sph_ifs_cal_specpos(root_path, files_info)
@@ -1750,7 +1767,7 @@ files_info, frames_info, frames_info_preproc = read_info(root_path)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
 sph_ifs_preprocess(root_path, files_info, frames_info,
-                   subtract_background=True, fix_badpix=True, correct_xtalk=False,
+                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
                    collapse_science=True, collapse_type='mean', coadd_value=2,
                    collapse_psf=True, collapse_center=True)
 

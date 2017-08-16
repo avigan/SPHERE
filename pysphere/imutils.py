@@ -732,7 +732,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
 ####################################################################################
 
 
-def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_iter=20, _iters=0):
+def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_iter=20, _iters=0, _mask=None):
     '''
     Performs sigma-clipping over an image
 
@@ -760,7 +760,10 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     
     _iters : int (internal)
         Internal counter to keep track during iterative sigma-clipping
-        
+
+    _mask : array_like (internal)
+        Keep track of bad pixels over the iterations
+    
     Returns
     -------
     return_value : array
@@ -768,6 +771,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     
     '''
 
+    # clip bad pixels
     box2 = box**2
     
     kernel = Box2DKernel(box)
@@ -780,35 +784,31 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     wok = np.nonzero(imdev < imvar)
     nok = wok[0].size
     
-    npix = img.size
-
-    # no bad pixels
-    if (nok == npix):
-        if return_mask:
-            return img, np.zeros_like(img, dtype=np.bool)
-        else:
-            return img
-
     # copy good pixels in clipped image
     if (nok > 0):
         img_clip[wok] = img[wok]
 
-    # change mask
-    mask = (img != img_clip)
+    # create _mask at first iteration
+    if _mask is None:
+        _mask = np.zeros_like(img, dtype=np.bool)
+
+    # identify clipped pixels
+    _mask[img != img_clip] = True
 
     # iterations
     if (iterate is True):
         _iters = _iters+1
         if (_iters >= max_iter):
             if return_mask:
-                return img_clip, mask
+                return img_clip, _mask
             else:
                 return img_clip
+
+        return sigma_filter(img_clip, box=box, nsigma=nsigma, iterate=iterate,
+                            return_mask=return_mask, _iters=_iters, _mask=_mask)
         
-        return sigma_filter(img_clip, box=box, nsigma=nsigma, iterate=True, _iters=_iters, return_mask=return_mask)
-    
     if return_mask:
-        return img_clip, mask
+        return img_clip, _mask
     else:
         return img_clip
 
