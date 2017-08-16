@@ -226,16 +226,34 @@ def compute_times(frames_info):
     time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
     DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
 
-    # calculate time stamps
+    # calculate UTC time stamps
     idx = frames_info.index.get_level_values(1).values
     ts_start = time_start + time_delta * idx
     ts       = time_start + time_delta * idx + DIT/2
     ts_end   = time_start + time_delta * idx + DIT
 
+    # calculate mjd
+    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
+    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
+    geoelev = frames_info['TEL GEOELEV'].values[0]
+
+    utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    mjd_start = utc.mjd
+    
+    utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    mjd = utc.mjd
+
+    utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    mjd_end = utc.mjd
+    
     # update frames_info
     frames_info['TIME START'] = ts_start
     frames_info['TIME']       = ts
     frames_info['TIME END']   = ts_end
+
+    frames_info['MJD START']  = mjd_start
+    frames_info['MJD']        = mjd
+    frames_info['MJD END']    = mjd_end
 
 
 def compute_angles(frames_info):
@@ -249,6 +267,15 @@ def compute_angles(frames_info):
         The data frame with all the information on science frames
     '''
 
+    # derotator drift check and correction
+    date_fix = Time('2016-07-12')
+    if np.any(frames_info['MJD'].values <= date_fix.mjd):
+        alt = frames_info['TEL ALT'].values
+        drot2 = frames_info['INS4 DROT2 BEGIN'].values
+        pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
+    else:
+        pa_correction = 0
+    
     # RA/DEC
     ra_drot = frames_info['INS4 DROT2 RA'].values.astype(np.float)
     ra_drot_h = np.floor(ra_drot/1e4)
@@ -276,19 +303,19 @@ def compute_angles(frames_info):
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG START'] = pa
+    frames_info['PARANG START'] = pa + pa_correction
 
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG'] = pa
+    frames_info['PARANG'] = pa + pa_correction
 
     utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG END'] = pa
+    frames_info['PARANG END'] = pa + pa_correction
 
     # pupil offset
     # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
@@ -358,7 +385,7 @@ def sort_frames(root_path, files_info):
     
     # compute angles (ra, dec, parang)
     compute_angles(frames_info)
-        
+    
     # save
     frames_info.to_csv(os.path.join(root_path, 'frames.csv'))
     
@@ -1556,8 +1583,8 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
                     for f in range(len(img)):
                         frame = img[f]
 
-                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True, return_mask=True)
-                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True, return_mask=True)
+                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
+                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
                         frame = sph_ifs_fix_badpix(frame, bpm)
                         img[f] = frame
 
@@ -1801,12 +1828,20 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
     
     # move files to final directory
     for file in files:
-        shutil.move(file, products_path)
+        shutil.move(file, os.path.join(products_path, file))
 
     # save final data frame with files
     frames_info.to_csv(os.path.join(products_path, 'frames_preproc.csv'))
 
 
+def sph_ifs_center(root_path):
+    '''
+    
+    '''
+    pass
+    
+
+    
 def clean(root_path):
     '''
     Clean everything exact raw data
@@ -1822,8 +1857,8 @@ def clean(root_path):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-# files_info = sort_files(root_path)
-# frames_info = sort_frames(root_path, files_info)
+files_info = sort_files(root_path)
+frames_info = sort_frames(root_path, files_info)
 
 # check_files_association(root_path, files_info)
 
@@ -1841,6 +1876,7 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 #                            collapse_psf=True, collapse_center=True)
 # sph_ifs_preprocess_wave(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
+# sph_ifs_center(root_path)
