@@ -7,11 +7,15 @@ import astropy.coordinates as coord
 import astropy.units as units
 import scipy.ndimage as ndimage
 import shutil
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 import imutils
+import aperture
 
 from astropy.io import fits
 from astropy.time import Time
+from astropy.modeling import models, fitting
 
 # keywords to be saved
 keywords = [
@@ -63,7 +67,11 @@ for idx in range(len(keywords_short)):
     if key.find('HIERARCH ESO ') != -1:
         keywords_short[idx] = key[13:]
         
+# useful parameters
+nwave_ifs = 39
+pixel = 7.46
 
+        
 def read_info(root_path):
     '''
     Read the files, calibs and frames information
@@ -1863,16 +1871,132 @@ def sph_ifs_wave_recalibration(root_path):
 
     fname = os.path.join(products_path, 'frames.csv')
     if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=0)
+        frames_info = pd.read_csv(fname, index_col=(0, 1))
     else:
         raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
                               'Make sure the pre-processing of the data set has been completed.')
 
+    #
+    # DRH wavelength
+    #
+
+    # get header of any science file
+    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0][0]
+    files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
+    hdr = fits.getheader(files[0])
+
+    wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+    wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+    wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+
+    loD = wave_drh*1e-6/8 * 180/np.pi * 3600*1000/pixel
+    
+    #
+    # star center
+    #
+    
+    # get any star center
+    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER'].index[0][0]
+    if len(starcen_files) == 0:
+        print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated')
+        raise ValueError('FIX: save DRH-calibrated wavelegth')
+    
+    files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
+    img, hdr = fits.getdata(files[0], header=True)
+    dim = img.shape[-1]
+    
+    # waffle parameters
+    freq = 10 * np.sqrt(2) * 0.97
+    box = 8
+    waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+    if waffle_orientation == '+':
+        orient = 57 * np.pi / 180 + np.pi / 4
+    elif waffle_orientation == 'x':
+        orient = 57 * np.pi / 180
+
+    # spot fitting
+    xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
+        
+    # loop over images
+    spot_center = np.zeros((nwave_ifs, 4, 2))
+    spot_dist = np.zeros((nwave_ifs, 6))
+    img_center = np.full((nwave_ifs, 2), ((dim // 2)-1, (dim // 2)-1))
+    for idx, (wave, img) in enumerate(zip(wave_drh, img)):
+        print(' * wave {0}/{1} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+
+        # center guess
+        cx_int = int(img_center[idx-1, 0])
+        cy_int = int(img_center[idx-1, 1])
+
+        fig = plt.figure(0, figsize=(8, 8))
+        plt.clf()
+        colors = ['red', 'blue', 'green', 'purple']
+        ax = fig.add_subplot(111)
+        ax.imshow(img, aspect='equal', vmin=0, vmax=img.max())
+        ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+        
+        # sattelite spots
+        for s in range(4):
+            cx = int(cx_int + freq*loD[idx] * np.cos(orient + np.pi/2*s))
+            cy = int(cy_int + freq*loD[idx] * np.sin(orient + np.pi/2*s))
+
+            sub = img[cy-box:cy+box, cx-box:cx+box]
+
+            # fit: Gaussian + constant
+            imax = np.unravel_index(np.argmax(sub), sub.shape)
+            g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
+                                       x_stddev=loD[idx], y_stddev=loD[idx]) + \
+                                       models.Const2D(amplitude=sub.min())
+            fitter = fitting.LevMarLSQFitter()            
+            par = fitter(g_init, xx, yy, sub)
+            fit = par(xx, yy)
+
+            cx_final = cx - box + par[0].x_mean
+            cy_final = cy - box + par[0].y_mean
+
+            ax.plot([cx_final], [cy_final], marker='+', color=colors[s])
+            ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
+            
+            axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
+            axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max())
+            axs.plot([par[0].x_mean], [par[0].y_mean], marker='+', color=colors[s])
+            axs.set_xticks([])
+            axs.set_yticks([])
+
+            axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
+            axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max())
+            axs.set_xticks([])
+            axs.set_yticks([])
+            
+        plt.tight_layout()
+        plt.pause(0.01)
+        return
+
+    return
+    
+    #
+    # wavelength calibration
+    #
+    
     # find wavelength calibration file name
     wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
-    
-    
+    file = glob.glob(os.path.join(products_path, wave_file+'*.fits'))
 
+    # read cube and measure mean flux in all channels
+    cube, hdr = fits.getdata(file[0], header=True)
+    wave_flux = np.zeros(nwave_ifs)
+    aper = aperture.disc(cube.shape[-1], 100, diameter=True)
+    mask = aper != 0
+    for w, f in enumerate(cube):
+        wave_flux[w] = f[mask].mean()
+
+    #
+    # wavelength recalibration fit
+    #
+        
+    # wave_idx = np.arange(nwave_ifs)
+    # plt.plot(wave_idx, wave_flux)
+    
     
 def clean(root_path):
     '''
