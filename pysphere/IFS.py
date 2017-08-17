@@ -270,8 +270,8 @@ def compute_angles(frames_info):
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
-        alt = frames_info['TEL ALT'].values
-        drot2 = frames_info['INS4 DROT2 BEGIN'].values
+        alt = frames_info['TEL ALT'].values.astype(np.float)
+        drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
         pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
     else:
         pa_correction = 0
@@ -303,19 +303,19 @@ def compute_angles(frames_info):
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG START'] = pa + pa_correction
+    frames_info['PARANG START'] = pa.value + pa_correction
 
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG'] = pa + pa_correction
+    frames_info['PARANG'] = pa.value + pa_correction
 
     utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra
     pa  = parallatic_angle(ha, dec[0], geolat)    
-    frames_info['PARANG END'] = pa + pa_correction
+    frames_info['PARANG END'] = pa.value + pa_correction
 
     # pupil offset
     # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
@@ -1269,7 +1269,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
         
         # recompute angles
-        compute_angles(nfinfo)            
+        compute_angles(nfinfo)
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
         NDIT = len(finfo)
@@ -1506,11 +1506,12 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
                 bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]+'.fits'))
                 
             # process files
+            ii = 0
             for fname, finfo in sci_files.iterrows():
                 # frames_info extract
                 finfo = frames_info.loc[(fname, slice(None)), :]
 
-                print(' * {0}, NDIT={1}'.format(fname, len(finfo)))
+                print(' * file {0}/{1}: {2}, NDIT={3}'.format(ii, len(sci_files), fname, len(finfo)))
                 
                 # read data
                 print('   ==> read data')
@@ -1828,17 +1829,46 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
     
     # move files to final directory
     for file in files:
-        shutil.move(file, os.path.join(products_path, file))
+        print(file, os.path.join(products_path, file))
+        shutil.move(file, os.path.join(products_path, os.path.basename(file)))
 
     # save final data frame with files
-    frames_info.to_csv(os.path.join(products_path, 'frames_preproc.csv'))
+    frames_info.to_csv(os.path.join(products_path, 'frames.csv'))
+    files_info.to_csv(os.path.join(products_path, 'files.csv'))
 
 
-def sph_ifs_center(root_path):
+def sph_ifs_wave_recalibration(root_path):
     '''
+    Performs a recalibration of the wavelength, is star center frames are available
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset    
+    '''
+
+    print('Recalibrating wavelegth')
+
+    # check directories
+    products_path = os.path.join(root_path, 'products/')
+
+    # read final files and frames info
+    fname = os.path.join(products_path, 'files.csv')
+    if os.path.exists(fname):
+        files_info = pd.read_csv(fname, index_col=0)
+    else:
+        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+
+    fname = os.path.join(products_path, 'frames.csv')
+    if os.path.exists(fname):
+        frames_info = pd.read_csv(fname, index_col=0)
+    else:
+        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+
+    # find wavelength calibration file name
     
-    '''
-    pass
     
 
     
@@ -1857,8 +1887,8 @@ def clean(root_path):
     
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-files_info = sort_files(root_path)
-frames_info = sort_frames(root_path, files_info)
+# files_info = sort_files(root_path)
+# frames_info = sort_frames(root_path, files_info)
 
 # check_files_association(root_path, files_info)
 
@@ -1876,7 +1906,6 @@ frames_info = sort_frames(root_path, files_info)
 #                            collapse_psf=True, collapse_center=True)
 # sph_ifs_preprocess_wave(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-# sph_ifs_center(root_path)
