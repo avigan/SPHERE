@@ -562,7 +562,7 @@ def sph_ifs_cal_dark(root_path, files_info, silent=True):
         os.makedirs(tmp_path)
         
     # get list of files
-    raw = files_info[np.logical_not(files_info['PROCESSED'])]
+    raw = files_info[~files_info['PROCESSED']]
     calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
                  (files_info['DPR TYPE'] == 'SKY')]
 
@@ -779,7 +779,7 @@ def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
         os.makedirs(tmp_path)
 
     # get list of files
-    raw = files_info[np.logical_not(files_info['PROCESSED'])]
+    raw = files_info[~files_info['PROCESSED']]
     calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
 
     # IFS obs mode
@@ -879,7 +879,7 @@ def sph_ifs_cal_specpos(root_path, files_info, silent=True):
         os.makedirs(tmp_path)
     
     # get list of files
-    specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
+    specpos_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
     if len(specpos_file) != 1:
         raise ValueError('There should be exactly 1 raw specpos files. Found {0}.'.format(len(specpos_file)))
     
@@ -968,7 +968,7 @@ def sph_ifs_cal_wave(root_path, files_info, silent=True):
         os.makedirs(tmp_path)
         
     # get list of files
-    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+    wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
     if len(wave_file) != 1:
         raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
     
@@ -1079,8 +1079,8 @@ def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
         raise ValueError('Unknown IFS mode {0}'.format(mode))
 
     # get list of files
-    ifu_flat_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'FLAT,LAMP') &
-                                (files_info['DPR TECH'] == 'IFU')]
+    ifu_flat_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'FLAT,LAMP') &
+                               (files_info['DPR TECH'] == 'IFU')]
     if len(ifu_flat_file) != 1:
         raise ValueError('There should be exactly 1 raw IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
     
@@ -1506,12 +1506,13 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
                 bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]+'.fits'))
                 
             # process files
-            ii = 0
+            filenum = 0
             for fname, finfo in sci_files.iterrows():
                 # frames_info extract
                 finfo = frames_info.loc[(fname, slice(None)), :]
 
-                print(' * file {0}/{1}: {2}, NDIT={3}'.format(ii, len(sci_files), fname, len(finfo)))
+                print(' * file {0}/{1}: {2}, NDIT={3}'.format(filenum, len(sci_files), fname, len(finfo)))
+                filenum += 1
                 
                 # read data
                 print('   ==> read data')
@@ -1653,7 +1654,7 @@ def sph_ifs_preprocess_wave(root_path, files_info):
     bkg = fits.getdata(os.path.join(calib_path, dark_file.index[0]+'.fits'))
     
     # wavelength calibration
-    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+    wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
     if len(wave_file) != 1:
         raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
     fname = wave_file.index[0]
@@ -1847,7 +1848,7 @@ def sph_ifs_wave_recalibration(root_path):
         Path to the dataset    
     '''
 
-    print('Recalibrating wavelegth')
+    print('Recalibrating wavelength')
 
     # check directories
     products_path = os.path.join(root_path, 'products/')
@@ -1868,6 +1869,7 @@ def sph_ifs_wave_recalibration(root_path):
                               'Make sure the pre-processing of the data set has been completed.')
 
     # find wavelength calibration file name
+    wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
     
     
 
@@ -1906,6 +1908,7 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 #                            collapse_psf=True, collapse_center=True)
 # sph_ifs_preprocess_wave(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
+sph_ifs_wave_recalibration(root_path)
