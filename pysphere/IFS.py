@@ -1895,20 +1895,41 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
     
 
-def wavelength_optimisation(fact, wave_laser, pos_laser, idx_ref, scale):
+def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_lasers):
     '''
-    Wavelength optimisation routine for minimisation
-    
-    '''
+    Wavelength optimisation method, to be used in a minimization routine.
 
-    wave_ref = wave_laser[idx_ref]
+    See Vigan et al. (2015, MNRAS, 454, 129) for details of the
+    wavelength recalibration:
+
+    https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+
+    Parameters
+    ----------
+    wave_ref : float
+        Reference wavelength (fitted parameter)
+
+    wave_scale : array_like
+        Wavelength scaling values
+    
+    wave_lasers : array_like
+        Real wavelength of the calibration lasers; in nanometers.
+
+    peak_position_lasers : array_like
+        Position of the peaks of the lasers, in "spectral channel" number
+
+    Returns
+    -------
+    Difference between the real wavelengths of the lasers and the
+    recalibrated value
+    '''
 
     idx  = np.arange(nwave_ifs, dtype=np.float)
-    wave = np.full(nwave_ifs, wave_ref) * scale
-    intrp_func = interp.interp1d(idx, wave, kind='cubic')
-    wave_peaks = intrp_func(pos_laser)
+    wave = np.full(nwave_ifs, wave_ref) * wave_scale
+    intrp_func = interp.interp1d(idx, wave, kind='linear')
+    wave_peaks = intrp_func(peak_position_lasers)
 
-    diff = wave_peaks - wave_laser
+    diff = wave_peaks - wave_lasers
 
     return np.max(np.abs(diff))
     
@@ -1933,7 +1954,6 @@ def fit_peak(x, y, display=False):
     par    
         Fit parameters: Gaussian amplitude, Gaussian mean, Gaussian
         stddev, line slope, line intercept
-
     '''
     
     # fit: Gaussian + constant
@@ -1954,10 +1974,18 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     '''
     Performs a recalibration of the wavelength, is star center frames are available
 
+    See Vigan et al. (2015, MNRAS, 454, 129) for details of the
+    wavelength recalibration:
+
+    https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+    
     Parameters
     ----------
     root_path : str
-        Path to the dataset    
+        Path to the dataset
+
+    display : bool
+        Display the fit of the sattelite spots
     '''
 
     print('Recalibrating wavelength')
@@ -1983,7 +2011,8 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     #
     # DRH wavelength
     #
-
+    print(' * extracting calibrated wavelength')
+    
     # get header of any science file
     starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0][0]
     files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
@@ -1998,6 +2027,7 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     #
     # star center
     #
+    print(' * fitting sattelite spots')
     
     # get any star center
     starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -2028,7 +2058,7 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     spot_dist = np.zeros((nwave_ifs, 6))
     img_center = np.full((nwave_ifs, 2), ((dim // 2)-1., (dim // 2)-1.))
     for idx, (wave, img) in enumerate(zip(wave_drh, img)):
-        print(' * wave {0}/{1} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+        print('  wave {0}/{1} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
 
         # center guess
         cx_int = int(img_center[idx-1, 0])
@@ -2112,6 +2142,7 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     #
     # wavelength recalibration
     #    
+    print(' * recalibration')
     
     # find wavelength calibration file name
     wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
@@ -2127,26 +2158,25 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
 
     # fit
     wave_idx = np.arange(nwave_ifs, dtype=np.float)
-    pos_laser = []
-    idx_ref = 2
+    peak_position_lasers = []
     if ifs_mode == 'OBS_YJ':
         # peak 1
         sub_idx  = wave_idx[0:11]
         sub_flux = wave_flux[0:11]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # peak 2
         sub_idx  = wave_idx[10:27]
         sub_flux = wave_flux[10:27]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # peak 3
         sub_idx  = wave_idx[26:]
         sub_flux = wave_flux[26:]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # wavelengths
         wave_lasers = ifs_wave_cal_lasers[0:3]
@@ -2155,60 +2185,69 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
         sub_idx  = wave_idx[0:8]
         sub_flux = wave_flux[0:8]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # peak 2
         sub_idx  = wave_idx[5:17]
         sub_flux = wave_flux[5:17]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # peak 3
         sub_idx  = wave_idx[14:26]
         sub_flux = wave_flux[14:26]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # peak 4
         sub_idx  = wave_idx[25:]
         sub_flux = wave_flux[25:]
         par = fit_peak(sub_idx, sub_flux)
-        pos_laser.append(par[1])
+        peak_position_lasers.append(par[1])
 
         # wavelengths
         wave_lasers = ifs_wave_cal_lasers[0:4]
-        
-    res = optim.minimize(wavelength_optimisation, 1., method='Nelder-Mead',
-                         args=(wave_lasers, pos_laser, idx_ref, wave_scale))
 
-    print(res.x)
+    res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
+                         args=(wave_scale, wave_lasers, peak_position_lasers))
+
+    wave_final = np.full(nwave_ifs, res.x) * wave_scale
+
+    wave_diff = np.abs(wave_final - wave_drh)*1000
+    print('   ==> difference with calibrated wavelength: ' +
+          'min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
     
     #
     # summary plot
     #
-    # fig = plt.figure(1, figsize=(17, 5.5))
-    # plt.clf()
-    # ax = fig.add_subplot(131)
-    # ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
-    # ax.set_xlabel('x center [pix]')
-    # ax.set_ylabel('y center [pix]')
-    # ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
-    # ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
+    fig = plt.figure(1, figsize=(17, 5.5))
+    plt.clf()
+    ax = fig.add_subplot(131)
+    ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
+    ax.set_xlabel('x center [pix]')
+    ax.set_ylabel('y center [pix]')
+    ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
+    ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
+    ax.set_title('Frames centers')
         
-    # ax = fig.add_subplot(132)
-    # ax.plot(wave_scales, linestyle='dotted')
-    # ax.plot(wave_scale, color='k')
-    # ax.set_xlabel('Spectral channel index')
-    # ax.set_ylabel('Scaling factor')
-    # plt.tight_layout()
+    ax = fig.add_subplot(132)
+    ax.plot(wave_scales, linestyle='dotted')
+    ax.plot(wave_scale, color='k', label='Mean')
+    ax.set_xlabel('Spectral channel index')
+    ax.set_ylabel('Scaling factor')
+    ax.set_title('Spectral scaling')
+    ax.legend(loc='upper left')
 
-    # ax = fig.add_subplot(133)
-    # ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k')
-    # for w in ifs_wave_cal_lasers:
-    #     ax.axvline(x=w, linestyle='dashed', color='purple')
-    # ax.set_xlabel(r'Wavelength [$\mu$m]')
-    # ax.set_ylabel('Flux')
-    # plt.tight_layout()
+    ax = fig.add_subplot(133)
+    ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
+    ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
+    for w in ifs_wave_cal_lasers:
+        ax.axvline(x=w, linestyle='dashed', color='purple')
+    ax.set_xlabel(r'Wavelength [$\mu$m]')
+    ax.set_ylabel('Flux')
+    ax.legend(loc='upper right')
+    ax.set_title('Wavelength calibration')
+    plt.tight_layout()
 
 
 def clean(root_path):
