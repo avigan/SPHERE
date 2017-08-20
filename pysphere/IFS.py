@@ -1970,7 +1970,7 @@ def fit_peak(x, y, display=False):
     return fit.parameters
     
     
-def sph_ifs_wavelength_recalibration(root_path, display=False):
+def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     '''
     Performs a recalibration of the wavelength, is star center frames are available
 
@@ -1984,8 +1984,11 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     root_path : str
         Path to the dataset
 
+    high_pass : bool
+        Apply high-pass filter to the image before searching for the satelitte spots
+    
     display : bool
-        Display the fit of the sattelite spots
+        Display the fit of the satelitte spots
     '''
 
     print('Recalibrating wavelength')
@@ -2027,7 +2030,7 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
     #
     # star center
     #
-    print(' * fitting sattelite spots')
+    print(' * fitting satelitte spots')
     
     # get any star center
     starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -2064,6 +2067,10 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
         cx_int = int(img_center[idx-1, 0])
         cy_int = int(img_center[idx-1, 1])
 
+        # optional high-pass filter
+        if high_pass:
+            img = img - ndimage.median_filter(img, 15, mode='mirror')
+        
         if display:
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
@@ -2072,7 +2079,7 @@ def sph_ifs_wavelength_recalibration(root_path, display=False):
             ax.imshow(img, aspect='equal', vmin=0, vmax=img.max())
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
         
-        # sattelite spots
+        # satelitte spots
         for s in range(4):
             cx = int(cx_int + freq*loD[idx] * np.cos(orient + np.pi/2*s))
             cy = int(cy_int + freq*loD[idx] * np.sin(orient + np.pi/2*s))
@@ -2287,4 +2294,4 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-a = sph_ifs_wavelength_recalibration(root_path)
+a = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
