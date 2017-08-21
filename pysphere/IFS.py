@@ -11,6 +11,7 @@ import scipy.optimize as optim
 import shutil
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import matplotlib.colors as colors
 
 import imutils
 import aperture
@@ -1970,13 +1971,13 @@ def fit_peak(x, y, display=False):
     return fit.parameters
     
     
-def star_centers_from_waffle_cube(img, wave, waffle_orientation, high_pass=False, display=False):
+def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=False, display=False):
     '''
     Compute star center from waffle images
 
     Parameters
     ----------
-    img : array_like
+    cube : array_like
         Waffle IFS cube
 
     wave : array_like
@@ -2003,7 +2004,7 @@ def star_centers_from_waffle_cube(img, wave, waffle_orientation, high_pass=False
         The star center in each frame of the cube
     '''
     # standard parameters
-    dim = img.shape[-1]
+    dim = cube.shape[-1]
     loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
     
     # waffle parameters
@@ -2021,7 +2022,7 @@ def star_centers_from_waffle_cube(img, wave, waffle_orientation, high_pass=False
     spot_center = np.zeros((nwave_ifs, 4, 2))
     spot_dist = np.zeros((nwave_ifs, 6))
     img_center = np.full((nwave_ifs, 2), ((dim // 2)-1., (dim // 2)-1.))
-    for idx, (wave, img) in enumerate(zip(wave, img)):
+    for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
 
         # center guess
@@ -2104,6 +2105,73 @@ def star_centers_from_waffle_cube(img, wave, waffle_orientation, high_pass=False
             plt.pause(0.01)
     
     return spot_center, spot_dist, img_center
+
+
+def star_centers_from_PSF_cube(cube, wave, display=False):
+    '''
+    Compute star center from PSF images
+
+    Parameters
+    ----------
+    cube : array_like
+        PSF IFS cube
+
+    wave : array_like
+        Wavelength values, in nanometers
+
+    display : bool
+        Display the fit of the satelitte spots
+
+    Returns
+    -------
+    img_center : array_like
+        The star center in each frame of the cube
+    '''
+    
+    # standard parameters
+    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
+    box = 30
+    
+    # spot fitting
+    xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
+    
+    # loop over images
+    img_center = np.zeros((nwave_ifs, 2))
+    for idx, (wave, img) in enumerate(zip(wave, cube)):
+        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+
+        # center guess
+        cy, cx = np.unravel_index(np.argmax(img), img.shape)
+
+        # sub-image
+        sub = img[cy-box:cy+box, cx-box:cx+box]
+
+        # fit peak with Gaussian + constant
+        imax = np.unravel_index(np.argmax(sub), sub.shape)
+        g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
+                                   x_stddev=loD[idx], y_stddev=loD[idx]) + \
+                                   models.Const2D(amplitude=sub.min())
+        fitter = fitting.LevMarLSQFitter()
+        par = fitter(g_init, xx, yy, sub)
+
+        cx_final = cx - box + par[0].x_mean
+        cy_final = cy - box + par[0].y_mean
+
+        img_center[idx, 0] = cx_final
+        img_center[idx, 1] = cy_final
+        
+        if display:
+            fig = plt.figure(0, figsize=(8, 8))
+            plt.clf()
+            ax = fig.add_subplot(111)
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm())
+            ax.plot([cx_final], [cy_final], marker='D', color='red')
+            ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
+            ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+            plt.tight_layout()
+            plt.pause(0.01)
+
+    return img_center
 
     
 def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
@@ -2313,6 +2381,65 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     return wave_final
 
 
+def sph_ifs_star_center(root_path, display=True):
+    '''
+    Determines the star center for all frames
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    high_pass : bool
+        Apply high-pass filter to the image before searching for the satelitte spots
+    
+    display : bool
+        Display the fit of the satelitte spots
+
+    '''
+
+    print('Star centers determination')
+
+    # check directories
+    products_path = os.path.join(root_path, 'products/')
+
+    # read final files and frames info
+    fname = os.path.join(products_path, 'files.csv')
+    
+    if os.path.exists(fname):
+        files_info = pd.read_csv(fname, index_col=0)
+    else:
+        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+
+    fname = os.path.join(products_path, 'frames.csv')
+    if os.path.exists(fname):
+        frames_info = pd.read_csv(fname, index_col=(0, 1))
+    else:
+        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+    
+    # start with OBJECT,FLUX
+    flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+    for file, idx in flux_files.index:
+        # read data
+        fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)    
+        files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+        cube, hdr = fits.getdata(files[0], header=True)
+
+        # wavelegth
+        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+        wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+
+        # centers
+        img_centers = star_centers_from_PSF_cube(cube, wave_drh, display=display)
+
+        # save
+        fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_centers, overwrite=True)
+
+
+
 def clean(root_path):
     '''
     Clean everything exact raw data
@@ -2350,6 +2477,6 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-wave = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
+# wave = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
 
-sph_ifs_star_center(root_path)
+sph_ifs_star_center(root_path, display=True)
