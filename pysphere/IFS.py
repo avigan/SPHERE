@@ -1970,7 +1970,38 @@ def fit_peak(x, y, display=False):
     return fit.parameters
     
     
-def compute_star_center(img, wave, waffle_orientation, high_pass=False, display=False):
+def star_centers_from_waffle_cube(img, wave, waffle_orientation, high_pass=False, display=False):
+    '''
+    Compute star center from waffle images
+
+    Parameters
+    ----------
+    img : array_like
+        Waffle IFS cube
+
+    wave : array_like
+        Wavelength values, in nanometers
+
+    waffle_orientation : str
+        String giving the waffle orientation '+' or 'x'
+
+    high_pass : bool
+        Apply high-pass filter to the image before searching for the satelitte spots
+    
+    display : bool
+        Display the fit of the satelitte spots
+
+    Returns
+    -------
+    spot_center : array_like
+        Centers of each individual spot in each frame of the cube
+
+    spot_dist : array_like
+        The 6 possible distances between the different spots
+
+    img_center : array_like
+        The star center in each frame of the cube
+    '''
     # standard parameters
     dim = img.shape[-1]
     loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
@@ -2154,12 +2185,12 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     fname = '{0}_DIT{1:03d}_preproc'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
     
     files = glob.glob(os.path.join(products_path, fname+'*.fits'))
-    img, hdr = fits.getdata(files[0], header=True)
+    cube, hdr = fits.getdata(files[0], header=True)
     
     # compute centers from waffle spots
     waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-    spot_center, spot_dist, img_center = compute_star_center(img, wave_drh, waffle_orientation,
-                                                             high_pass=high_pass, display=display)
+    spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
+                                                                       high_pass=high_pass, display=display)
     
     # final scaling
     wave_scales = spot_dist / np.full((nwave_ifs, 6), spot_dist[0])
