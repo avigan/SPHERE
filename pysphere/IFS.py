@@ -15,6 +15,7 @@ import matplotlib.colors as colors
 
 import imutils
 import aperture
+import transmission
 
 from astropy.io import fits
 from astropy.time import Time
@@ -1519,13 +1520,11 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
                 bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]+'.fits'))
                 
             # process files
-            filenum = 0
-            for fname, finfo in sci_files.iterrows():
+            for idx, (fname, finfo) in enumerate(sci_files.iterrows()):
                 # frames_info extract
                 finfo = frames_info.loc[(fname, slice(None)), :]
 
-                print(' * file {0}/{1}: {2}, NDIT={3}'.format(filenum, len(sci_files), fname, len(finfo)))
-                filenum += 1
+                print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sci_files), fname, len(finfo)))
                 
                 # read data
                 print('   ==> read data')
@@ -2403,15 +2402,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
     # check directories
     products_path = os.path.join(root_path, 'products/')
 
-    # read final files and frames info
-    fname = os.path.join(products_path, 'files.csv')
-    
-    if os.path.exists(fname):
-        files_info = pd.read_csv(fname, index_col=0)
-    else:
-        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-
+    # read final frames info
     fname = os.path.join(products_path, 'frames.csv')
     if os.path.exists(fname):
         frames_info = pd.read_csv(fname, index_col=(0, 1))
@@ -2465,6 +2456,90 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
 
     
+def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
+    '''
+    Combine and save the science data into final cubes
+
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    cpix : bool
+        If True the images are centered on the pixel at coordinate
+        (dim//2,dim//2). If False the images are centered between 4
+        pixels, at coordinates ((dim-1)/2,(dim-1)/2). Default is True.
+    
+    psf_box : even int
+        Size of the PSF images. Default is 80x80 pixels
+
+    '''
+
+    # check directories
+    products_path = os.path.join(root_path, 'products/')
+
+    # read final frames info
+    fname = os.path.join(products_path, 'frames.csv')
+    if os.path.exists(fname):
+        frames_info = pd.read_csv(fname, index_col=(0, 1))
+    else:
+        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+    
+    # read final wavelength calibration
+    fname = os.path.join(products_path, 'wavelength.fits')
+    if not os.path.exists(fname):
+        raise FileExistsError('Missing wavelegth.fits file. ' +
+                              'You must first run the sph_ifs_wavelength_recalibration() method.')    
+    wave = fits.getdata(fname)    
+    
+    # OBJECT,FLUX
+    flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+    nfiles = len(flux_files)
+    if nfiles != 0:
+        psf_cube   = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
+        psf_parang = np.zeros(nfiles)
+        psf_derot  = np.zeros(nfiles)
+
+        # final center
+        if cpix:
+            cc = psf_dim // 2
+        else:
+            cc = (psf_dim - 1) / 2
+            
+        for file_idx, (file, idx) in enumerate(flux_files.index):
+            print('  ==> OBJECT,FLUX: {0}'.format(file))
+        
+            # read data
+            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            cube, hdr = fits.getdata(files[0], header=True)
+            centers = fits.getdata(os.path.join(products_path, fname+'_centers.fits'))
+
+            # neutral density
+            ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+            w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+
+            # DIT, angles, etc
+            DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+            psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
+            psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLES']
+            
+            # center frames
+            for wave_idx, img in enumerate(cube):
+                cx, cy = centers[wave_idx, :]
+
+                img  = img[:-1, :-1].astype(np.float)
+                nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                nimg = nimg / DIT / attenuation[wave_idx]
+                
+                psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
+
+        # save
+        fits.writeto(os.path.join(products_path, 'psf_data.fits'), psf_cube, overwrite=True)
+        fits.writeto(os.path.join(products_path, 'psf_parang.fits'), psf_parang, overwrite=True)
+        fits.writeto(os.path.join(products_path, 'psf_derot.fits'), psf_derot, overwrite=True)
+
 
 def clean(root_path):
     '''
@@ -2505,4 +2580,6 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 # wave = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
 
-sph_ifs_star_center(root_path, display=True)
+# sph_ifs_star_center(root_path, display=True)
+
+sph_ifs_combine_data(root_path)
