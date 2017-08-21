@@ -2515,6 +2515,8 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         psf_cube   = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
         psf_parang = np.zeros(nfiles)
         psf_derot  = np.zeros(nfiles)
+        if save_scaled:
+            psf_cube_scaled = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
 
         # final center
         if cpix:
@@ -2551,10 +2553,23 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
                 
                 psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
 
+                # wavelength-scaled version
+                if save_scaled:
+                    nimg = psf_cube[wave_idx, file_idx]
+                    psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+                
         # save final cubes
         fits.writeto(os.path.join(products_path, 'psf_cube.fits'), psf_cube, overwrite=True)
         fits.writeto(os.path.join(products_path, 'psf_parang.fits'), psf_parang, overwrite=True)
         fits.writeto(os.path.join(products_path, 'psf_derot.fits'), psf_derot, overwrite=True)
+        if save_scaled:
+            fits.writeto(os.path.join(products_path, 'psf_cube_scaled.fits'), psf_cube_scaled, overwrite=True)
+
+        # delete big cubes
+        del psf_cube
+        if save_scaled:
+            del psf_cube_scaled
+        
         print()
 
     #
@@ -2569,7 +2584,9 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         cen_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
         cen_parang = np.zeros(nfiles)
         cen_derot  = np.zeros(nfiles)
-
+        if save_scaled:
+            cen_cube_scaled = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+        
         # final center
         if cpix:
             cc = science_dim // 2
@@ -2604,11 +2621,24 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
                 nimg = nimg / DIT / attenuation[wave_idx]
                 
                 cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
-                
+
+                # wavelength-scaled version
+                if save_scaled:
+                    nimg = cen_cube[wave_idx, file_idx]
+                    cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+
         # save final cubes
         fits.writeto(os.path.join(products_path, 'star_center_cube.fits'), cen_cube, overwrite=True)
         fits.writeto(os.path.join(products_path, 'star_center_parang.fits'), cen_parang, overwrite=True)
         fits.writeto(os.path.join(products_path, 'star_center_derot.fits'), cen_derot, overwrite=True)
+        if save_scaled:
+            fits.writeto(os.path.join(products_path, 'star_center_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
+        
+        # delete big cubes
+        del cen_cube
+        if save_scaled:
+            del cen_cube_scaled
+
         print()
 
     #
@@ -2634,6 +2664,8 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         sci_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
         sci_parang = np.zeros(nfiles)
         sci_derot  = np.zeros(nfiles)
+        if save_scaled:
+            sci_cube_scaled = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
 
         # final center
         if cpix:
@@ -2669,10 +2701,23 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
                 
                 sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
 
+                # wavelength-scaled version
+                if save_scaled:
+                    nimg = sci_cube[wave_idx, file_idx]
+                    sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+                    
         # save final cubes
         fits.writeto(os.path.join(products_path, 'science_cube.fits'), sci_cube, overwrite=True)
         fits.writeto(os.path.join(products_path, 'science_parang.fits'), sci_parang, overwrite=True)
         fits.writeto(os.path.join(products_path, 'science_derot.fits'), sci_derot, overwrite=True)
+        if save_scaled:
+            fits.writeto(os.path.join(products_path, 'science_cube_scaled.fits'), sci_cube_scaled, overwrite=True)
+
+        # delete big cubes
+        del sci_cube
+        if save_scaled:
+            del sci_cube_scaled
+
         print()
         
 
@@ -2717,4 +2762,4 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 # sph_ifs_star_center(root_path, display=True)
 
-sph_ifs_combine_data(root_path)
+sph_ifs_combine_data(root_path, save_scaled=1)
