@@ -348,7 +348,7 @@ def compute_angles(frames_info):
     frames_info['PUPIL OFFSET'] = pupoff
 
     # final derotation value
-    frames_info['DEROT ANGLES'] = frames_info['PARANG'] + pupoff
+    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
     
 
 def sort_frames(root_path, files_info):
@@ -2523,7 +2523,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
             # DIT, angles, etc
             DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
             psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-            psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLES']
+            psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
             
             # center frames
             for wave_idx, img in enumerate(cube):
