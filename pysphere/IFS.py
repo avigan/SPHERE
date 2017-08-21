@@ -586,6 +586,10 @@ def sph_ifs_cal_dark(root_path, files_info, silent=True):
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
         
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
     # get list of files
     raw = files_info[np.logical_not(files_info['PROCESSED'])]
     calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
@@ -623,7 +627,8 @@ def sph_ifs_cal_dark(root_path, files_info, silent=True):
 
             # execute esorex    
             args = ['esorex',
-                    '--msg-level=debug',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
                     'sph_ifs_master_dark',
                     '--ifs.master_dark.coll_alg=2',
                     '--ifs.master_dark.sigma_clip=3.0',
@@ -657,7 +662,7 @@ def sph_ifs_cal_dark(root_path, files_info, silent=True):
             files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
     # save
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
@@ -803,6 +808,10 @@ def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
 
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
     # get list of files
     raw = files_info[np.logical_not(files_info['PROCESSED'])]
     calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
@@ -867,7 +876,7 @@ def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
         files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
     # save
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def sph_ifs_cal_specpos(root_path, files_info, silent=True):
@@ -903,6 +912,10 @@ def sph_ifs_cal_specpos(root_path, files_info, silent=True):
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
     
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
     # get list of files
     specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
     if len(specpos_file) != 1:
@@ -934,6 +947,8 @@ def sph_ifs_cal_specpos(root_path, files_info, silent=True):
 
     # execute esorex    
     args = ['esorex',
+            '--no-checksum=TRUE',
+            '--no-datamd5=TRUE',
             'sph_ifs_spectra_positions',
             '--ifs.spectra_positions.hmode={0}'.format(Hmode),
             '--ifs.spectra_positions.outfilename={0}{1}.fits'.format(calib_path, specp_file),
@@ -956,7 +971,7 @@ def sph_ifs_cal_specpos(root_path, files_info, silent=True):
     files_info.loc[specp_file, 'PRO CATG'] = 'IFS_SPECPOS'
 
     # save
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def sph_ifs_cal_wave(root_path, files_info, silent=True):
@@ -992,6 +1007,10 @@ def sph_ifs_cal_wave(root_path, files_info, silent=True):
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
         
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
     # get list of files
     wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
     if len(wave_file) != 1:
@@ -1023,6 +1042,8 @@ def sph_ifs_cal_wave(root_path, files_info, silent=True):
     # execute esorex
     if mode == 'OBS_YJ':
         args = ['esorex',
+                '--no-checksum=TRUE',
+                '--no-datamd5=TRUE',
                 'sph_ifs_wave_calib',
                 '--ifs.wave_calib.number_lines=3',
                 '--ifs.wave_calib.wavelength_line1=0.9877',
@@ -1032,6 +1053,8 @@ def sph_ifs_cal_wave(root_path, files_info, silent=True):
                 sof]
     elif mode == 'OBS_YJH':
         args = ['esorex',
+                '--no-checksum=TRUE',
+                '--no-datamd5=TRUE',
                 'sph_ifs_wave_calib',
                 '--ifs.wave_calib.number_lines=3',
                 '--ifs.wave_calib.wavelength_line1=0.9877',
@@ -1058,7 +1081,7 @@ def sph_ifs_cal_wave(root_path, files_info, silent=True):
     files_info.loc[wav_file, 'PRO CATG'] = 'IFS_WAVECALIB'
 
     # save
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
     
 def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
@@ -1094,6 +1117,10 @@ def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
         
+    preproc_path = os.path.join(root_path, 'preproc/')
+    if not os.path.exists(preproc_path):
+        os.makedirs(preproc_path)
+    
     # IFS obs mode
     mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
     if mode == 'OBS_YJ':
@@ -1164,6 +1191,8 @@ def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
 
     # execute esorex
     args = ['esorex',
+            '--no-checksum=TRUE',
+            '--no-datamd5=TRUE',
             'sph_ifs_instrument_flat',
             '--ifs.instrument_flat.nofit=TRUE',
             '--ifs.instrument_flat.ifu_filename={0}{1}.fits'.format(calib_path, ifu_file),
@@ -1186,7 +1215,7 @@ def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
     files_info.loc[ifu_file, 'PRO CATG'] = 'IFS_IFU_FLAT_FIELD'
 
     # save
-    files_info.to_csv(os.path.join(root_path, 'files.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def sph_ifs_correct_spectral_xtalk(img):
@@ -1640,7 +1669,7 @@ def sph_ifs_preprocess_science(root_path, files_info, frames_info,
 
     # sort and save final dataframe
     frames_info_preproc.sort_values(by='TIME', inplace=True)
-    frames_info_preproc.to_csv(os.path.join(root_path, 'frames_preproc.csv'))
+    frames_info_preproc.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
 
 
 def sph_ifs_preprocess_wave(root_path, files_info):
@@ -1835,6 +1864,8 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
     # execute esorex
     print(' * starting esorex')
     args = ['esorex',
+            '--no-checksum=TRUE',
+            '--no-datamd5=TRUE',
             'sph_ifs_science_dr',
             '--ifs.science_dr.use_adi=0',
             '--ifs.science_dr.spec_deconv=FALSE',
@@ -2759,25 +2790,40 @@ def clean(root_path, delete_raw=False, delete_products=False):
     '''
     
     # tmp
-    shutil.rmtree(os.path.join(root_path, 'tmp'))
+    path = os.path.join(root_path, 'tmp')
+    if os.path.exists(path):
+        shutil.rmtree(path)
     
     # sof
-    shutil.rmtree(os.path.join(root_path, 'sof'))
+    path = os.path.join(root_path, 'sof')
+    if os.path.exists(path):
+        shutil.rmtree(path)
 
     # calibs
-    shutil.rmtree(os.path.join(root_path, 'calib'))
+    path = os.path.join(root_path, 'calib')
+    if os.path.exists(path):
+        shutil.rmtree(path)
 
     # preproc
-    shutil.rmtree(os.path.join(root_path, 'preproc'))
+    path = os.path.join(root_path, 'preproc')
+    if os.path.exists(path):
+        shutil.rmtree(path)
 
     # raw
     if delete_raw:
-        shutil.rmtree(os.path.join(root_path, 'raw'))
+        path = os.path.join(root_path, 'raw')
+        if os.path.exists(path):
+            shutil.rmtree(path)
 
     # products
     if delete_products:
-        shutil.rmtree(os.path.join(root_path, 'products'))
-        
+        path = os.path.join(root_path, 'products')
+        if os.path.exists(path):
+            shutil.rmtree(path)
+
+
+
+
 
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
@@ -2796,12 +2842,12 @@ sph_ifs_cal_ifu_flat(root_path, files_info)
 files_info, frames_info, frames_info_preproc = read_info(root_path)
 sph_ifs_preprocess_science(root_path, files_info, frames_info,
                            subtract_background=True, fix_badpix=False, correct_xtalk=False,
-                           collapse_science=False, collapse_type='mean', coadd_value=2,
-                           collapse_psf=True, collapse_center=True)
+                           collapse_science=True, collapse_type='mean', coadd_value=2,
+                           collapse_psf=True, collapse_center=False)
 sph_ifs_preprocess_wave(root_path, files_info)
 
 files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
+sph_ifs_science_cubes(root_path, files_info, frames_info_preproc, silent=False)
 
 wave = sph_ifs_wavelength_recalibration(root_path)
 
