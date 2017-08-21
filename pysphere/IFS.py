@@ -1970,84 +1970,14 @@ def fit_peak(x, y, display=False):
     return fit.parameters
     
     
-def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
-    '''
-    Performs a recalibration of the wavelength, is star center frames are available
-
-    See Vigan et al. (2015, MNRAS, 454, 129) for details of the
-    wavelength recalibration:
-
-    https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
-    
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
-    
-    display : bool
-        Display the fit of the satelitte spots
-    '''
-
-    print('Recalibrating wavelength')
-
-    # check directories
-    products_path = os.path.join(root_path, 'products/')
-
-    # read final files and frames info
-    fname = os.path.join(products_path, 'files.csv')
-    if os.path.exists(fname):
-        files_info = pd.read_csv(fname, index_col=0)
-    else:
-        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-
-    fname = os.path.join(products_path, 'frames.csv')
-    if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=(0, 1))
-    else:
-        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-
-    #
-    # DRH wavelength
-    #
-    print(' * extracting calibrated wavelength')
-    
-    # get header of any science file
-    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0][0]
-    files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
-    hdr = fits.getheader(files[0])
-
-    wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-    wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-    wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
-
-    loD = wave_drh*1e-6/8 * 180/np.pi * 3600*1000/pixel
-    
-    #
-    # star center
-    #
-    print(' * fitting satelitte spots')
-    
-    # get any star center
-    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-    if len(starcen_files) == 0:
-        print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated')
-        raise ValueError('FIX: save DRH-calibrated wavelegth')
-    ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
-    fname = starcen_files.index[0][0]
-    
-    files = glob.glob(os.path.join(products_path, fname+'*.fits'))
-    img, hdr = fits.getdata(files[0], header=True)
+def compute_star_center(img, wave, waffle_orientation, high_pass=False, display=False):
+    # standard parameters
     dim = img.shape[-1]
+    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
     
     # waffle parameters
     freq = 10 * np.sqrt(2) * 0.97
     box = 8
-    waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
     if waffle_orientation == '+':
         orient = 57 * np.pi / 180 + np.pi / 4
     elif waffle_orientation == 'x':
@@ -2055,13 +1985,13 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
-        
+    
     # loop over images
     spot_center = np.zeros((nwave_ifs, 4, 2))
     spot_dist = np.zeros((nwave_ifs, 6))
     img_center = np.full((nwave_ifs, 2), ((dim // 2)-1., (dim // 2)-1.))
-    for idx, (wave, img) in enumerate(zip(wave_drh, img)):
-        print('  wave {0}/{1} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+    for idx, (wave, img) in enumerate(zip(wave, img)):
+        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
 
         # center guess
         cx_int = int(img_center[idx-1, 0])
@@ -2070,7 +2000,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
         # optional high-pass filter
         if high_pass:
             img = img - ndimage.median_filter(img, 15, mode='mirror')
-        
+            
         if display:
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
@@ -2078,7 +2008,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
             ax = fig.add_subplot(111)
             ax.imshow(img, aspect='equal', vmin=0, vmax=img.max())
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
-        
+            
         # satelitte spots
         for s in range(4):
             cx = int(cx_int + freq*loD[idx] * np.cos(orient + np.pi/2*s))
@@ -2141,7 +2071,96 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
             
             plt.tight_layout()
             plt.pause(0.01)
+    
+    return spot_center, spot_dist, img_center
 
+    
+def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
+    '''
+    Performs a recalibration of the wavelength, is star center frames are available
+
+    See Vigan et al. (2015, MNRAS, 454, 129) for details of the
+    wavelength recalibration:
+
+    https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+    
+    Parameters
+    ----------
+    root_path : str
+        Path to the dataset
+
+    high_pass : bool
+        Apply high-pass filter to the image before searching for the satelitte spots
+    
+    display : bool
+        Display the fit of the satelitte spots
+
+    Returns
+    -------
+    wave : array_like
+        The final wavelength solution for the data set
+    '''
+
+    print('Recalibrating wavelength')
+
+    # check directories
+    products_path = os.path.join(root_path, 'products/')
+
+    # read final files and frames info
+    fname = os.path.join(products_path, 'files.csv')
+    
+    if os.path.exists(fname):
+        files_info = pd.read_csv(fname, index_col=0)
+    else:
+        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+
+    fname = os.path.join(products_path, 'frames.csv')
+    if os.path.exists(fname):
+        frames_info = pd.read_csv(fname, index_col=(0, 1))
+    else:
+        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                              'Make sure the pre-processing of the data set has been completed.')
+
+    #
+    # DRH wavelength
+    #
+    print(' * extracting calibrated wavelength')
+    
+    # get header of any science file
+    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0][0]
+    files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
+    hdr = fits.getheader(files[0])
+
+    wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+    wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+    wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+    
+    #
+    # star center
+    #
+    print(' * fitting satelitte spots')
+    
+    # get first star center image
+    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+    if len(starcen_files) == 0:
+        print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
+              'The standard wavelength calibrated by the ESO pripeline will be used.')
+        fits.writeto(os.path.join(products_path, 'wavelength.fits'), wave_drh, overwrite=True)
+
+        return wave_drh
+    
+    ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
+    fname = '{0}_DIT{1:03d}_preproc'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
+    
+    files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+    img, hdr = fits.getdata(files[0], header=True)
+    
+    # compute centers from waffle spots
+    waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+    spot_center, spot_dist, img_center = compute_star_center(img, wave_drh, waffle_orientation,
+                                                             high_pass=high_pass, display=display)
+    
     # final scaling
     wave_scales = spot_dist / np.full((nwave_ifs, 6), spot_dist[0])
     wave_scale  = wave_scales.mean(axis=1)
@@ -2223,6 +2242,10 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     wave_diff = np.abs(wave_final - wave_drh)*1000
     print('   ==> difference with calibrated wavelength: ' +
           'min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
+
+    # save
+    print(' * saving')
+    fits.writeto(os.path.join(products_path, 'wavelength.fits'), wave_final, overwrite=True)
     
     #
     # summary plot
@@ -2255,6 +2278,8 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     ax.legend(loc='upper right')
     ax.set_title('Wavelength calibration')
     plt.tight_layout()
+
+    return wave_final
 
 
 def clean(root_path):
@@ -2294,4 +2319,6 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # files_info, frames_info, frames_info_preproc = read_info(root_path)
 # sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-a = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
+wave = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
+
+sph_ifs_star_center(root_path)
