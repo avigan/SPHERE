@@ -1742,10 +1742,6 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
     if not os.path.exists(preproc_path):
         os.makedirs(preproc_path)
     
-    products_path = os.path.join(root_path, 'products/')
-    if not os.path.exists(products_path):
-        os.makedirs(products_path)
-
     # IFS obs mode
     mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
     if mode == 'OBS_YJ':
@@ -1842,12 +1838,11 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
     
     # move files to final directory
     for file in files:
-        print(file, os.path.join(products_path, file))
-        shutil.move(file, os.path.join(products_path, os.path.basename(file)))
+        shutil.move(file, os.path.join(preproc_path, os.path.basename(file)))
 
     # save final data frame with files
-    frames_info.to_csv(os.path.join(products_path, 'frames.csv'))
-    files_info.to_csv(os.path.join(products_path, 'files.csv'))
+    frames_info.to_csv(os.path.join(preproc_path, 'frames.csv'))
+    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def lines_intersect(a1, a2, b1, b2):
@@ -2201,11 +2196,12 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
 
     print('Recalibrating wavelength')
 
-    # check directories
+    # directories
+    preproc_path = os.path.join(root_path, 'preproc/')
     products_path = os.path.join(root_path, 'products/')
-
+    
     # read final files and frames info
-    fname = os.path.join(products_path, 'files.csv')
+    fname = os.path.join(preproc_path, 'files.csv')
     
     if os.path.exists(fname):
         files_info = pd.read_csv(fname, index_col=0)
@@ -2213,7 +2209,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
         raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
                               'Make sure the pre-processing of the data set has been completed.')
 
-    fname = os.path.join(products_path, 'frames.csv')
+    fname = os.path.join(preproc_path, 'frames.csv')
     if os.path.exists(fname):
         frames_info = pd.read_csv(fname, index_col=(0, 1))
     else:
@@ -2226,10 +2222,11 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     print(' * extracting calibrated wavelength')
     
     # get header of any science file
-    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0][0]
-    files = glob.glob(os.path.join(products_path, starcen_files+'*.fits'))
+    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
+    fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files[0], starcen_files[1])
+    files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
     hdr = fits.getheader(files[0])
-
+    
     wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
     wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
     wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
@@ -2249,9 +2246,9 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
         return wave_drh
     
     ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
-    fname = '{0}_DIT{1:03d}_preproc'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
+    fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
     
-    files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+    files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
     cube, hdr = fits.getdata(files[0], header=True)
     
     # compute centers from waffle spots
@@ -2270,8 +2267,9 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     
     # find wavelength calibration file name
     wave_file = files_info[~files_info['PROCESSED'] & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
-    file = glob.glob(os.path.join(products_path, wave_file+'*.fits'))
-
+    fname = '{0}_preproc_'.format(wave_file)    
+    file = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
+    
     # read cube and measure mean flux in all channels
     cube, hdr = fits.getdata(file[0], header=True)
     wave_flux = np.zeros(nwave_ifs)
@@ -2380,7 +2378,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     return wave_final
 
 
-def sph_ifs_star_center(root_path, high_pass=False, display=True):
+def sph_ifs_star_center(root_path, high_pass=False, display=False):
     '''
     Determines the star center for all frames
 
@@ -2399,11 +2397,11 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
 
     print('Star centers determination')
 
-    # check directories
-    products_path = os.path.join(root_path, 'products/')
-
+    # directories
+    preproc_path = os.path.join(root_path, 'preproc/')
+    
     # read final frames info
-    fname = os.path.join(products_path, 'frames.csv')
+    fname = os.path.join(preproc_path, 'frames.csv')
     if os.path.exists(fname):
         frames_info = pd.read_csv(fname, index_col=(0, 1))
     else:
@@ -2417,8 +2415,8 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             print('  ==> OBJECT,FLUX: {0}'.format(file))
         
             # read data
-            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)    
-            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
+            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
             cube, hdr = fits.getdata(files[0], header=True)
 
             # wavelegth
@@ -2430,7 +2428,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
 
             # save
-            fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
+            fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
 
     # then OBJECT,CENTER
     starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -2439,8 +2437,8 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             print('  ==> OBJECT,CENTER: {0}'.format(file))
 
             # read data
-            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
             cube, hdr = fits.getdata(files[0], header=True)
 
             # wavelegth
@@ -2453,7 +2451,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation, high_pass=high_pass, display=display)
 
             # save
-            fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
+            fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
 
     
 def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
@@ -2485,11 +2483,12 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
 
     print('Combine science data')
     
-    # check directories
+    # directories
+    preproc_path = os.path.join(root_path, 'preproc/')    
     products_path = os.path.join(root_path, 'products/')
 
     # read final frames info
-    fname = os.path.join(products_path, 'frames.csv')
+    fname = os.path.join(preproc_path, 'frames.csv')
     if os.path.exists(fname):
         frames_info = pd.read_csv(fname, index_col=(0, 1))
     else:
@@ -2499,7 +2498,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
     # read final wavelength calibration
     fname = os.path.join(products_path, 'wavelength.fits')
     if not os.path.exists(fname):
-        raise FileExistsError('Missing wavelegth.fits file. ' +
+        raise FileExistsError('Missing wavelength.fits file. ' +
                               'You must first run the sph_ifs_wavelength_recalibration() method.')    
     wave = fits.getdata(fname)    
 
@@ -2529,10 +2528,10 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
             print('  ==> {0}'.format(file))
         
             # read data
-            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
             cube = fits.getdata(files[0])
-            centers = fits.getdata(os.path.join(products_path, fname+'_centers.fits'))
+            centers = fits.getdata(os.path.join(preproc_path, fname+'centers.fits'))
 
             # neutral density
             ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -2598,10 +2597,10 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
             print('  ==> {0}'.format(file))
         
             # read data
-            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
             cube = fits.getdata(files[0])
-            centers = fits.getdata(os.path.join(products_path, fname+'_centers.fits'))
+            centers = fits.getdata(os.path.join(preproc_path, fname+'centers.fits'))
 
             # neutral density
             ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -2658,7 +2657,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
             centers = np.full((nwave_ifs, 2), cc)
         else:
             fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-            centers = fits.getdata(os.path.join(products_path, fname))
+            centers = fits.getdata(os.path.join(preproc_path, fname))
         
         # final arrays
         sci_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
@@ -2678,8 +2677,8 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
             print('  ==> {0}'.format(file))
         
             # read data
-            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
             cube = fits.getdata(files[0])
 
             # neutral density
@@ -2760,6 +2759,6 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 # wave = sph_ifs_wavelength_recalibration(root_path, high_pass=False)
 
-# sph_ifs_star_center(root_path, display=True)
+# sph_ifs_star_center(root_path)
 
 sph_ifs_combine_data(root_path, save_scaled=1)
