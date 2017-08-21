@@ -2456,7 +2456,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=True):
             fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
 
     
-def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
+def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290):
     '''
     Combine and save the science data into final cubes
 
@@ -2470,11 +2470,17 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
         (dim//2,dim//2). If False the images are centered between 4
         pixels, at coordinates ((dim-1)/2,(dim-1)/2). Default is True.
     
-    psf_box : even int
+    psf_dim : even int
         Size of the PSF images. Default is 80x80 pixels
+
+    science_dim : even int    
+        Size of the science images (star centers and standard
+        coronagraphic images). Default is 290, 290 pixels
 
     '''
 
+    print('Combine science data')
+    
     # check directories
     products_path = os.path.join(root_path, 'products/')
 
@@ -2497,6 +2503,9 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
     flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
     nfiles = len(flux_files)
     if nfiles != 0:
+        print(' * OBJECT,FLUX data')
+
+        # final arrays
         psf_cube   = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
         psf_parang = np.zeros(nfiles)
         psf_derot  = np.zeros(nfiles)
@@ -2508,7 +2517,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
             cc = (psf_dim - 1) / 2
             
         for file_idx, (file, idx) in enumerate(flux_files.index):
-            print('  ==> OBJECT,FLUX: {0}'.format(file))
+            print('  ==> {0}'.format(file))
         
             # read data
             fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -2539,7 +2548,59 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80):
         fits.writeto(os.path.join(products_path, 'psf_data.fits'), psf_cube, overwrite=True)
         fits.writeto(os.path.join(products_path, 'psf_parang.fits'), psf_parang, overwrite=True)
         fits.writeto(os.path.join(products_path, 'psf_derot.fits'), psf_derot, overwrite=True)
+        print()
 
+    # OBJECT,CENTER
+    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+    nfiles = len(starcen_files)
+    if nfiles != 0:
+        print(' * OBJECT,CENTER data')
+
+        # final arrays
+        cen_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+        cen_parang = np.zeros(nfiles)
+        cen_derot  = np.zeros(nfiles)
+
+        # final center
+        if cpix:
+            cc = science_dim // 2
+        else:
+            cc = (science_dim - 1) / 2
+            
+        for file_idx, (file, idx) in enumerate(starcen_files.index):
+            print('  ==> OBJECT,CENTER: {0}'.format(file))
+        
+            # read data
+            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            cube, hdr = fits.getdata(files[0], header=True)
+            centers = fits.getdata(os.path.join(products_path, fname+'_centers.fits'))
+
+            # neutral density
+            ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+            w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+
+            # DIT, angles, etc
+            DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+            cen_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
+            cen_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+            
+            # center frames
+            for wave_idx, img in enumerate(cube):
+                cx, cy = centers[wave_idx, :]
+
+                img  = img[:-1, :-1].astype(np.float)
+                nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                nimg = nimg / DIT / attenuation[wave_idx]
+                
+                cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
+
+        # save
+        fits.writeto(os.path.join(products_path, 'star_center_data.fits'), cen_cube, overwrite=True)
+        fits.writeto(os.path.join(products_path, 'star_center_parang.fits'), cen_parang, overwrite=True)
+        fits.writeto(os.path.join(products_path, 'star_center_derot.fits'), cen_derot, overwrite=True)
+        print()
+        
 
 def clean(root_path):
     '''
