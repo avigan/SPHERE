@@ -2381,7 +2381,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     return wave_final
 
 
-def sph_ifs_star_center(root_path, display=True):
+def sph_ifs_star_center(root_path, high_pass=False, display=True):
     '''
     Determines the star center for all frames
 
@@ -2421,24 +2421,50 @@ def sph_ifs_star_center(root_path, display=True):
     
     # start with OBJECT,FLUX
     flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
-    for file, idx in flux_files.index:
-        # read data
-        fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)    
-        files = glob.glob(os.path.join(products_path, fname+'*.fits'))
-        cube, hdr = fits.getdata(files[0], header=True)
+    if len(flux_files) != 0:
+        for file, idx in flux_files.index:
+            print('  ==> OBJECT,FLUX: {0}'.format(file))
+        
+            # read data
+            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)    
+            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            cube, hdr = fits.getdata(files[0], header=True)
 
-        # wavelegth
-        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-        wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+            # wavelegth
+            wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+            wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+            wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
 
-        # centers
-        img_centers = star_centers_from_PSF_cube(cube, wave_drh, display=display)
+            # centers
+            img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
 
-        # save
-        fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_centers, overwrite=True)
+            # save
+            fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
 
+    # then OBJECT,CENTER
+    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+    if len(starcen_files) != 0:
+        for file, idx in starcen_files.index:
+            print('  ==> OBJECT,CENTER: {0}'.format(file))
 
+            # read data
+            fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+            files = glob.glob(os.path.join(products_path, fname+'*.fits'))
+            cube, hdr = fits.getdata(files[0], header=True)
+
+            # wavelegth
+            wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+            wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+            wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+
+            # centers
+            waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+            spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation, high_pass=high_pass, display=display)
+
+            # save
+            fits.writeto(os.path.join(products_path, fname+'_centers.fits'), img_center, overwrite=True)
+
+    
 
 def clean(root_path):
     '''
