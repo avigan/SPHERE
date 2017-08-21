@@ -2251,7 +2251,10 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
 
     # directories
     preproc_path = os.path.join(root_path, 'preproc/')
+
     products_path = os.path.join(root_path, 'products/')
+    if not os.path.exists(products_path):
+        os.makedirs(products_path)    
     
     # read final files and frames info
     fname = os.path.join(preproc_path, 'files.csv')
@@ -2482,6 +2485,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=False):
 
             # save
             fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
+            print()
 
     # then OBJECT,CENTER
     starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -2505,6 +2509,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=False):
 
             # save
             fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
+            print()
 
     
 def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
@@ -2555,6 +2560,11 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
                               'You must first run the sph_ifs_wavelength_recalibration() method.')    
     wave = fits.getdata(fname)    
 
+    #
+    # frames info
+    #
+    frames_info.to_csv(os.path.join(products_path, 'frames.csv'))
+    
     #
     # OBJECT,FLUX
     #
@@ -2792,34 +2802,34 @@ def clean(root_path, delete_raw=False, delete_products=False):
     # tmp
     path = os.path.join(root_path, 'tmp')
     if os.path.exists(path):
-        shutil.rmtree(path)
+        shutil.rmtree(path, ignore_errors=True)
     
     # sof
     path = os.path.join(root_path, 'sof')
     if os.path.exists(path):
-        shutil.rmtree(path)
+        shutil.rmtree(path, ignore_errors=True)
 
     # calibs
     path = os.path.join(root_path, 'calib')
     if os.path.exists(path):
-        shutil.rmtree(path)
+        shutil.rmtree(path, ignore_errors=True)
 
     # preproc
     path = os.path.join(root_path, 'preproc')
     if os.path.exists(path):
-        shutil.rmtree(path)
+        shutil.rmtree(path, ignore_errors=True)
 
     # raw
     if delete_raw:
         path = os.path.join(root_path, 'raw')
         if os.path.exists(path):
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
     # products
     if delete_products:
         path = os.path.join(root_path, 'products')
         if os.path.exists(path):
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
 
 
@@ -2827,30 +2837,30 @@ def clean(root_path, delete_raw=False, delete_products=False):
 
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-files_info = sort_files(root_path)
-frames_info = sort_frames(root_path, files_info)
+# files_info = sort_files(root_path)
+# frames_info = sort_frames(root_path, files_info)
 
-check_files_association(root_path, files_info)
+# check_files_association(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_cal_dark(root_path, files_info)
-sph_ifs_cal_detector_flat(root_path, files_info)
-sph_ifs_cal_specpos(root_path, files_info)
-sph_ifs_cal_wave(root_path, files_info)
-sph_ifs_cal_ifu_flat(root_path, files_info)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_cal_dark(root_path, files_info)
+# sph_ifs_cal_detector_flat(root_path, files_info)
+# sph_ifs_cal_specpos(root_path, files_info)
+# sph_ifs_cal_wave(root_path, files_info)
+# sph_ifs_cal_ifu_flat(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess_science(root_path, files_info, frames_info,
-                           subtract_background=True, fix_badpix=False, correct_xtalk=False,
-                           collapse_science=True, collapse_type='mean', coadd_value=2,
-                           collapse_psf=True, collapse_center=False)
-sph_ifs_preprocess_wave(root_path, files_info)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_preprocess_science(root_path, files_info, frames_info,
+#                            subtract_background=True, fix_badpix=False, correct_xtalk=False,
+#                            collapse_science=True, collapse_type='mean', coadd_value=2,
+#                            collapse_psf=True, collapse_center=False)
+# sph_ifs_preprocess_wave(root_path, files_info)
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc, silent=False)
+# files_info, frames_info, frames_info_preproc = read_info(root_path)
+# sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-wave = sph_ifs_wavelength_recalibration(root_path)
+# wave = sph_ifs_wavelength_recalibration(root_path)
 
-sph_ifs_star_center(root_path)
+# sph_ifs_star_center(root_path)
 
-sph_ifs_combine_data(root_path, save_scaled=False)
+# sph_ifs_combine_data(root_path, save_scaled=True)
