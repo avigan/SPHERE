@@ -80,7 +80,6 @@ pixel = 7.46
 wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
 
 
-
 def parallatic_angle(ha, dec, geolat):
     '''
     Parallactic angle of a source in degrees
@@ -236,10 +235,6 @@ def compute_angles(frames_info):
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
     
-
-
-
-
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     '''
@@ -2062,7 +2057,6 @@ class IFSReduction(object):
         # parameters
         path = self._path
         files_info = self._files_info
-        frames_info = self._frames_info_preproc
         
         # clean before we start
         files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc_?????.fits'))
@@ -2169,10 +2163,6 @@ class IFSReduction(object):
         for file in files:
             shutil.move(file, os.path.join(path.preproc, os.path.basename(file)))
 
-        # save final data frame with files
-        frames_info.to_csv(os.path.join(path.preproc, 'frames.csv'))
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
-
 
     def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False):
         '''
@@ -2197,24 +2187,8 @@ class IFSReduction(object):
         # parameters
         path = self._path
         files_info = self._files_info
-        frames_info = self._frames_info
+        frames_info = self._frames_info_preproc
         
-        # read final files and frames info
-        fname = os.path.join(path.preproc, 'files.csv')
-
-        if os.path.exists(fname):
-            files_info = pd.read_csv(fname, index_col=0)
-        else:
-            raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
-                                  'Make sure the pre-processing of the data set has been completed.')
-
-        fname = os.path.join(path.preproc, 'frames.csv')
-        if os.path.exists(fname):
-            frames_info = pd.read_csv(fname, index_col=(0, 1))
-        else:
-            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                                  'Make sure the pre-processing of the data set has been completed.')
-
         #
         # DRH wavelength
         #
@@ -2392,16 +2366,8 @@ class IFSReduction(object):
 
         # parameters
         path = self._path
-        frames_info = self._frames_info
+        frames_info = self._frames_info_preproc
         
-        # read final frames info
-        fname = os.path.join(path.preproc, 'frames.csv')
-        if os.path.exists(fname):
-            frames_info = pd.read_csv(fname, index_col=(0, 1))
-        else:
-            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                                  'Make sure the pre-processing of the data set has been completed.')
-
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
@@ -2478,16 +2444,8 @@ class IFSReduction(object):
 
         # parameters
         path = self._path
-        frames_info = self._frames_info
+        frames_info = self._frames_info_preproc
         
-        # read final frames info
-        fname = os.path.join(path.preproc, 'frames.csv')
-        if os.path.exists(fname):
-            frames_info = pd.read_csv(fname, index_col=(0, 1))
-        else:
-            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                                  'Make sure the pre-processing of the data set has been completed.')
-
         # read final wavelength calibration
         fname = os.path.join(path.products, 'wavelength.fits')
         if not os.path.exists(fname):
