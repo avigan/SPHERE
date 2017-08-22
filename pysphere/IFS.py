@@ -13,13 +13,14 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 
-import utils.imutils as imutils
-import utils.aperture as aperture
-import transmission
+import pysphere.utils.imutils as imutils
+import pysphere.utils.aperture as aperture
+import pysphere.transmission as transmission
 
 from astropy.io import fits
 from astropy.time import Time
 from astropy.modeling import models, fitting
+
 
 # keywords to be saved
 keywords = [
@@ -72,10 +73,10 @@ for idx in range(len(keywords_short)):
         keywords_short[idx] = key[13:]
         
 # useful parameters
-nwave_ifs = 39
+nwave = 39
 pixel = 7.46
 
-ifs_wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
+wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
 
 
 def read_info(root_path):
@@ -768,7 +769,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # apply IFU mask to avoid "edge effects" in the final images,
     # where the the lenslets are vignetted
     if mask_vignetting:
-        package_directory = os.path.dirname(os.path.abspath(imutils.__file__))
+        package_directory = os.path.dirname(os.path.abspath(__file__))
         ifu_mask = fits.getdata(os.path.join(package_directory, 'data', 'ifu_mask.fits'))
         flat[ifu_mask == 0] = 1
     
@@ -1739,7 +1740,7 @@ def sph_ifs_preprocess_wave(root_path, files_info):
     img = sph_ifs_correct_spectral_xtalk(img)
 
     # add fake coordinates
-    hdr['HIERARCH ESO TEL TARG ALPHA'] = 120000.0
+    hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
     hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
 
     # save
@@ -1803,7 +1804,7 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
         raise ValueError('Unknown IFS mode {0}'.format(mode))
 
     # get list of science files
-    sci_files = glob.glob(preproc_path+'*.fits')
+    sci_files = glob.glob(preproc_path+'*_preproc.fits')
     print(' * found {0} pre-processed files'.format(len(sci_files)))
     
     # get list of calibration files
@@ -1972,8 +1973,8 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     recalibrated value
     '''
 
-    idx  = np.arange(nwave_ifs, dtype=np.float)
-    wave = np.full(nwave_ifs, wave_ref) * wave_scale
+    idx  = np.arange(nwave, dtype=np.float)
+    wave = np.full(nwave, wave_ref) * wave_scale
     intrp_func = interp.interp1d(idx, wave, kind='linear')
     wave_peaks = intrp_func(peak_position_lasers)
 
@@ -2066,11 +2067,11 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
     
     # loop over images
-    spot_center = np.zeros((nwave_ifs, 4, 2))
-    spot_dist = np.zeros((nwave_ifs, 6))
-    img_center = np.full((nwave_ifs, 2), ((dim // 2)-1., (dim // 2)-1.))
+    spot_center = np.zeros((nwave, 4, 2))
+    spot_dist = np.zeros((nwave, 6))
+    img_center = np.full((nwave, 2), ((dim // 2)-1., (dim // 2)-1.))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
         # center guess
         cx_int = int(img_center[idx-1, 0])
@@ -2183,9 +2184,9 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
     
     # loop over images
-    img_center = np.zeros((nwave_ifs, 2))
+    img_center = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave_ifs, wave))
+        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
         # center guess
         cy, cx = np.unravel_index(np.argmax(img), img.shape)
@@ -2240,11 +2241,6 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     
     display : bool
         Display the fit of the satelitte spots
-
-    Returns
-    -------
-    wave : array_like
-        The final wavelength solution for the data set
     '''
 
     print('Recalibrating wavelength')
@@ -2285,7 +2281,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     
     wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
     wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-    wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+    wave_drh = np.linspace(wave_min, wave_max, nwave)
     
     #
     # star center
@@ -2313,7 +2309,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
                                                                        high_pass=high_pass, display=display)
     
     # final scaling
-    wave_scales = spot_dist / np.full((nwave_ifs, 6), spot_dist[0])
+    wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
     wave_scale  = wave_scales.mean(axis=1)
     
     #
@@ -2328,14 +2324,14 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     
     # read cube and measure mean flux in all channels
     cube, hdr = fits.getdata(file[0], header=True)
-    wave_flux = np.zeros(nwave_ifs)
+    wave_flux = np.zeros(nwave)
     aper = aperture.disc(cube.shape[-1], 100, diameter=True)
     mask = aper != 0
     for w, f in enumerate(cube):
         wave_flux[w] = f[mask].mean()
 
     # fit
-    wave_idx = np.arange(nwave_ifs, dtype=np.float)
+    wave_idx = np.arange(nwave, dtype=np.float)
     peak_position_lasers = []
     if ifs_mode == 'OBS_YJ':
         # peak 1
@@ -2357,7 +2353,7 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
         peak_position_lasers.append(par[1])
 
         # wavelengths
-        wave_lasers = ifs_wave_cal_lasers[0:3]
+        wave_lasers = wave_cal_lasers[0:3]
     elif ifs_mode == 'OBS_YJH':
         # peak 1
         sub_idx  = wave_idx[0:8]
@@ -2384,12 +2380,12 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
         peak_position_lasers.append(par[1])
 
         # wavelengths
-        wave_lasers = ifs_wave_cal_lasers[0:4]
+        wave_lasers = wave_cal_lasers[0:4]
 
     res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
                          args=(wave_scale, wave_lasers, peak_position_lasers))
 
-    wave_final = np.full(nwave_ifs, res.x) * wave_scale
+    wave_final = np.full(nwave, res.x) * wave_scale
 
     wave_diff = np.abs(wave_final - wave_drh)*1000
     print('   ==> difference with calibrated wavelength: ' +
@@ -2423,15 +2419,13 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     ax = fig.add_subplot(133)
     ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
     ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
-    for w in ifs_wave_cal_lasers:
+    for w in wave_cal_lasers:
         ax.axvline(x=w, linestyle='dashed', color='purple')
     ax.set_xlabel(r'Wavelength [$\mu$m]')
     ax.set_ylabel('Flux')
     ax.legend(loc='upper right')
     ax.set_title('Wavelength calibration')
     plt.tight_layout()
-
-    return wave_final
 
 
 def sph_ifs_star_center(root_path, high_pass=False, display=False):
@@ -2478,7 +2472,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=False):
             # wavelegth
             wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
             wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-            wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+            wave_drh = np.linspace(wave_min, wave_max, nwave)
 
             # centers
             img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
@@ -2501,7 +2495,7 @@ def sph_ifs_star_center(root_path, high_pass=False, display=False):
             # wavelegth
             wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
             wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-            wave_drh = np.linspace(wave_min, wave_max, nwave_ifs)
+            wave_drh = np.linspace(wave_min, wave_max, nwave)
 
             # centers
             waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
@@ -2574,11 +2568,11 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         print(' * OBJECT,FLUX data')
 
         # final arrays
-        psf_cube   = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
+        psf_cube   = np.zeros((nwave, nfiles, psf_dim, psf_dim))
         psf_parang = np.zeros(nfiles)
         psf_derot  = np.zeros(nfiles)
         if save_scaled:
-            psf_cube_scaled = np.zeros((nwave_ifs, nfiles, psf_dim, psf_dim))
+            psf_cube_scaled = np.zeros((nwave, nfiles, psf_dim, psf_dim))
 
         # final center
         if cpix:
@@ -2643,11 +2637,11 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         print(' * OBJECT,CENTER data')
 
         # final arrays
-        cen_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+        cen_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
         cen_parang = np.zeros(nfiles)
         cen_derot  = np.zeros(nfiles)
         if save_scaled:
-            cen_cube_scaled = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+            cen_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
         
         # final center
         if cpix:
@@ -2717,17 +2711,17 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
             print(' ==> no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
                   'They will just be combined.')
 
-            centers = np.full((nwave_ifs, 2), cc)
+            centers = np.full((nwave, 2), cc)
         else:
             fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
             centers = fits.getdata(os.path.join(preproc_path, fname))
         
         # final arrays
-        sci_cube   = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+        sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
         sci_parang = np.zeros(nfiles)
         sci_derot  = np.zeros(nfiles)
         if save_scaled:
-            sci_cube_scaled = np.zeros((nwave_ifs, nfiles, science_dim, science_dim))
+            sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
 
         # final center
         if cpix:
@@ -2783,7 +2777,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         print()
         
 
-def clean(root_path, delete_raw=False, delete_products=False):
+def sph_ifs_clean(root_path, delete_raw=False, delete_products=False):
     '''
     Clean everything except for raw data and science products (by default)
 
@@ -2832,35 +2826,164 @@ def clean(root_path, delete_raw=False, delete_products=False):
             shutil.rmtree(path, ignore_errors=True)
 
 
+class IFSReduction(object):
+    '''
+    SPHERE/IFS reduction object
+    '''
+
+    ##################################################
+    # Class variables
+    ##################################################
+
+    
+    
+    ##################################################
+    # Constructor
+    ##################################################
+    
+    def __init__(self, path):
+        '''
+        Initialization of the IFSReduction
+
+        Parameters
+        ----------
+        path : str
+            Path to the directory containing the raw data
+        '''
+
+        # init variable
+        self._root_path = os.path.expanduser(path)
+
+        # generate all paths and directories
+        # self._raw_path = os.path.join(self._root_path, 'raw/')        
+        # self._sof_path = os.path.join(self._root_path, 'sof/')
+        # self._tmp_path = os.path.join(self._root_path, 'tmp/')
+        # self._calib_path = os.path.join(self._root_path, 'calib/')
+        # self._preproc_path = os.path.join(self._root_path, 'preproc/')
+        # self._products_path = os.path.join(self._root_path, 'products/')
+
+        # os.makedirs(self._raw_path)
+        # os.makedirs(self._sof_path)
+        # os.makedirs(self._tmp_path)
+        # os.makedirs(self._calib_path)
+        # os.makedirs(self._preproc_path)
+        # os.makedirs(self._products_path)
+        
+        # reload existing data frames
+        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
+        self._files_info = files_info
+        self._frames_info = frames_info
+        self._frames_info_preproc = frames_info_preproc
+        
+    ##################################################
+    # Properties
+    ##################################################
+    
+    @property
+    def root_path(self):
+        return self._root_path
+
+    # @property
+    # def raw_path(self):
+    #     return self._raw_path
+    
+    # @property
+    # def preproc_path(self):
+    #     return self._preproc_path
+    
+    # @property
+    # def products_path(self):
+    #     return self._products_path
+
+    @property
+    def files_info(self):
+        return self._files_info
+    
+    @property
+    def frames_info(self):
+        return self._frames_info
+    
+    @property
+    def frames_info_preproc(self):
+        return self._frames_info_preproc    
+    
+    ##################################################
+    # Generic class methods
+    ##################################################
+
+    def init_dataset(self):
+        '''
+        Sort files and frames, perform sanity check
+        '''
+
+        # sort files and frames
+        self._files_info = sort_files(self._root_path)
+        self._frames_info = sort_frames(self._root_path, self._files_info)
+
+        # sanity check
+        check_files_association(self._root_path, self._files_info)
+        
+    
+    def create_static_calibrations(self):
+        '''
+        Create all static calibrations, mainly with esorex
+        '''
+        
+        sph_ifs_cal_dark(self._root_path, self._files_info)
+        sph_ifs_cal_detector_flat(self._root_path, self._files_info)
+        sph_ifs_cal_specpos(self._root_path, self._files_info)
+        sph_ifs_cal_wave(self._root_path, self._files_info)
+        sph_ifs_cal_ifu_flat(self._root_path, self._files_info)
+        
+
+    def preprocess_science(self):
+        '''
+        Collapse and correct raw IFU images
+        '''
+
+        sph_ifs_preprocess_science(self._root_path, self._files_info, self._frames_info,
+                                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                                   collapse_science=False, collapse_type='mean', coadd_value=2,
+                                   collapse_psf=True, collapse_center=True)
+        sph_ifs_preprocess_wave(self._root_path, self._files_info)
 
 
+    def process_science(self):
+        '''
+        Generate (x,y,lambda) cubes, recalibrate wavelength, perform star
+        center and combine cubes into final (x,y,time,lambda) cubes
+        '''
 
-root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
+        # reload existing data frames
+        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
+        self._files_info = files_info
+        self._frames_info = frames_info
+        self._frames_info_preproc = frames_info_preproc
 
-files_info = sort_files(root_path)
-frames_info = sort_frames(root_path, files_info)
+        # process science data
+        sph_ifs_science_cubes(self._root_path, self._files_info, self._frames_info_preproc)
+        sph_ifs_wavelength_recalibration(self._root_path)
+        sph_ifs_star_center(self._root_path)
+        sph_ifs_combine_data(self._root_path)
 
-check_files_association(root_path, files_info)
+    
+    def clean(self):
+        '''
+        Clean the reduction directory
+        '''
+        
+        sph_ifs_clean(self._root_path)
+        
+        
+    def full_reduction(self):
+        '''
+        Performs a full reduction of a data set, from the static
+        calibrations to the final (x,y,time,lambda) cubes
+        '''
+        
+        self.init_dataset()
+        self.create_static_calibrations()
+        self.preprocess_science()
+        self.process_science()
 
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_cal_dark(root_path, files_info)
-sph_ifs_cal_detector_flat(root_path, files_info)
-sph_ifs_cal_specpos(root_path, files_info)
-sph_ifs_cal_wave(root_path, files_info)
-sph_ifs_cal_ifu_flat(root_path, files_info)
-
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess_science(root_path, files_info, frames_info,
-                           subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                           collapse_science=False, collapse_type='mean', coadd_value=2,
-                           collapse_psf=True, collapse_center=True)
-sph_ifs_preprocess_wave(root_path, files_info)
-
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
-
-wave = sph_ifs_wavelength_recalibration(root_path)
-
-sph_ifs_star_center(root_path)
-
-sph_ifs_combine_data(root_path, save_scaled=True)
+    
