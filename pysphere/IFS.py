@@ -2475,6 +2475,15 @@ class IFSReduction(object):
                                   'You must first run the sph_ifs_wavelength_recalibration() method.')    
         wave = fits.getdata(fname)    
 
+        # max images size
+        if psf_dim > 290:
+            print('Warning: psf_dim cannot be larger than 290 pix. A value of 290 will be used.')
+            psf_dim = 290
+
+        if science_dim > 290:
+            print('Warning: science_dim cannot be larger than 290 pix. A value of 290 will be used.')
+            science_dim = 290
+            
         #
         # frames info
         #
