@@ -1740,7 +1740,7 @@ def sph_ifs_preprocess_wave(root_path, files_info):
     img = sph_ifs_correct_spectral_xtalk(img)
 
     # add fake coordinates
-    hdr['HIERARCH ESO TEL TARG ALPHA'] = 120000.0
+    hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
     hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
 
     # save
@@ -2241,11 +2241,6 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     
     display : bool
         Display the fit of the satelitte spots
-
-    Returns
-    -------
-    wave : array_like
-        The final wavelength solution for the data set
     '''
 
     print('Recalibrating wavelength')
@@ -2431,8 +2426,6 @@ def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
     ax.legend(loc='upper right')
     ax.set_title('Wavelength calibration')
     plt.tight_layout()
-
-    return wave_final
 
 
 def sph_ifs_star_center(root_path, high_pass=False, display=False):
@@ -2784,7 +2777,7 @@ def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save
         print()
         
 
-def clean(root_path, delete_raw=False, delete_products=False):
+def sph_ifs_clean(root_path, delete_raw=False, delete_products=False):
     '''
     Clean everything except for raw data and science products (by default)
 
@@ -2838,11 +2831,16 @@ class IFSReduction(object):
     SPHERE/IFS reduction object
     '''
 
-    _root_path = None
+    ##################################################
+    # Class variables
+    ##################################################
+
+    
     
     ##################################################
     # Constructor
     ##################################################
+    
     def __init__(self, path):
         '''
         Initialization of the IFSReduction
@@ -2854,45 +2852,100 @@ class IFSReduction(object):
         '''
 
         # init variable
-        self._root_path = path
+        self._root_path = os.path.expanduser(path)
 
-        # 
+        # generate all paths and directories
+        # self._raw_path = os.path.join(self._root_path, 'raw/')        
+        # self._sof_path = os.path.join(self._root_path, 'sof/')
+        # self._tmp_path = os.path.join(self._root_path, 'tmp/')
+        # self._calib_path = os.path.join(self._root_path, 'calib/')
+        # self._preproc_path = os.path.join(self._root_path, 'preproc/')
+        # self._products_path = os.path.join(self._root_path, 'products/')
 
+        # os.makedirs(self._raw_path)
+        # os.makedirs(self._sof_path)
+        # os.makedirs(self._tmp_path)
+        # os.makedirs(self._calib_path)
+        # os.makedirs(self._preproc_path)
+        # os.makedirs(self._products_path)
+        
+        # reload existing data frames
+        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
+        self._files_info = files_info
+        self._frames_info = frames_info
+        self._frames_info_preproc = frames_info_preproc
         
     ##################################################
     # Properties
     ##################################################
+    
     @property
     def root_path(self):
         return self._root_path
+
+    # @property
+    # def raw_path(self):
+    #     return self._raw_path
     
-    @root_path.setter
-    def root_path(self, newval):
-        self._root_path = newval
+    # @property
+    # def preproc_path(self):
+    #     return self._preproc_path
+    
+    # @property
+    # def products_path(self):
+    #     return self._products_path
 
+    @property
+    def files_info(self):
+        return self._files_info
+    
+    @property
+    def frames_info(self):
+        return self._frames_info
+    
+    @property
+    def frames_info_preproc(self):
+        return self._frames_info_preproc    
+    
     ##################################################
-    # Methods
+    # Generic class methods
     ##################################################
 
-    def sanity_check(self):
+    def init_dataset(self):
         '''
-        Check that all calibrations are present
+        Sort files and frames, perform sanity check
         '''
-        pass
 
+        # sort files and frames
+        self._files_info = sort_files(self._root_path)
+        self._frames_info = sort_frames(self._root_path, self._files_info)
+
+        # sanity check
+        check_files_association(self._root_path, self._files_info)
+        
     
     def create_static_calibrations(self):
         '''
         Create all static calibrations, mainly with esorex
         '''
-        pass
-
+        
+        sph_ifs_cal_dark(self._root_path, self._files_info)
+        sph_ifs_cal_detector_flat(self._root_path, self._files_info)
+        sph_ifs_cal_specpos(self._root_path, self._files_info)
+        sph_ifs_cal_wave(self._root_path, self._files_info)
+        sph_ifs_cal_ifu_flat(self._root_path, self._files_info)
+        
 
     def preprocess_science(self):
         '''
         Collapse and correct raw IFU images
         '''
-        pass
+
+        sph_ifs_preprocess_science(self._root_path, self._files_info, self._frames_info,
+                                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                                   collapse_science=False, collapse_type='mean', coadd_value=2,
+                                   collapse_psf=True, collapse_center=True)
+        sph_ifs_preprocess_wave(self._root_path, self._files_info)
 
 
     def process_science(self):
@@ -2900,18 +2953,37 @@ class IFSReduction(object):
         Generate (x,y,lambda) cubes, recalibrate wavelength, perform star
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
-        pass
+
+        # reload existing data frames
+        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
+        self._files_info = files_info
+        self._frames_info = frames_info
+        self._frames_info_preproc = frames_info_preproc
+
+        # process science data
+        sph_ifs_science_cubes(self._root_path, self._files_info, self._frames_info_preproc)
+        sph_ifs_wavelength_recalibration(self._root_path)
+        sph_ifs_star_center(self._root_path)
+        sph_ifs_combine_data(self._root_path)
 
     
+    def clean(self):
+        '''
+        Clean the reduction directory
+        '''
+        
+        sph_ifs_clean(self._root_path)
+        
+        
     def full_reduction(self):
         '''
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
-        pass
-    
-    
-    
-    
+        
+        self.init_dataset()
+        self.create_static_calibrations()
+        self.preprocess_science()
+        self.process_science()
 
-
+    
