@@ -989,9 +989,6 @@ class IFSReduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
-        # reload existing data frames
-        # self.read_info()
-
         # process science data
         self.sph_ifs_science_cubes()
         self.sph_ifs_wavelength_recalibration()
@@ -1363,7 +1360,7 @@ class IFSReduction(object):
                 dark_file = 'dark_{0}_DIT={1:.2f}'.format(loc, DIT)
                 bpm_file  = 'dark_{0}_bpm_DIT={1:.2f}'.format(loc, DIT)
 
-                # execute esorex    
+                # esorex parameters    
                 args = ['esorex',
                         '--no-checksum=TRUE',
                         '--no-datamd5=TRUE',
@@ -1377,6 +1374,12 @@ class IFSReduction(object):
                         '--ifs.master_dark.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
                         sof]
 
+                # check esorex
+                if shutil.which('esorex') is None:
+                    raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                                    'that the ESO pipeline is properly installed before running pySPHERE.')
+
+                # execute esorex
                 if silent:
                     proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                 else:
@@ -1403,14 +1406,9 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
 
-    def sph_ifs_cal_detector_flat(self, silent=True):
+    def sph_ifs_cal_detector_flat(self):
         '''
         Create the detector flat calibrations
-
-        Parameters
-        ----------
-        silent : bool
-            Suppress esorex output. Optional, default is True
         '''
 
         print('Creating flats')
@@ -1530,8 +1528,8 @@ class IFSReduction(object):
 
         # products
         specp_file = 'spectra_positions'
-
-        # execute esorex    
+        
+        # esorex parameters    
         args = ['esorex',
                 '--no-checksum=TRUE',
                 '--no-datamd5=TRUE',
@@ -1540,6 +1538,12 @@ class IFSReduction(object):
                 '--ifs.spectra_positions.outfilename={0}{1}.fits'.format(path.calib, specp_file),
                 sof]
 
+        # check esorex
+        if shutil.which('esorex') is None:
+            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                            'that the ESO pipeline is properly installed before running pySPHERE.')
+        
+        # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -1604,7 +1608,7 @@ class IFSReduction(object):
         # products
         wav_file = 'wave_calib'
 
-        # execute esorex
+        # esorex parameters
         if mode == 'OBS_YJ':
             args = ['esorex',
                     '--no-checksum=TRUE',
@@ -1629,6 +1633,12 @@ class IFSReduction(object):
                     '--ifs.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
                     sof]
 
+        # check esorex
+        if shutil.which('esorex') is None:
+            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                            'that the ESO pipeline is properly installed before running pySPHERE.')
+        
+        # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -1733,7 +1743,7 @@ class IFSReduction(object):
         # products
         ifu_file = 'ifu_flat'
 
-        # execute esorex
+        # esorex parameters
         args = ['esorex',
                 '--no-checksum=TRUE',
                 '--no-datamd5=TRUE',
@@ -1742,6 +1752,12 @@ class IFSReduction(object):
                 '--ifs.instrument_flat.ifu_filename={0}{1}.fits'.format(path.calib, ifu_file),
                 sof]
 
+        # check esorex
+        if shutil.which('esorex') is None:
+            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                            'that the ESO pipeline is properly installed before running pySPHERE.')
+        
+        # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -2131,7 +2147,7 @@ class IFSReduction(object):
             file.write('{0}{1}     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
         file.close()
 
-        # execute esorex
+        # esorex parameters
         print(' * starting esorex')
         args = ['esorex',
                 '--no-checksum=TRUE',
@@ -2141,6 +2157,12 @@ class IFSReduction(object):
                 '--ifs.science_dr.spec_deconv=FALSE',
                 sof]
 
+        # check esorex
+        if shutil.which('esorex') is None:
+            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                            'that the ESO pipeline is properly installed before running pySPHERE.')
+        
+        # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
