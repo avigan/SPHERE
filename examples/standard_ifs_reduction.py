@@ -1,5 +1,7 @@
 import sys
-sys.path.append('/Users/avigan/Work/GitHub/pySPHERE/')
+path = '/Users/avigan/Work/GitHub/pySPHERE/'
+if path not in sys.path:
+    sys.path.append(path)
 import pysphere.IFS as IFS
 
 
@@ -11,7 +13,8 @@ red = IFS.IFSReduction(root_path)
 # red.full_reduction()
 
 # manual reduction
-# red.init_dataset()
-# red.create_static_calibrations()
-# red.preprocess_science()
+red.init_dataset()
+red.create_static_calibrations()
+red.preprocess_science()
 red.process_science()
+# red.clean()
