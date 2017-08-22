@@ -2838,6 +2838,8 @@ class IFSReduction(object):
     SPHERE/IFS reduction object
     '''
 
+    _root_path = None
+    
     ##################################################
     # Constructor
     ##################################################
@@ -2851,7 +2853,10 @@ class IFSReduction(object):
             Path to the directory containing the raw data
         '''
 
+        # init variable
         self._root_path = path
+
+        # 
 
         
     ##################################################
@@ -2869,5 +2874,44 @@ class IFSReduction(object):
     # Methods
     ##################################################
 
+    def sanity_check(self):
+        '''
+        Check that all calibrations are present
+        '''
+        pass
+
+    
+    def create_static_calibrations(self):
+        '''
+        Create all static calibrations, mainly with esorex
+        '''
+        pass
+
+
+    def preprocess_science(self):
+        '''
+        Collapse and correct raw IFU images
+        '''
+        pass
+
+
+    def process_science(self):
+        '''
+        Generate (x,y,lambda) cubes, recalibrate wavelength, perform star
+        center and combine cubes into final (x,y,time,lambda) cubes
+        '''
+        pass
+
+    
+    def full_reduction(self):
+        '''
+        Performs a full reduction of a data set, from the static
+        calibrations to the final (x,y,time,lambda) cubes
+        '''
+        pass
+    
+    
+    
+    
 
 
