@@ -2195,8 +2195,8 @@ class IFSReduction(object):
         print(' * extracting calibrated wavelength')
 
         # get header of any science file
-        starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
-        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files[0], starcen_files[1])
+        science_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
+        fname = '{0}_DIT{1:03d}_preproc_'.format(science_files[0], science_files[1])
         files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
         hdr = fits.getheader(files[0])
 

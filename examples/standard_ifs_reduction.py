@@ -13,7 +13,8 @@ red = IFS.IFSReduction(root_path)
 # red.full_reduction()
 
 # manual reduction
-# red.init_dataset()
-# red.create_static_calibrations()
+red.init_dataset()
+red.create_static_calibrations()
 red.preprocess_science()
 red.process_science()
+# red.clean()
