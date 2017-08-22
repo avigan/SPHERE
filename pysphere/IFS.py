@@ -2419,7 +2419,7 @@ class IFSReduction(object):
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
         '''
         Combine and save the science data into final cubes
-
+        
         Parameters
         ----------
         cpix : bool
@@ -2439,7 +2439,7 @@ class IFSReduction(object):
             much longer. The default is False
 
         '''
-
+        
         print('Combine science data')
 
         # parameters
