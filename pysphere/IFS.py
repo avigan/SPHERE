@@ -768,7 +768,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # apply IFU mask to avoid "edge effects" in the final images,
     # where the the lenslets are vignetted
     if mask_vignetting:
-        package_directory = os.path.dirname(os.path.abspath(imutils.__file__))
+        package_directory = os.path.dirname(os.path.abspath(__file__))
         ifu_mask = fits.getdata(os.path.join(package_directory, 'data', 'ifu_mask.fits'))
         flat[ifu_mask == 0] = 1
     
@@ -2831,36 +2831,3 @@ def clean(root_path, delete_raw=False, delete_products=False):
         if os.path.exists(path):
             shutil.rmtree(path, ignore_errors=True)
 
-
-
-
-
-root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
-
-files_info = sort_files(root_path)
-frames_info = sort_frames(root_path, files_info)
-
-check_files_association(root_path, files_info)
-
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_cal_dark(root_path, files_info)
-sph_ifs_cal_detector_flat(root_path, files_info)
-sph_ifs_cal_specpos(root_path, files_info)
-sph_ifs_cal_wave(root_path, files_info)
-sph_ifs_cal_ifu_flat(root_path, files_info)
-
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_preprocess_science(root_path, files_info, frames_info,
-                           subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                           collapse_science=False, collapse_type='mean', coadd_value=2,
-                           collapse_psf=True, collapse_center=True)
-sph_ifs_preprocess_wave(root_path, files_info)
-
-files_info, frames_info, frames_info_preproc = read_info(root_path)
-sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
-
-wave = sph_ifs_wavelength_recalibration(root_path)
-
-sph_ifs_star_center(root_path)
-
-sph_ifs_combine_data(root_path, save_scaled=True)
