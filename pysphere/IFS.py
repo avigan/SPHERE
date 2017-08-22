@@ -15,7 +15,7 @@ import matplotlib.colors as colors
 
 import pysphere.utils.imutils as imutils
 import pysphere.utils.aperture as aperture
-import pysphere.transmission
+import pysphere.transmission as transmission
 
 from astropy.io import fits
 from astropy.time import Time
@@ -1804,7 +1804,7 @@ def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, 
         raise ValueError('Unknown IFS mode {0}'.format(mode))
 
     # get list of science files
-    sci_files = glob.glob(preproc_path+'*.fits')
+    sci_files = glob.glob(preproc_path+'*_preproc.fits')
     print(' * found {0} pre-processed files'.format(len(sci_files)))
     
     # get list of calibration files
