@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 
-import imutils
-import aperture
+import utils.imutils as imutils
+import utils.aperture as aperture
 import transmission
 
 from astropy.io import fits
@@ -2837,30 +2837,30 @@ def clean(root_path, delete_raw=False, delete_products=False):
 
 root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
-# files_info = sort_files(root_path)
-# frames_info = sort_frames(root_path, files_info)
+files_info = sort_files(root_path)
+frames_info = sort_frames(root_path, files_info)
 
-# check_files_association(root_path, files_info)
+check_files_association(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_cal_dark(root_path, files_info)
-# sph_ifs_cal_detector_flat(root_path, files_info)
-# sph_ifs_cal_specpos(root_path, files_info)
-# sph_ifs_cal_wave(root_path, files_info)
-# sph_ifs_cal_ifu_flat(root_path, files_info)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_cal_dark(root_path, files_info)
+sph_ifs_cal_detector_flat(root_path, files_info)
+sph_ifs_cal_specpos(root_path, files_info)
+sph_ifs_cal_wave(root_path, files_info)
+sph_ifs_cal_ifu_flat(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_preprocess_science(root_path, files_info, frames_info,
-#                            subtract_background=True, fix_badpix=False, correct_xtalk=False,
-#                            collapse_science=True, collapse_type='mean', coadd_value=2,
-#                            collapse_psf=True, collapse_center=False)
-# sph_ifs_preprocess_wave(root_path, files_info)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_preprocess_science(root_path, files_info, frames_info,
+                           subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                           collapse_science=False, collapse_type='mean', coadd_value=2,
+                           collapse_psf=True, collapse_center=True)
+sph_ifs_preprocess_wave(root_path, files_info)
 
-# files_info, frames_info, frames_info_preproc = read_info(root_path)
-# sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
+files_info, frames_info, frames_info_preproc = read_info(root_path)
+sph_ifs_science_cubes(root_path, files_info, frames_info_preproc)
 
-# wave = sph_ifs_wavelength_recalibration(root_path)
+wave = sph_ifs_wavelength_recalibration(root_path)
 
-# sph_ifs_star_center(root_path)
+sph_ifs_star_center(root_path)
 
-# sph_ifs_combine_data(root_path, save_scaled=True)
+sph_ifs_combine_data(root_path, save_scaled=True)
