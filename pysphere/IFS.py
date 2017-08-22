@@ -16,6 +16,7 @@ import matplotlib.colors as colors
 import pysphere.utils.imutils as imutils
 import pysphere.utils.aperture as aperture
 import pysphere.transmission as transmission
+import pysphere.ReductionPath as ReductionPath
 
 from astropy.io import fits
 from astropy.time import Time
@@ -78,128 +79,6 @@ pixel = 7.46
 
 wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
 
-
-def read_info(root_path):
-    '''
-    Read the files, calibs and frames information
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    Returns
-    -------
-    files_info : dataframe
-        The data frame with all the information on files
-
-    frames_info : dataframe
-        The data frame with all the information on science frames
-
-    frames_info_preproc : dataframe
-        The data frame with all the information on science frames after pre-processing
-    '''
-
-    # files info
-    fname = os.path.join(root_path, 'preproc', 'files.csv')
-    if os.path.exists(fname):
-        files_info = pd.read_csv(fname, index_col=0)
-
-        # convert times
-        files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
-        files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
-        files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
-    else:
-        files_info = None
-
-    fname = os.path.join(root_path, 'preproc', 'frames.csv')
-    if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=(0, 1))
-
-        # convert times
-        frames_info['DATE-OBS'] = pd.to_datetime(frames_info['DATE-OBS'], utc=True)
-        frames_info['DATE'] = pd.to_datetime(frames_info['DATE'], utc=True)
-        frames_info['DET FRAM UTC'] = pd.to_datetime(frames_info['DET FRAM UTC'], utc=True)
-        frames_info['TIME START'] = pd.to_datetime(frames_info['TIME START'], utc=True)
-        frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=True)
-        frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=True)
-    else:
-        frames_info = None
-
-    fname = os.path.join(root_path, 'preproc', 'frames_preproc.csv')
-    if os.path.exists(fname):
-        frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
-
-        # convert times
-        frames_info_preproc['DATE-OBS'] = pd.to_datetime(frames_info_preproc['DATE-OBS'], utc=True)
-        frames_info_preproc['DATE'] = pd.to_datetime(frames_info_preproc['DATE'], utc=True)
-        frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=True)
-        frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
-        frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
-        frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)
-    else:
-        frames_info_preproc = None
-           
-    return files_info, frames_info, frames_info_preproc
-
-    
-def sort_files(root_path):
-    '''
-    Sort all raw files and save result in a data frame
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    Returns
-    -------
-    files_info : dataframe
-        Data frame with the information on raw files
-    '''
-
-    print('Sorting raw files')
-
-    # check directories
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # list files
-    files = glob.glob(os.path.join(root_path, 'raw', '*.fits'))
-    files = [os.path.splitext(os.path.basename(f))[0] for f in files]
-    
-    if len(files) == 0:
-        raise ValueError('No raw FITS files in root_path directory')
-
-    print(' * found {0} FITS files in {1}'.format(len(files), root_path))
-
-    # files table
-    files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
-
-    raw_path = os.path.join(root_path, 'raw/')
-    for f in files:
-        hdu = fits.open(os.path.join(raw_path, f+'.fits'))
-        hdr = hdu[0].header
-
-        for k, sk in zip(keywords, keywords_short):
-            files_info.loc[f, sk] = hdr.get(k)
-
-        hdu.close()
-
-    # processed column
-    files_info.insert(len(files_info.columns), 'PROCESSED', False)
-    files_info.insert(len(files_info.columns), 'PRO CATG', False)
-
-    # convert times
-    files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
-    files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
-    files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
-    
-    # save files_info
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))    
-    
-    return files_info
 
 
 def parallatic_angle(ha, dec, geolat):
@@ -358,312 +237,8 @@ def compute_angles(frames_info):
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
     
 
-def sort_frames(root_path, files_info):
-    '''
-    Extract the frames information from the science files
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-    
-    files_info : dataframe
-        The data frame with all the information on files
-
-    Returns
-    -------
-    calibs : dataframe
-        A data frame with the information on all frames
-    '''
-
-    print('Extracting frames information')
-
-    # check directories
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-        
-    # convert times
-    files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
-    files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
-    files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
-        
-    # science files
-    sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
-
-    # build indices
-    files = []
-    img   = []
-    for file, finfo in sci_files.iterrows():
-        NDIT = int(finfo['DET NDIT'])
-
-        files.extend(np.repeat(file, NDIT))
-        img.extend(list(np.arange(NDIT)))
-
-    # create new dataframe
-    frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
-    
-    # expand files_info into frames_info
-    frames_info = frames_info.align(files_info, level=0)[1]    
-
-    # compute timestamps
-    compute_times(frames_info)
-    
-    # compute angles (ra, dec, parang)
-    compute_angles(frames_info)
-    
-    # save
-    frames_info.to_csv(os.path.join(preproc_path, 'frames.csv'))
-    
-    return frames_info
 
 
-def check_files_association(root_path, files_info):
-    '''
-    Performs the calibration files association as a sanity check
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-    
-    files_info : dataframe
-        The data frame with all the information on files
-
-    Returns
-    -------
-    calibs : dataframe
-        A data frame with the information on all calibrations
-    '''
-
-    print('Performing file association for calibrations')
-    
-    # IFS obs mode
-    modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS']
-    if len(modes.unique()) != 1:
-        raise ValueError('Sequence is mixing YJ and YJH observations.')
-
-    mode = modes.unique()[0]    
-    if mode == 'OBS_YJ':
-        mode_short = 'YJ'
-    elif mode == 'OBS_H':
-        mode_short = 'YJH'
-    else:
-        raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-    # specific data frame for calibrations
-    # keep static calibrations and sky backgrounds
-    calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
-                        ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
-    
-    ###############################################
-    # static calibrations not dependent on science
-    ###############################################
-    error_flag = 0
-    warning_flag = 0
-    
-    # white flat
-    cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
-    if len(cfiles) != 2:
-        error_flag += 1
-        print(' * Error: there should be 2 flat files for white lamp!')
-        
-    # 1020 nm flat
-    cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
-    if len(cfiles) != 2:
-        error_flag += 1
-        print(' * Error: there should be 2 flat files for 1020 nm filter!')
-
-    # 1230 nm flat
-    cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
-    if len(cfiles) != 2:
-        error_flag += 1
-        print(' * Error: there should be 2 flat files for 1230 nm filter!')
-
-    # 1300 nm flat
-    cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
-    if len(cfiles) != 2:
-        error_flag += 1
-        print(' * Error: there should be 2 flat files for 1300 nm filter!')
-
-    # 1550 nm flat (YJH mode only)
-    if mode_short == 'YJH':
-        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
-        if len(cfiles) != 2:
-            error_flag += 1
-            print(' * Error: there should be 2 flat files for 1550 nm filter!')
-
-    # spectra position
-    cfiles = calibs[(calibs['DPR TYPE'] == 'SPECPOS,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-    if len(cfiles) != 1:
-        error_flag += 1
-        print(' * Error: there should be 1 spectra position file!')
-
-    # wavelength
-    cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-    if len(cfiles) != 1:
-        error_flag += 1
-        print(' * Error: there should be 1 wavelength calibration file!')
-    
-    # IFU flat
-    cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-    if len(cfiles) != 1:
-        error_flag += 1
-        print(' * Error: there should be 1 IFU flat file!')
-    
-    # calibs dark file
-    cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
-                    (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(cfiles) != 1:
-        warning_flag += 1
-        print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.6 sec). ' +
-              'It is *highly recommended* to include one to obtain the best data reduction. ' +
-              'A single dark/background file is sufficient, and it can easily be downloaded ' +
-              'from the ESO archive')
-    
-    ##################################################
-    # static calibrations that depend on science (DIT)
-    ##################################################
-
-    obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
-    DITs = files_info.loc[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT'), 'DET SEQ1 DIT'].unique().round(2)
-
-    # handle darks in a slightly different way because there might be several different DITs
-    for DIT in DITs:
-        # instrumental backgrounds
-        cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
-                        (calibs['DET SEQ1 DIT'].round(2) == DIT)]
-        if len(cfiles) == 0:
-            warning_flag += 1
-            print(' * Warning: there is no dark/background for science files with DIT={0} sec. '.format(DIT) +
-                  'it is *highly recommended* to include one to obtain the best data reduction. ' +
-                  'A single dark/background file is sufficient, and it can easily be downloaded ' +
-                  'from the ESO archive')
-            
-        # sky backgrounds
-        cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
-        if len(cfiles) == 0:
-            warning_flag += 1
-            print(' * Warning: there is no sky background for science files with DIT={0} sec. '.format(DIT) +
-                  'Using a sky background instead of an internal instrumental background can ' +
-                  'usually provide a cleaner data reduction')
-
-    # error reporting
-    print('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-    if error_flag:
-        raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
-
-
-def sph_ifs_cal_dark(root_path, files_info, silent=True):
-    '''
-    Create the dark and background calibrations
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating darks and backgrounds')
-    
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-        
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-        
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # get list of files
-    raw = files_info[np.logical_not(files_info['PROCESSED'])]
-    calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
-                 (files_info['DPR TYPE'] == 'SKY')]
-
-    # loops on type and DIT value
-    types = ['DARK', 'DARK,BACKGROUND', 'SKY']
-    DITs  = calibs['DET SEQ1 DIT'].unique().round(2)
-
-    for ctype in types:
-        for DIT in DITs:            
-            cfiles = calibs[(calibs['DPR TYPE'] == ctype) & (calibs['DET SEQ1 DIT'].round(2) == DIT)]
-            files = cfiles.index
-
-            # skip non-existing combinations
-            if len(cfiles) == 0:
-                continue
-            
-            print(' * {0} with DIT={1:.2f} sec ({2} files)'.format(ctype, DIT, len(cfiles)))
-
-            # create sof
-            sof = os.path.join(sof_path, 'dark_DIT={0:.2f}.sof'.format(DIT))
-            file = open(sof, 'w')
-            for f in files:
-                file.write('{0}{1}.fits     {2}\n'.format(raw_path, f, 'IFS_DARK_RAW'))
-            file.close()
-
-            # products
-            if ctype == 'SKY':
-                loc = 'sky'
-            else:
-                loc = 'internal'
-            dark_file = 'dark_{0}_DIT={1:.2f}'.format(loc, DIT)
-            bpm_file  = 'dark_{0}_bpm_DIT={1:.2f}'.format(loc, DIT)
-
-            # execute esorex    
-            args = ['esorex',
-                    '--no-checksum=TRUE',
-                    '--no-datamd5=TRUE',
-                    'sph_ifs_master_dark',
-                    '--ifs.master_dark.coll_alg=2',
-                    '--ifs.master_dark.sigma_clip=3.0',
-                    '--ifs.master_dark.smoothing=5',
-                    '--ifs.master_dark.min_acceptable=0.0',
-                    '--ifs.master_dark.max_acceptable=2000.0',
-                    '--ifs.master_dark.outfilename={0}{1}.fits'.format(calib_path, dark_file),
-                    '--ifs.master_dark.badpixfilename={0}{1}.fits'.format(calib_path, bpm_file),
-                    sof]
-
-            if silent:
-                proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
-            else:
-                proc = subprocess.run(args, cwd=tmp_path)
-
-            if proc.returncode != 0:
-                raise ValueError('esorex process was not successful')
-
-            # store products
-            files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-            files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
-            files_info.loc[dark_file, 'PROCESSED'] = True
-            files_info.loc[dark_file, 'PRO CATG'] = 'IFS_MASTER_DARK'
-
-            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-            files_info.loc[bpm_file, 'PROCESSED'] = True
-            files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
-
-    # save
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
@@ -774,449 +349,6 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         flat[ifu_mask == 0] = 1
     
     return flat, bpm
-
-    
-def sph_ifs_cal_detector_flat(root_path, files_info, silent=True):
-    '''
-    Create the detector flat calibrations
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating flats')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # get list of files
-    raw = files_info[np.logical_not(files_info['PROCESSED'])]
-    calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
-
-    # IFS obs mode
-    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
-    if mode == 'OBS_YJ':
-        mode_short = 'YJ'
-    elif mode == 'OBS_H':
-        mode_short = 'YJH'
-    else:
-        raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-    # bpm files
-    cfiles = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-    bpm_files = [os.path.join(calib_path, f+'.fits') for f in cfiles]
-    
-    # loop on wavelengths
-    waves = [         0,        1020,        1230,        1300,        1550]
-    combs = ['CAL_BB_2', 'CAL_NB1_1', 'CAL_NB2_1', 'CAL_NB3_1', 'CAL_NB4_2']
-    lamps = [         5,           1,           2,           3,           4]
-    
-    for wave, comb, lamp in zip(waves, combs, lamps):
-        print(' * flat for wavelength {0} nm (filter {1}, lamp {2})'.format(wave, comb, lamp))
-        
-        cfiles = calibs[calibs['INS2 COMB IFS'] == '{0}_{1}'.format(comb, mode_short)]
-        files = [os.path.join(raw_path, f+'.fits') for f in cfiles.index]
-
-        if len(files) == 0:
-            continue
-        elif len(files) != 2:
-            raise ValueError('There should be exactly 2 raw flat files. Found {0}.'.format(len(files)))
-
-        # create the flat and bpm
-        flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True)
-    
-        # products
-        if wave == 0:
-            wav = 'white'
-        else:
-            wav = str(int(wave))
-        flat_file = 'master_detector_flat_{0}_l{1}'.format(wav, lamp)
-        bpm_file  = 'dff_badpixelname_{0}_l{1}'.format(wav, lamp)        
-
-        hdu = fits.open(os.path.join(raw_path, files[0]))
-        fits.writeto(os.path.join(calib_path, flat_file+'.fits'), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
-        fits.writeto(os.path.join(calib_path, bpm_file+'.fits'), bpm, header=hdu[0].header, output_verify='silentfix', overwrite=True)
-        hdu.close()
-
-        # store products
-        files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-        files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-        files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-        files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
-        files_info.loc[flat_file, 'PROCESSED'] = True
-        files_info.loc[flat_file, 'PRO CATG'] = 'IFS_MASTER_DFF'
-
-        files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-        files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-        files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-        files_info.loc[bpm_file, 'PROCESSED'] = True
-        files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
-
-    # save
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
-
-
-def sph_ifs_cal_specpos(root_path, files_info, silent=True):
-    '''
-    Create the specpos calibration
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating specpos')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-    
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # get list of files
-    specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
-    if len(specpos_file) != 1:
-        raise ValueError('There should be exactly 1 raw specpos files. Found {0}.'.format(len(specpos_file)))
-    
-    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
-                            (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(dark_file) == 0:
-        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-
-    # IFS obs mode
-    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
-    if mode == 'OBS_YJ':
-        Hmode = 'FALSE'
-    elif mode == 'OBS_H':
-        Hmode = 'TRUE'
-    else:
-        raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-    # create sof
-    sof = os.path.join(sof_path, 'specpos.sof')
-    file = open(sof, 'w')
-    file.write('{0}{1}.fits     {2}\n'.format(raw_path, specpos_file.index[0], 'IFS_SPECPOS_RAW'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
-    file.close()
-    
-    # products
-    specp_file = 'spectra_positions'
-
-    # execute esorex    
-    args = ['esorex',
-            '--no-checksum=TRUE',
-            '--no-datamd5=TRUE',
-            'sph_ifs_spectra_positions',
-            '--ifs.spectra_positions.hmode={0}'.format(Hmode),
-            '--ifs.spectra_positions.outfilename={0}{1}.fits'.format(calib_path, specp_file),
-            sof]
-
-    if silent:
-        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
-    else:
-        proc = subprocess.run(args, cwd=tmp_path)
-
-    if proc.returncode != 0:
-        raise ValueError('esorex process was not successful')
-
-    # store products
-    files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'][0]
-    files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'][0]
-    files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'][0]
-    files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'][0]
-    files_info.loc[specp_file, 'PROCESSED'] = True
-    files_info.loc[specp_file, 'PRO CATG'] = 'IFS_SPECPOS'
-
-    # save
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
-
-
-def sph_ifs_cal_wave(root_path, files_info, silent=True):
-    '''
-    Create the wavelength calibration
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating wavelength calibration')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-    
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-        
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # get list of files
-    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
-    if len(wave_file) != 1:
-        raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-    
-    specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
-    if len(specpos_file) != 1:
-        raise ValueError('There should be exactly 1 specpos file. Found {0}.'.format(len(specpos_file)))
-    
-    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
-                            (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(dark_file) == 0:
-        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-
-    # IFS obs mode
-    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
-        
-    # create sof
-    sof = os.path.join(sof_path, 'wave.sof')
-    file = open(sof, 'w')
-    file.write('{0}{1}.fits     {2}\n'.format(raw_path, wave_file.index[0], 'IFS_WAVECALIB_RAW'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, specpos_file.index[0], 'IFS_SPECPOS'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
-    file.close()
-    
-    # products
-    wav_file = 'wave_calib'
-
-    # execute esorex
-    if mode == 'OBS_YJ':
-        args = ['esorex',
-                '--no-checksum=TRUE',
-                '--no-datamd5=TRUE',
-                'sph_ifs_wave_calib',
-                '--ifs.wave_calib.number_lines=3',
-                '--ifs.wave_calib.wavelength_line1=0.9877',
-                '--ifs.wave_calib.wavelength_line2=1.1237',
-                '--ifs.wave_calib.wavelength_line3=1.3094',
-                '--ifs.wave_calib.outfilename={0}{1}.fits'.format(calib_path, wav_file),
-                sof]
-    elif mode == 'OBS_YJH':
-        args = ['esorex',
-                '--no-checksum=TRUE',
-                '--no-datamd5=TRUE',
-                'sph_ifs_wave_calib',
-                '--ifs.wave_calib.number_lines=3',
-                '--ifs.wave_calib.wavelength_line1=0.9877',
-                '--ifs.wave_calib.wavelength_line2=1.1237',
-                '--ifs.wave_calib.wavelength_line3=1.3094',
-                '--ifs.wave_calib.wavelength_line4=1.5451',
-                '--ifs.wave_calib.outfilename={0}{1}.fits'.format(calib_path, wav_file),
-                sof]
-
-    if silent:
-        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
-    else:
-        proc = subprocess.run(args, cwd=tmp_path)
-
-    if proc.returncode != 0:
-        raise ValueError('esorex process was not successful')
-
-    # store products
-    files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
-    files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
-    files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'][0]
-    files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
-    files_info.loc[wav_file, 'PROCESSED'] = True
-    files_info.loc[wav_file, 'PRO CATG'] = 'IFS_WAVECALIB'
-
-    # save
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
-
-    
-def sph_ifs_cal_ifu_flat(root_path, files_info, silent=True):
-    '''
-    Create the IFU flat calibration
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating IFU flat')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-        
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # IFS obs mode
-    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
-    if mode == 'OBS_YJ':
-        mode_short = 'YJ'
-    elif mode == 'OBS_H':
-        mode_short = 'YJH'
-    else:
-        raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-    # get list of files
-    ifu_flat_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'FLAT,LAMP') &
-                               (files_info['DPR TECH'] == 'IFU')]
-    if len(ifu_flat_file) != 1:
-        raise ValueError('There should be exactly 1 raw IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
-    
-    wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
-    if len(wave_file) != 1:
-        raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
-    
-    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                            (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(dark_file) == 0:
-        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-
-    flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                  (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
-    if len(flat_white_file) != 1:
-        raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
-    
-    flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
-    if len(flat_1020_file) != 1:
-        raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
-    
-    flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
-    if len(flat_1230_file) != 1:
-        raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
-
-    flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
-    if len(flat_1300_file) != 1:
-        raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
-    
-    if mode == 'OBS_YJH':
-        flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                     (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
-        if len(flat_1550_file) != 1:
-            raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
-    
-    # create sof
-    sof = os.path.join(sof_path, 'ifu_flat.sof')
-    file = open(sof, 'w')
-    file.write('{0}{1}.fits     {2}\n'.format(raw_path, ifu_flat_file.index[0], 'IFS_FLAT_FIELD_RAW'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, dark_file.index[0], 'IFS_MASTER_DARK'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
-    if mode == 'OBS_YJH':
-        file.write('{0}{1}     {2}\n'.format(calib_path, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
-    file.close()
-
-    # products
-    ifu_file = 'ifu_flat'
-
-    # execute esorex
-    args = ['esorex',
-            '--no-checksum=TRUE',
-            '--no-datamd5=TRUE',
-            'sph_ifs_instrument_flat',
-            '--ifs.instrument_flat.nofit=TRUE',
-            '--ifs.instrument_flat.ifu_filename={0}{1}.fits'.format(calib_path, ifu_file),
-            sof]
-
-    if silent:
-        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
-    else:
-        proc = subprocess.run(args, cwd=tmp_path)
-
-    if proc.returncode != 0:
-        raise ValueError('esorex process was not successful')
-
-    # store products
-    files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'][0]
-    files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'][0]
-    files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'][0]
-    files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'][0]
-    files_info.loc[ifu_file, 'PROCESSED'] = True
-    files_info.loc[ifu_file, 'PRO CATG'] = 'IFS_IFU_FLAT_FIELD'
-
-    # save
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
 
 
 def sph_ifs_correct_spectral_xtalk(img):
@@ -2851,49 +1983,19 @@ class IFSReduction(object):
             Path to the directory containing the raw data
         '''
 
-        # init variable
-        self._root_path = os.path.expanduser(path)
+        # init path
+        self._path = ReductionPath.Path(path)
 
-        # generate all paths and directories
-        # self._raw_path = os.path.join(self._root_path, 'raw/')        
-        # self._sof_path = os.path.join(self._root_path, 'sof/')
-        # self._tmp_path = os.path.join(self._root_path, 'tmp/')
-        # self._calib_path = os.path.join(self._root_path, 'calib/')
-        # self._preproc_path = os.path.join(self._root_path, 'preproc/')
-        # self._products_path = os.path.join(self._root_path, 'products/')
-
-        # os.makedirs(self._raw_path)
-        # os.makedirs(self._sof_path)
-        # os.makedirs(self._tmp_path)
-        # os.makedirs(self._calib_path)
-        # os.makedirs(self._preproc_path)
-        # os.makedirs(self._products_path)
-        
-        # reload existing data frames
-        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
-        self._files_info = files_info
-        self._frames_info = frames_info
-        self._frames_info_preproc = frames_info_preproc
-        
+        # reload any existing data frames
+        self.read_info()
+    
     ##################################################
     # Properties
     ##################################################
     
     @property
-    def root_path(self):
-        return self._root_path
-
-    # @property
-    # def raw_path(self):
-    #     return self._raw_path
-    
-    # @property
-    # def preproc_path(self):
-    #     return self._preproc_path
-    
-    # @property
-    # def products_path(self):
-    #     return self._products_path
+    def path(self):
+        return self._path
 
     @property
     def files_info(self):
@@ -2917,11 +2019,11 @@ class IFSReduction(object):
         '''
 
         # sort files and frames
-        self._files_info = sort_files(self._root_path)
-        self._frames_info = sort_frames(self._root_path, self._files_info)
+        self.sort_files()
+        self.sort_frames()
 
         # sanity check
-        check_files_association(self._root_path, self._files_info)
+        self.check_files_association()
         
     
     def create_static_calibrations(self):
@@ -2929,11 +2031,11 @@ class IFSReduction(object):
         Create all static calibrations, mainly with esorex
         '''
         
-        sph_ifs_cal_dark(self._root_path, self._files_info)
-        sph_ifs_cal_detector_flat(self._root_path, self._files_info)
-        sph_ifs_cal_specpos(self._root_path, self._files_info)
-        sph_ifs_cal_wave(self._root_path, self._files_info)
-        sph_ifs_cal_ifu_flat(self._root_path, self._files_info)
+        self.sph_ifs_cal_dark()
+        self.sph_ifs_cal_detector_flat()
+        self.sph_ifs_cal_specpos()
+        self.sph_ifs_cal_wave()
+        self.sph_ifs_cal_ifu_flat()
         
 
     def preprocess_science(self):
@@ -2955,10 +2057,7 @@ class IFSReduction(object):
         '''
 
         # reload existing data frames
-        files_info, frames_info, frames_info_preproc = read_info(self._root_path)
-        self._files_info = files_info
-        self._frames_info = frames_info
-        self._frames_info_preproc = frames_info_preproc
+        self.read_info()
 
         # process science data
         sph_ifs_science_cubes(self._root_path, self._files_info, self._frames_info_preproc)
@@ -2986,4 +2085,745 @@ class IFSReduction(object):
         self.preprocess_science()
         self.process_science()
 
+    ##################################################
+    # SPHERE/IFS methods
+    ##################################################
     
+    def read_info(self):
+        '''
+        Read the files, calibs and frames information
+
+        files_info : dataframe
+            The data frame with all the information on files
+
+        frames_info : dataframe
+            The data frame with all the information on science frames
+
+        frames_info_preproc : dataframe
+            The data frame with all the information on science frames after pre-processing
+        '''
+
+        # path
+        path = self._path
+        
+        # files info
+        fname = os.path.join(path.preproc, 'files.csv')
+        if os.path.exists(fname):
+            files_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
+            files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
+            files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
+        else:
+            files_info = None
+
+        fname = os.path.join(path.preproc, 'frames.csv')
+        if os.path.exists(fname):
+            frames_info = pd.read_csv(fname, index_col=(0, 1))
+
+            # convert times
+            frames_info['DATE-OBS'] = pd.to_datetime(frames_info['DATE-OBS'], utc=True)
+            frames_info['DATE'] = pd.to_datetime(frames_info['DATE'], utc=True)
+            frames_info['DET FRAM UTC'] = pd.to_datetime(frames_info['DET FRAM UTC'], utc=True)
+            frames_info['TIME START'] = pd.to_datetime(frames_info['TIME START'], utc=True)
+            frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=True)
+            frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=True)
+        else:
+            frames_info = None
+
+        fname = os.path.join(path.preproc, 'frames_preproc.csv')
+        if os.path.exists(fname):
+            frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
+
+            # convert times
+            frames_info_preproc['DATE-OBS'] = pd.to_datetime(frames_info_preproc['DATE-OBS'], utc=True)
+            frames_info_preproc['DATE'] = pd.to_datetime(frames_info_preproc['DATE'], utc=True)
+            frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=True)
+            frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
+            frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
+            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)
+        else:
+            frames_info_preproc = None
+
+        # save data frames in instance variables
+        self._files_info = files_info
+        self._frames_info = frames_info
+        self._frames_info_preproc = frames_info_preproc
+
+        
+    def sort_files(self):
+        '''
+        Sort all raw files and save result in a data frame
+
+        files_info : dataframe
+            Data frame with the information on raw files
+        '''
+
+        print('Sorting raw files')
+
+        # parameters
+        path = self._path
+        
+        # list files
+        files = glob.glob(os.path.join(path.raw, '*.fits'))
+        files = [os.path.splitext(os.path.basename(f))[0] for f in files]
+
+        if len(files) == 0:
+            raise ValueError('No raw FITS files in root_path directory')
+
+        print(' * found {0} FITS files in {1}'.format(len(files), path.raw))
+
+        # files table
+        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
+
+        for f in files:
+            hdu = fits.open(os.path.join(path.raw, f+'.fits'))
+            hdr = hdu[0].header
+
+            for k, sk in zip(keywords, keywords_short):
+                files_info.loc[f, sk] = hdr.get(k)
+
+            hdu.close()
+
+        # processed column
+        files_info.insert(len(files_info.columns), 'PROCESSED', False)
+        files_info.insert(len(files_info.columns), 'PRO CATG', False)
+
+        # convert times
+        files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
+        files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
+        files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
+
+        # save files_info
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))    
+        self._files_info = files_info
+
+    
+    def sort_frames(self):
+        '''
+        Extract the frames information from the science files
+
+        Parameters
+        ----------
+        root_path : str
+            Path to the dataset
+
+        files_info : dataframe
+            The data frame with all the information on files
+
+        Returns
+        -------
+        calibs : dataframe
+            A data frame with the information on all frames
+        '''
+
+        print('Extracting frames information')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # science files
+        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
+
+        # build indices
+        files = []
+        img   = []
+        for file, finfo in sci_files.iterrows():
+            NDIT = int(finfo['DET NDIT'])
+
+            files.extend(np.repeat(file, NDIT))
+            img.extend(list(np.arange(NDIT)))
+
+        # create new dataframe
+        frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+
+        # expand files_info into frames_info
+        frames_info = frames_info.align(files_info, level=0)[1]    
+
+        # compute timestamps
+        compute_times(frames_info)
+
+        # compute angles (ra, dec, parang)
+        compute_angles(frames_info)
+
+        # save
+        frames_info.to_csv(os.path.join(path.preproc, 'frames.csv'))
+        self._frames_info = frames_info
+
+
+    def check_files_association(self):
+        '''
+        Performs the calibration files association as a sanity check
+        '''
+
+        print('Performing file association for calibrations')
+
+        # parameters
+        files_info = self._files_info
+        
+        # IFS obs mode
+        modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS']
+        if len(modes.unique()) != 1:
+            raise ValueError('Sequence is mixing YJ and YJH observations.')
+
+        mode = modes.unique()[0]    
+        if mode == 'OBS_YJ':
+            mode_short = 'YJ'
+        elif mode == 'OBS_H':
+            mode_short = 'YJH'
+        else:
+            raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+        # specific data frame for calibrations
+        # keep static calibrations and sky backgrounds
+        calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
+                            ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
+
+        ###############################################
+        # static calibrations not dependent on science
+        ###############################################
+        error_flag = 0
+        warning_flag = 0
+
+        # white flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
+        if len(cfiles) != 2:
+            error_flag += 1
+            print(' * Error: there should be 2 flat files for white lamp!')
+
+        # 1020 nm flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
+        if len(cfiles) != 2:
+            error_flag += 1
+            print(' * Error: there should be 2 flat files for 1020 nm filter!')
+
+        # 1230 nm flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
+        if len(cfiles) != 2:
+            error_flag += 1
+            print(' * Error: there should be 2 flat files for 1230 nm filter!')
+
+        # 1300 nm flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
+        if len(cfiles) != 2:
+            error_flag += 1
+            print(' * Error: there should be 2 flat files for 1300 nm filter!')
+
+        # 1550 nm flat (YJH mode only)
+        if mode_short == 'YJH':
+            cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
+            if len(cfiles) != 2:
+                error_flag += 1
+                print(' * Error: there should be 2 flat files for 1550 nm filter!')
+
+        # spectra position
+        cfiles = calibs[(calibs['DPR TYPE'] == 'SPECPOS,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
+        if len(cfiles) != 1:
+            error_flag += 1
+            print(' * Error: there should be 1 spectra position file!')
+
+        # wavelength
+        cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
+        if len(cfiles) != 1:
+            error_flag += 1
+            print(' * Error: there should be 1 wavelength calibration file!')
+
+        # IFU flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
+        if len(cfiles) != 1:
+            error_flag += 1
+            print(' * Error: there should be 1 IFU flat file!')
+
+        # calibs dark file
+        cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
+                        (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
+        if len(cfiles) != 1:
+            warning_flag += 1
+            print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.6 sec). ' +
+                  'It is *highly recommended* to include one to obtain the best data reduction. ' +
+                  'A single dark/background file is sufficient, and it can easily be downloaded ' +
+                  'from the ESO archive')
+
+        ##################################################
+        # static calibrations that depend on science (DIT)
+        ##################################################
+
+        obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
+        DITs = files_info.loc[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT'), 'DET SEQ1 DIT'].unique().round(2)
+
+        # handle darks in a slightly different way because there might be several different DITs
+        for DIT in DITs:
+            # instrumental backgrounds
+            cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
+                            (calibs['DET SEQ1 DIT'].round(2) == DIT)]
+            if len(cfiles) == 0:
+                warning_flag += 1
+                print(' * Warning: there is no dark/background for science files with DIT={0} sec. '.format(DIT) +
+                      'it is *highly recommended* to include one to obtain the best data reduction. ' +
+                      'A single dark/background file is sufficient, and it can easily be downloaded ' +
+                      'from the ESO archive')
+
+            # sky backgrounds
+            cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+            if len(cfiles) == 0:
+                warning_flag += 1
+                print(' * Warning: there is no sky background for science files with DIT={0} sec. '.format(DIT) +
+                      'Using a sky background instead of an internal instrumental background can ' +
+                      'usually provide a cleaner data reduction')
+
+        # error reporting
+        print('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
+        if error_flag:
+            raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+
+        
+    def sph_ifs_cal_dark(self, silent=True):
+        '''
+        Create the dark and background calibrations
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating darks and backgrounds')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        raw = files_info[np.logical_not(files_info['PROCESSED'])]
+        calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
+                     (files_info['DPR TYPE'] == 'SKY')]
+
+        # loops on type and DIT value
+        types = ['DARK', 'DARK,BACKGROUND', 'SKY']
+        DITs  = calibs['DET SEQ1 DIT'].unique().round(2)
+
+        for ctype in types:
+            for DIT in DITs:            
+                cfiles = calibs[(calibs['DPR TYPE'] == ctype) & (calibs['DET SEQ1 DIT'].round(2) == DIT)]
+                files = cfiles.index
+
+                # skip non-existing combinations
+                if len(cfiles) == 0:
+                    continue
+
+                print(' * {0} with DIT={1:.2f} sec ({2} files)'.format(ctype, DIT, len(cfiles)))
+
+                # create sof
+                sof = os.path.join(path.sof, 'dark_DIT={0:.2f}.sof'.format(DIT))
+                file = open(sof, 'w')
+                for f in files:
+                    file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IFS_DARK_RAW'))
+                file.close()
+
+                # products
+                if ctype == 'SKY':
+                    loc = 'sky'
+                else:
+                    loc = 'internal'
+                dark_file = 'dark_{0}_DIT={1:.2f}'.format(loc, DIT)
+                bpm_file  = 'dark_{0}_bpm_DIT={1:.2f}'.format(loc, DIT)
+
+                # execute esorex    
+                args = ['esorex',
+                        '--no-checksum=TRUE',
+                        '--no-datamd5=TRUE',
+                        'sph_ifs_master_dark',
+                        '--ifs.master_dark.coll_alg=2',
+                        '--ifs.master_dark.sigma_clip=3.0',
+                        '--ifs.master_dark.smoothing=5',
+                        '--ifs.master_dark.min_acceptable=0.0',
+                        '--ifs.master_dark.max_acceptable=2000.0',
+                        '--ifs.master_dark.outfilename={0}{1}.fits'.format(path.calib, dark_file),
+                        '--ifs.master_dark.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                        sof]
+
+                if silent:
+                    proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+                else:
+                    proc = subprocess.run(args, cwd=path.tmp)
+
+                if proc.returncode != 0:
+                    raise ValueError('esorex process was not successful')
+
+                # store products
+                files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+                files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+                files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+                files_info.loc[dark_file, 'PROCESSED'] = True
+                files_info.loc[dark_file, 'PRO CATG'] = 'IFS_MASTER_DARK'
+
+                files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+                files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+                files_info.loc[bpm_file, 'PROCESSED'] = True
+                files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_cal_detector_flat(self, silent=True):
+        '''
+        Create the detector flat calibrations
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating flats')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        raw = files_info[np.logical_not(files_info['PROCESSED'])]
+        calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
+
+        # IFS obs mode
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
+        if mode == 'OBS_YJ':
+            mode_short = 'YJ'
+        elif mode == 'OBS_H':
+            mode_short = 'YJH'
+        else:
+            raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+        # bpm files
+        cfiles = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+        bpm_files = [os.path.join(path.calib, f+'.fits') for f in cfiles]
+
+        # loop on wavelengths
+        waves = [         0,        1020,        1230,        1300,        1550]
+        combs = ['CAL_BB_2', 'CAL_NB1_1', 'CAL_NB2_1', 'CAL_NB3_1', 'CAL_NB4_2']
+        lamps = [         5,           1,           2,           3,           4]
+
+        for wave, comb, lamp in zip(waves, combs, lamps):
+            print(' * flat for wavelength {0} nm (filter {1}, lamp {2})'.format(wave, comb, lamp))
+
+            cfiles = calibs[calibs['INS2 COMB IFS'] == '{0}_{1}'.format(comb, mode_short)]
+            files = [os.path.join(path.raw, f+'.fits') for f in cfiles.index]
+
+            if len(files) == 0:
+                continue
+            elif len(files) != 2:
+                raise ValueError('There should be exactly 2 raw flat files. Found {0}.'.format(len(files)))
+
+            # create the flat and bpm
+            flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True)
+
+            # products
+            if wave == 0:
+                wav = 'white'
+            else:
+                wav = str(int(wave))
+            flat_file = 'master_detector_flat_{0}_l{1}'.format(wav, lamp)
+            bpm_file  = 'dff_badpixelname_{0}_l{1}'.format(wav, lamp)        
+
+            hdu = fits.open(os.path.join(path.raw, files[0]))
+            fits.writeto(os.path.join(path.calib, flat_file+'.fits'), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
+            fits.writeto(os.path.join(path.calib, bpm_file+'.fits'), bpm, header=hdu[0].header, output_verify='silentfix', overwrite=True)
+            hdu.close()
+
+            # store products
+            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+            files_info.loc[flat_file, 'PROCESSED'] = True
+            files_info.loc[flat_file, 'PRO CATG'] = 'IFS_MASTER_DFF'
+
+            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+            files_info.loc[bpm_file, 'PROCESSED'] = True
+            files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_cal_specpos(self, silent=True):
+        '''
+        Create the specpos calibration
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating specpos')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
+        if len(specpos_file) != 1:
+            raise ValueError('There should be exactly 1 raw specpos files. Found {0}.'.format(len(specpos_file)))
+
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
+                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+        if len(dark_file) == 0:
+            raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+
+        # IFS obs mode
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
+        if mode == 'OBS_YJ':
+            Hmode = 'FALSE'
+        elif mode == 'OBS_H':
+            Hmode = 'TRUE'
+        else:
+            raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+        # create sof
+        sof = os.path.join(path.sof, 'specpos.sof')
+        file = open(sof, 'w')
+        file.write('{0}{1}.fits     {2}\n'.format(path.raw, specpos_file.index[0], 'IFS_SPECPOS_RAW'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IFS_MASTER_DARK'))
+        file.close()
+
+        # products
+        specp_file = 'spectra_positions'
+
+        # execute esorex    
+        args = ['esorex',
+                '--no-checksum=TRUE',
+                '--no-datamd5=TRUE',
+                'sph_ifs_spectra_positions',
+                '--ifs.spectra_positions.hmode={0}'.format(Hmode),
+                '--ifs.spectra_positions.outfilename={0}{1}.fits'.format(path.calib, specp_file),
+                sof]
+
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
+
+        if proc.returncode != 0:
+            raise ValueError('esorex process was not successful')
+
+        # store products
+        files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'][0]
+        files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'][0]
+        files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'][0]
+        files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'][0]
+        files_info.loc[specp_file, 'PROCESSED'] = True
+        files_info.loc[specp_file, 'PRO CATG'] = 'IFS_SPECPOS'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_cal_wave(self, silent=True):
+        '''
+        Create the wavelength calibration
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating wavelength calibration')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+        if len(wave_file) != 1:
+            raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+
+        specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
+        if len(specpos_file) != 1:
+            raise ValueError('There should be exactly 1 specpos file. Found {0}.'.format(len(specpos_file)))
+
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
+                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+        if len(dark_file) == 0:
+            raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+
+        # IFS obs mode
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+
+        # create sof
+        sof = os.path.join(path.sof, 'wave.sof')
+        file = open(sof, 'w')
+        file.write('{0}{1}.fits     {2}\n'.format(path.raw, wave_file.index[0], 'IFS_WAVECALIB_RAW'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, specpos_file.index[0], 'IFS_SPECPOS'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IFS_MASTER_DARK'))
+        file.close()
+
+        # products
+        wav_file = 'wave_calib'
+
+        # execute esorex
+        if mode == 'OBS_YJ':
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ifs_wave_calib',
+                    '--ifs.wave_calib.number_lines=3',
+                    '--ifs.wave_calib.wavelength_line1=0.9877',
+                    '--ifs.wave_calib.wavelength_line2=1.1237',
+                    '--ifs.wave_calib.wavelength_line3=1.3094',
+                    '--ifs.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
+                    sof]
+        elif mode == 'OBS_YJH':
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ifs_wave_calib',
+                    '--ifs.wave_calib.number_lines=3',
+                    '--ifs.wave_calib.wavelength_line1=0.9877',
+                    '--ifs.wave_calib.wavelength_line2=1.1237',
+                    '--ifs.wave_calib.wavelength_line3=1.3094',
+                    '--ifs.wave_calib.wavelength_line4=1.5451',
+                    '--ifs.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
+                    sof]
+
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
+
+        if proc.returncode != 0:
+            raise ValueError('esorex process was not successful')
+
+        # store products
+        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
+        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
+        files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'][0]
+        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
+        files_info.loc[wav_file, 'PROCESSED'] = True
+        files_info.loc[wav_file, 'PRO CATG'] = 'IFS_WAVECALIB'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_cal_ifu_flat(self, silent=True):
+        '''
+        Create the IFU flat calibration
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating IFU flat')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # IFS obs mode
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+        if mode == 'OBS_YJ':
+            mode_short = 'YJ'
+        elif mode == 'OBS_H':
+            mode_short = 'YJH'
+        else:
+            raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+        # get list of files
+        ifu_flat_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'FLAT,LAMP') &
+                                   (files_info['DPR TECH'] == 'IFU')]
+        if len(ifu_flat_file) != 1:
+            raise ValueError('There should be exactly 1 raw IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
+
+        wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
+        if len(wave_file) != 1:
+            raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
+
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+        if len(dark_file) == 0:
+            raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+
+        flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                      (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
+        if len(flat_white_file) != 1:
+            raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
+
+        flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
+        if len(flat_1020_file) != 1:
+            raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
+
+        flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
+        if len(flat_1230_file) != 1:
+            raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
+
+        flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
+        if len(flat_1300_file) != 1:
+            raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
+
+        if mode == 'OBS_YJH':
+            flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                         (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
+            if len(flat_1550_file) != 1:
+                raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
+
+        # create sof
+        sof = os.path.join(path.sof, 'ifu_flat.sof')
+        file = open(sof, 'w')
+        file.write('{0}{1}.fits     {2}\n'.format(path.raw, ifu_flat_file.index[0], 'IFS_FLAT_FIELD_RAW'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, wave_file.index[0], 'IFS_WAVECALIB'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IFS_MASTER_DARK'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
+        if mode == 'OBS_YJH':
+            file.write('{0}{1}     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
+        file.close()
+
+        # products
+        ifu_file = 'ifu_flat'
+
+        # execute esorex
+        args = ['esorex',
+                '--no-checksum=TRUE',
+                '--no-datamd5=TRUE',
+                'sph_ifs_instrument_flat',
+                '--ifs.instrument_flat.nofit=TRUE',
+                '--ifs.instrument_flat.ifu_filename={0}{1}.fits'.format(path.calib, ifu_file),
+                sof]
+
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
+
+        if proc.returncode != 0:
+            raise ValueError('esorex process was not successful')
+
+        # store products
+        files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'][0]
+        files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'][0]
+        files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'][0]
+        files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'][0]
+        files_info.loc[ifu_file, 'PROCESSED'] = True
+        files_info.loc[ifu_file, 'PRO CATG'] = 'IFS_IFU_FLAT_FIELD'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
