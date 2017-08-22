@@ -32,3 +32,5 @@ root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 # IFS.sph_ifs_star_center(root_path)
 
 # IFS.sph_ifs_combine_data(root_path, save_scaled=True)
+
+red = IFS.IFSReduction(root_path)

@@ -13,13 +13,14 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 
-import utils.imutils as imutils
-import utils.aperture as aperture
-import transmission
+import pysphere.utils.imutils as imutils
+import pysphere.utils.aperture as aperture
+import pysphere.transmission
 
 from astropy.io import fits
 from astropy.time import Time
 from astropy.modeling import models, fitting
+
 
 # keywords to be saved
 keywords = [
@@ -2830,4 +2831,43 @@ def clean(root_path, delete_raw=False, delete_products=False):
         path = os.path.join(root_path, 'products')
         if os.path.exists(path):
             shutil.rmtree(path, ignore_errors=True)
+
+
+class IFSReduction(object):
+    '''
+    SPHERE/IFS reduction object
+    '''
+
+    ##################################################
+    # Constructor
+    ##################################################
+    def __init__(self, path):
+        '''
+        Initialization of the IFSReduction
+
+        Parameters
+        ----------
+        path : str
+            Path to the directory containing the raw data
+        '''
+
+        self._root_path = path
+
+        
+    ##################################################
+    # Properties
+    ##################################################
+    @property
+    def root_path(self):
+        return self._root_path
+    
+    @root_path.setter
+    def root_path(self, newval):
+        self._root_path = newval
+
+    ##################################################
+    # Methods
+    ##################################################
+
+
 
