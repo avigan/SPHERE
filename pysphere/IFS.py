@@ -571,464 +571,7 @@ def sph_ifs_fix_badpix(img, bpm):
     mask = np.isnan(img_clean)
     img_clean[mask] = img[mask]
 
-    return img_clean
-    
-
-    
-def sph_ifs_preprocess_science(root_path, files_info, frames_info,
-                               subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                               collapse_science=False, collapse_type='mean', coadd_value=2,
-                               collapse_psf=True, collapse_center=True):
-    '''
-    Pre-processes the science frames.
-
-    This function can perform multiple steps:
-      - collapse of the frames according to different schemes
-      - subtract the background
-      - correct bad pixels
-      - correct the spectral crosstalk
-
-    For the science, 2 collapse methods are available: mean or
-    coadd. With mean, the full cubes are mean-combined into a single
-    frame. With coadd, the frames are coadded following the
-    coadd_value. This can result in lost frames if the number of NDIT
-    is not a multiple of coadd_value.
-
-    For the PSFs and star center frames, there is either no collapse
-    or a mean collapse.
-    
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    frames_info : dataframe
-        The data frame with all the information on science frames
-
-    subtract_background : bool
-        Performs background subtraction. Default is True
-
-    fix_badpix : bool
-        Performs correction of bad pixels. Default is True
-
-    correct_xtalk : bool
-        Performs spectral crosstalk correction. Default is True
-
-    collapse_science :  bool
-        Collapse data for OBJECT cubes. Default is False
-
-    collapse_type : str
-        Type of collapse. Possible values are mean or coadd. Default
-        is mean.
-
-    coadd_value : int
-        Number of consecutive frames to be coadded when collapse_type
-        is coadd. Default is 2
-
-    collapse_psf :  bool
-        Collapse data for OBJECT,FLUX cubes. Default is True. Note
-        that the collapse type is mean and cannot be changed.
-    
-    collapse_center :  bool
-        Collapse data for OBJECT,CENTER cubes. Default is True. Note
-        that the collapse type is mean and cannot be changed.    
-    '''
-
-    print('Pre-processing science files')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-
-    # clean before we start
-    files = glob.glob(os.path.join(preproc_path, '*_DIT???_preproc.fits'))
-    for file in files:
-        os.remove(file)
-    
-    # bpm
-    if fix_badpix:
-        bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-        bpm_files = [os.path.join(calib_path, f+'.fits') for f in bpm_files]
-
-        bpm = compute_bad_pixel_map(bpm_files)
-
-    # final dataframe
-    index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
-    frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
-        
-    # loop on the different type of science files
-    sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
-    dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
-    for typ in sci_types:    
-        # science files
-        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
-        sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
-        
-        if len(sci_files) == 0:
-            continue        
-
-        for DIT in sci_DITs:
-            sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
-            
-            print('{0} files of type {1} with DIT={2} sec'.format(len(sfiles), typ, DIT))
-
-            if subtract_background:
-                # look for sky, then background, then darks
-                # normally there should be only one with the proper DIT
-                dfiles = []
-                for d in dark_types:
-                    dfiles = files_info[(files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                                        (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
-                    if len(dfiles) != 0:
-                        break
-                print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
-
-                if len(dfiles) != 1:
-                    raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
-
-                bkg = fits.getdata(os.path.join(calib_path, dfiles.index[0]+'.fits'))
-                
-            # process files
-            for idx, (fname, finfo) in enumerate(sci_files.iterrows()):
-                # frames_info extract
-                finfo = frames_info.loc[(fname, slice(None)), :]
-
-                print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sci_files), fname, len(finfo)))
-                
-                # read data
-                print('   ==> read data')
-                img, hdr = fits.getdata(os.path.join(raw_path, fname+'.fits'), header=True)
-                
-                # add extra dimension to single images to make cubes
-                if img.ndim == 2:
-                    img = img[np.newaxis, ...]
-                
-                # collapse
-                if (typ == 'OBJECT,CENTER'):
-                    if collapse_center:
-                        print('   ==> collapse: mean')
-                        img = np.mean(img, axis=0, keepdims=True)
-                        frames_info_new = collapse_frames_info(finfo, fname, 'mean')
-                    else:
-                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
-                elif (typ == 'OBJECT,FLUX'):
-                    if collapse_psf:
-                        print('   ==> collapse: mean')
-                        img = np.mean(img, axis=0, keepdims=True)
-                        frames_info_new = collapse_frames_info(finfo, fname, 'mean')
-                    else:
-                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
-                elif (typ == 'OBJECT'):
-                    if collapse_science:                        
-                        if collapse_type == 'mean':
-                            print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
-                            img = np.mean(img, axis=0, keepdims=True)
-
-                            frames_info_new = collapse_frames_info(finfo, fname, 'mean')
-                        elif collapse_type == 'coadd':
-                            if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
-                                raise TypeError('coadd_value must be an integer >1')
-                            
-                            coadd_value = int(coadd_value)
-                            NDIT = len(img)
-                            NDIT_new = NDIT // coadd_value
-                            dropped = NDIT % coadd_value
-
-                            if coadd_value > NDIT:
-                                raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
-                            
-                            print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
-
-                            # coadd frames
-                            nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
-                            for f in range(NDIT_new):
-                                nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
-                            img = nimg
-
-                            frames_info_new = collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value)
-                        else:
-                            raise ValueError('Unknown collapse type {0}'.format(collapse_type))
-                    else:
-                        frames_info_new = collapse_frames_info(finfo, fname, 'none')
-
-                # merge collapse collapsed frames_info
-                frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
-                        
-                # background subtraction
-                if subtract_background:
-                    print('   ==> subtract background')
-                    for f in range(len(img)):
-                        img[f] -= bkg
-
-                # bad pixels correction
-                if fix_badpix:
-                    print('   ==> correct bad pixels')
-                    for f in range(len(img)):
-                        frame = img[f]
-
-                        frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                        frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
-                        frame = sph_ifs_fix_badpix(frame, bpm)
-                        img[f] = frame
-
-                # spectral crosstalk correction
-                if correct_xtalk:
-                    print('   ==> correct spectral crosstalk')
-                    for f in range(len(img)):
-                        frame = img[f]
-                        frame = sph_ifs_correct_spectral_xtalk(frame)
-                        img[f] = frame
-
-                # save DITs individually
-                for f in range(len(img)):
-                    frame = img[f].squeeze()                    
-                    hdr['HIERARCH ESO DET NDIT'] = 1
-                    fits.writeto(os.path.join(preproc_path, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
-                                 overwrite=True, output_verify='silentfix')
-                                        
-                print()
-                
-        print()
-
-    # sort and save final dataframe
-    frames_info_preproc.sort_values(by='TIME', inplace=True)
-    frames_info_preproc.to_csv(os.path.join(preproc_path, 'frames_preproc.csv'))
-
-
-def sph_ifs_preprocess_wave(root_path, files_info):
-    '''
-    Pre-processes the wavelegth calibration frame for later
-    recalibration of the wavelength
-    
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-    '''
-
-    print('Pre-processing wavelength calibration file')
-
-    # check directories
-    raw_path = os.path.join(root_path, 'raw/')
-    
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-
-    # bpm
-    bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-    bpm_files = [os.path.join(calib_path, f+'.fits') for f in bpm_files]
-    bpm = compute_bad_pixel_map(bpm_files)
-
-    # dark
-    dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                           (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-    if len(dark_file) == 0:
-        raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-    bkg = fits.getdata(os.path.join(calib_path, dark_file.index[0]+'.fits'))
-    
-    # wavelength calibration
-    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
-    if len(wave_file) != 1:
-        raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-    fname = wave_file.index[0]
-    
-    # read data
-    print(' * {0}'.format(fname))
-    print('   ==> read data')
-    img, hdr = fits.getdata(os.path.join(raw_path, fname+'.fits'), header=True)
-                
-    # collapse
-    print('   ==> collapse: mean')
-    img = np.mean(img, axis=0, keepdims=False)
-                        
-    # background subtraction
-    print('   ==> subtract background')
-    img -= bkg
-
-    # bad pixels correction
-    print('   ==> correct bad pixels')
-    img = sph_ifs_fix_badpix(img, bpm)
-
-    # spectral crosstalk correction
-    print('   ==> correct spectral crosstalk')
-    img = sph_ifs_correct_spectral_xtalk(img)
-
-    # add fake coordinates
-    hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
-    hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
-
-    # save
-    fits.writeto(os.path.join(preproc_path, fname+'_preproc.fits'), img, hdr,
-                 overwrite=True, output_verify='silentfix')
-
-
-def sph_ifs_science_cubes(root_path, files_info, frames_info, postprocess=True, silent=True):
-    '''
-    Create the science cubes from the preprocessed frames
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    files_info : dataframe
-        The data frame with all the information on files
-
-    frames_info : dataframe
-        The data frame with all the information on science frames
-
-    postprocess : bool Performs a post-processing of the cubes to
-        remove the unnecessary FITS extensions
-
-    silent : bool
-        Suppress esorex output. Optional, default is True
-    '''
-
-    print('Creating the (x,y,lambda) science cubes')
-
-    # check directories
-    sof_path = os.path.join(root_path, 'sof/')
-    if not os.path.exists(sof_path):
-        os.makedirs(sof_path)
-        
-    tmp_path = os.path.join(root_path, 'tmp/')
-    if not os.path.exists(tmp_path):
-        os.makedirs(tmp_path)
-        
-    calib_path = os.path.join(root_path, 'calib/')
-    if not os.path.exists(calib_path):
-        os.makedirs(calib_path)
-    
-    preproc_path = os.path.join(root_path, 'preproc/')
-    if not os.path.exists(preproc_path):
-        os.makedirs(preproc_path)
-    
-    # clean before we start
-    files = glob.glob(os.path.join(preproc_path, '*_DIT???_preproc_?????.fits'))
-    for file in files:
-        os.remove(file)
-    
-    # IFS obs mode
-    mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
-    if mode == 'OBS_YJ':
-        mode_short = 'YJ'
-    elif mode == 'OBS_H':
-        mode_short = 'YJH'
-    else:
-        raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-    # get list of science files
-    sci_files = glob.glob(preproc_path+'*_preproc.fits')
-    print(' * found {0} pre-processed files'.format(len(sci_files)))
-    
-    # get list of calibration files
-    bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
-                          (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]    
-    
-    ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
-    if len(ifu_flat_file) != 1:
-        raise ValueError('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
-    
-    wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
-    if len(wave_file) != 1:
-        raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
-    
-    flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                  (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
-    if len(flat_white_file) != 1:
-        raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
-    
-    flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
-    if len(flat_1020_file) != 1:
-        raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
-    
-    flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
-    if len(flat_1230_file) != 1:
-        raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
-
-    flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                 (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
-    if len(flat_1300_file) != 1:
-        raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
-    
-    if mode == 'OBS_YJH':
-        flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                     (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
-        if len(flat_1550_file) != 1:
-            raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
-    
-    # create sof
-    sof = os.path.join(sof_path, 'science.sof')
-    file = open(sof, 'w')
-    for f in sci_files:
-        file.write('{0}     {1}\n'.format(f, 'IFS_SCIENCE_DR_RAW'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, ifu_flat_file.index[0], 'IFS_IFU_FLAT_FIELD'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, wave_file.index[0], 'IFS_WAVECALIB'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, bpm_file.index[0], 'IFS_STATIC_BADPIXELMAP'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
-    file.write('{0}{1}.fits     {2}\n'.format(calib_path, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
-    if mode == 'OBS_YJH':
-        file.write('{0}{1}     {2}\n'.format(calib_path, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
-    file.close()
-
-    # execute esorex
-    print(' * starting esorex')
-    args = ['esorex',
-            '--no-checksum=TRUE',
-            '--no-datamd5=TRUE',
-            'sph_ifs_science_dr',
-            '--ifs.science_dr.use_adi=0',
-            '--ifs.science_dr.spec_deconv=FALSE',
-            sof]
-
-    if silent:
-        proc = subprocess.run(args, cwd=tmp_path, stdout=subprocess.DEVNULL)
-    else:
-        proc = subprocess.run(args, cwd=tmp_path)
-
-    if proc.returncode != 0:
-        raise ValueError('esorex process was not successful')
-
-    # post-process
-    files = glob.glob(tmp_path+'*_preproc_*.fits')
-    if postprocess:
-        print(' * post-processing files')
-
-        for f in files:
-            # read and save only primary extension
-            data, header = fits.getdata(f, header=True)
-            fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
-    
-    # move files to final directory
-    for file in files:
-        shutil.move(file, os.path.join(preproc_path, os.path.basename(file)))
-
-    # save final data frame with files
-    frames_info.to_csv(os.path.join(preproc_path, 'frames.csv'))
-    files_info.to_csv(os.path.join(preproc_path, 'files.csv'))
+    return img_clean    
 
 
 def lines_intersect(a1, a2, b1, b2):
@@ -1353,610 +896,6 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
 
     return img_center
 
-    
-def sph_ifs_wavelength_recalibration(root_path, high_pass=False, display=False):
-    '''
-    Performs a recalibration of the wavelength, is star center frames are available
-
-    See Vigan et al. (2015, MNRAS, 454, 129) for details of the
-    wavelength recalibration:
-
-    https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
-    
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
-    
-    display : bool
-        Display the fit of the satelitte spots
-    '''
-
-    print('Recalibrating wavelength')
-
-    # directories
-    preproc_path = os.path.join(root_path, 'preproc/')
-
-    products_path = os.path.join(root_path, 'products/')
-    if not os.path.exists(products_path):
-        os.makedirs(products_path)    
-    
-    # read final files and frames info
-    fname = os.path.join(preproc_path, 'files.csv')
-    
-    if os.path.exists(fname):
-        files_info = pd.read_csv(fname, index_col=0)
-    else:
-        raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-
-    fname = os.path.join(preproc_path, 'frames.csv')
-    if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=(0, 1))
-    else:
-        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-
-    #
-    # DRH wavelength
-    #
-    print(' * extracting calibrated wavelength')
-    
-    # get header of any science file
-    starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
-    fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files[0], starcen_files[1])
-    files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-    hdr = fits.getheader(files[0])
-    
-    wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-    wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-    wave_drh = np.linspace(wave_min, wave_max, nwave)
-    
-    #
-    # star center
-    #
-    print(' * fitting satelitte spots')
-    
-    # get first DIT of first OBJECT,CENTER in the sequence
-    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-    if len(starcen_files) == 0:
-        print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
-              'The standard wavelength calibrated by the ESO pripeline will be used.')
-        fits.writeto(os.path.join(products_path, 'wavelength.fits'), wave_drh, overwrite=True)
-
-        return wave_drh
-    
-    ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
-    fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
-    
-    files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-    cube, hdr = fits.getdata(files[0], header=True)
-    
-    # compute centers from waffle spots
-    waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-    spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
-                                                                       high_pass=high_pass, display=display)
-    
-    # final scaling
-    wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
-    wave_scale  = wave_scales.mean(axis=1)
-    
-    #
-    # wavelength recalibration
-    #    
-    print(' * recalibration')
-    
-    # find wavelength calibration file name
-    wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
-    fname = '{0}_preproc_'.format(wave_file)
-    file = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-    
-    # read cube and measure mean flux in all channels
-    cube, hdr = fits.getdata(file[0], header=True)
-    wave_flux = np.zeros(nwave)
-    aper = aperture.disc(cube.shape[-1], 100, diameter=True)
-    mask = aper != 0
-    for w, f in enumerate(cube):
-        wave_flux[w] = f[mask].mean()
-
-    # fit
-    wave_idx = np.arange(nwave, dtype=np.float)
-    peak_position_lasers = []
-    if ifs_mode == 'OBS_YJ':
-        # peak 1
-        sub_idx  = wave_idx[0:11]
-        sub_flux = wave_flux[0:11]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # peak 2
-        sub_idx  = wave_idx[10:27]
-        sub_flux = wave_flux[10:27]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # peak 3
-        sub_idx  = wave_idx[26:]
-        sub_flux = wave_flux[26:]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # wavelengths
-        wave_lasers = wave_cal_lasers[0:3]
-    elif ifs_mode == 'OBS_YJH':
-        # peak 1
-        sub_idx  = wave_idx[0:8]
-        sub_flux = wave_flux[0:8]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # peak 2
-        sub_idx  = wave_idx[5:17]
-        sub_flux = wave_flux[5:17]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # peak 3
-        sub_idx  = wave_idx[14:26]
-        sub_flux = wave_flux[14:26]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # peak 4
-        sub_idx  = wave_idx[25:]
-        sub_flux = wave_flux[25:]
-        par = fit_peak(sub_idx, sub_flux)
-        peak_position_lasers.append(par[1])
-
-        # wavelengths
-        wave_lasers = wave_cal_lasers[0:4]
-
-    res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
-                         args=(wave_scale, wave_lasers, peak_position_lasers))
-
-    wave_final = np.full(nwave, res.x) * wave_scale
-
-    wave_diff = np.abs(wave_final - wave_drh)*1000
-    print('   ==> difference with calibrated wavelength: ' +
-          'min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
-
-    # save
-    print(' * saving')
-    fits.writeto(os.path.join(products_path, 'wavelength.fits'), wave_final, overwrite=True)
-    
-    #
-    # summary plot
-    #
-    fig = plt.figure(1, figsize=(17, 5.5))
-    plt.clf()
-    ax = fig.add_subplot(131)
-    ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
-    ax.set_xlabel('x center [pix]')
-    ax.set_ylabel('y center [pix]')
-    ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
-    ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
-    ax.set_title('Frames centers')
-        
-    ax = fig.add_subplot(132)
-    ax.plot(wave_scales, linestyle='dotted')
-    ax.plot(wave_scale, color='k', label='Mean')
-    ax.set_xlabel('Spectral channel index')
-    ax.set_ylabel('Scaling factor')
-    ax.set_title('Spectral scaling')
-    ax.legend(loc='upper left')
-
-    ax = fig.add_subplot(133)
-    ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
-    ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
-    for w in wave_cal_lasers:
-        ax.axvline(x=w, linestyle='dashed', color='purple')
-    ax.set_xlabel(r'Wavelength [$\mu$m]')
-    ax.set_ylabel('Flux')
-    ax.legend(loc='upper right')
-    ax.set_title('Wavelength calibration')
-    plt.tight_layout()
-
-
-def sph_ifs_star_center(root_path, high_pass=False, display=False):
-    '''
-    Determines the star center for all frames
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
-    
-    display : bool
-        Display the fit of the satelitte spots
-
-    '''
-
-    print('Star centers determination')
-
-    # directories
-    preproc_path = os.path.join(root_path, 'preproc/')
-    
-    # read final frames info
-    fname = os.path.join(preproc_path, 'frames.csv')
-    if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=(0, 1))
-    else:
-        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-    
-    # start with OBJECT,FLUX
-    flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
-    if len(flux_files) != 0:
-        for file, idx in flux_files.index:
-            print('  ==> OBJECT,FLUX: {0}'.format(file))
-        
-            # read data
-            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
-            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-            cube, hdr = fits.getdata(files[0], header=True)
-
-            # wavelegth
-            wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-            wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-            wave_drh = np.linspace(wave_min, wave_max, nwave)
-
-            # centers
-            img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
-
-            # save
-            fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
-            print()
-
-    # then OBJECT,CENTER
-    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-    if len(starcen_files) != 0:
-        for file, idx in starcen_files.index:
-            print('  ==> OBJECT,CENTER: {0}'.format(file))
-
-            # read data
-            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-            cube, hdr = fits.getdata(files[0], header=True)
-
-            # wavelegth
-            wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-            wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-            wave_drh = np.linspace(wave_min, wave_max, nwave)
-
-            # centers
-            waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-            spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation, high_pass=high_pass, display=display)
-
-            # save
-            fits.writeto(os.path.join(preproc_path, fname+'centers.fits'), img_center, overwrite=True)
-            print()
-
-    
-def sph_ifs_combine_data(root_path, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
-    '''
-    Combine and save the science data into final cubes
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    cpix : bool
-        If True the images are centered on the pixel at coordinate
-        (dim//2,dim//2). If False the images are centered between 4
-        pixels, at coordinates ((dim-1)/2,(dim-1)/2). Default is True.
-    
-    psf_dim : even int
-        Size of the PSF images. Default is 80x80 pixels
-
-    science_dim : even int    
-        Size of the science images (star centers and standard
-        coronagraphic images). Default is 290, 290 pixels
-
-    save_scaled : bool    
-        Also save the wavelength-rescaled cubes. Makes the process
-        much longer. The default is False
-
-    '''
-
-    print('Combine science data')
-    
-    # directories
-    preproc_path = os.path.join(root_path, 'preproc/')    
-    products_path = os.path.join(root_path, 'products/')
-
-    # read final frames info
-    fname = os.path.join(preproc_path, 'frames.csv')
-    if os.path.exists(fname):
-        frames_info = pd.read_csv(fname, index_col=(0, 1))
-    else:
-        raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
-                              'Make sure the pre-processing of the data set has been completed.')
-    
-    # read final wavelength calibration
-    fname = os.path.join(products_path, 'wavelength.fits')
-    if not os.path.exists(fname):
-        raise FileExistsError('Missing wavelength.fits file. ' +
-                              'You must first run the sph_ifs_wavelength_recalibration() method.')    
-    wave = fits.getdata(fname)    
-
-    #
-    # frames info
-    #
-    frames_info.to_csv(os.path.join(products_path, 'frames.csv'))
-    
-    #
-    # OBJECT,FLUX
-    #
-    flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
-    nfiles = len(flux_files)
-    if nfiles != 0:
-        print(' * OBJECT,FLUX data')
-
-        # final arrays
-        psf_cube   = np.zeros((nwave, nfiles, psf_dim, psf_dim))
-        psf_parang = np.zeros(nfiles)
-        psf_derot  = np.zeros(nfiles)
-        if save_scaled:
-            psf_cube_scaled = np.zeros((nwave, nfiles, psf_dim, psf_dim))
-
-        # final center
-        if cpix:
-            cc = psf_dim // 2
-        else:
-            cc = (psf_dim - 1) / 2
-
-        # read and combine files
-        for file_idx, (file, idx) in enumerate(flux_files.index):
-            print('  ==> {0}'.format(file))
-        
-            # read data
-            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-            cube = fits.getdata(files[0])
-            centers = fits.getdata(os.path.join(preproc_path, fname+'centers.fits'))
-
-            # neutral density
-            ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-            w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
-
-            # DIT, angles, etc
-            DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-            psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-            psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
-            
-            # center frames
-            for wave_idx, img in enumerate(cube):
-                cx, cy = centers[wave_idx, :]
-
-                img  = img[:-1, :-1].astype(np.float)
-                nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
-                nimg = nimg / DIT / attenuation[wave_idx]
-                
-                psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
-
-                # wavelength-scaled version
-                if save_scaled:
-                    nimg = psf_cube[wave_idx, file_idx]
-                    psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
-                
-        # save final cubes
-        fits.writeto(os.path.join(products_path, 'psf_cube.fits'), psf_cube, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'psf_parang.fits'), psf_parang, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'psf_derot.fits'), psf_derot, overwrite=True)
-        if save_scaled:
-            fits.writeto(os.path.join(products_path, 'psf_cube_scaled.fits'), psf_cube_scaled, overwrite=True)
-
-        # delete big cubes
-        del psf_cube
-        if save_scaled:
-            del psf_cube_scaled
-        
-        print()
-
-    #
-    # OBJECT,CENTER
-    #
-    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-    nfiles = len(starcen_files)
-    if nfiles != 0:
-        print(' * OBJECT,CENTER data')
-
-        # final arrays
-        cen_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
-        cen_parang = np.zeros(nfiles)
-        cen_derot  = np.zeros(nfiles)
-        if save_scaled:
-            cen_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
-        
-        # final center
-        if cpix:
-            cc = science_dim // 2
-        else:
-            cc = (science_dim - 1) / 2
-
-        # read and combine files
-        for file_idx, (file, idx) in enumerate(starcen_files.index):
-            print('  ==> {0}'.format(file))
-        
-            # read data
-            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-            cube = fits.getdata(files[0])
-            centers = fits.getdata(os.path.join(preproc_path, fname+'centers.fits'))
-
-            # neutral density
-            ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-            w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
-
-            # DIT, angles, etc
-            DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-            cen_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-            cen_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
-            
-            # center frames
-            for wave_idx, img in enumerate(cube):
-                cx, cy = centers[wave_idx, :]
-
-                img  = img[:-1, :-1].astype(np.float)
-                nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
-                nimg = nimg / DIT / attenuation[wave_idx]
-                
-                cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
-
-                # wavelength-scaled version
-                if save_scaled:
-                    nimg = cen_cube[wave_idx, file_idx]
-                    cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
-
-        # save final cubes
-        fits.writeto(os.path.join(products_path, 'star_center_cube.fits'), cen_cube, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'star_center_parang.fits'), cen_parang, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'star_center_derot.fits'), cen_derot, overwrite=True)
-        if save_scaled:
-            fits.writeto(os.path.join(products_path, 'star_center_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
-        
-        # delete big cubes
-        del cen_cube
-        if save_scaled:
-            del cen_cube_scaled
-
-        print()
-
-    #
-    # OBJECT
-    #
-    object_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
-    nfiles = len(object_files)
-    if nfiles != 0:
-        print(' * OBJECT data')
-
-        # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
-        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-        if len(starcen_files) == 0:
-            print(' ==> no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
-                  'They will just be combined.')
-
-            centers = np.full((nwave, 2), cc)
-        else:
-            fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-            centers = fits.getdata(os.path.join(preproc_path, fname))
-        
-        # final arrays
-        sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
-        sci_parang = np.zeros(nfiles)
-        sci_derot  = np.zeros(nfiles)
-        if save_scaled:
-            sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
-
-        # final center
-        if cpix:
-            cc = science_dim // 2
-        else:
-            cc = (science_dim - 1) / 2
-        
-        # read and combine files
-        for file_idx, (file, idx) in enumerate(object_files.index):
-            print('  ==> {0}'.format(file))
-        
-            # read data
-            fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-            files = glob.glob(os.path.join(preproc_path, fname+'*.fits'))
-            cube = fits.getdata(files[0])
-
-            # neutral density
-            ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-            w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
-
-            # DIT, angles, etc
-            DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-            sci_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-            sci_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
-            
-            # center frames
-            for wave_idx, img in enumerate(cube):
-                cx, cy = centers[wave_idx, :]
-
-                img  = img[:-1, :-1].astype(np.float)
-                nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
-                nimg = nimg / DIT / attenuation[wave_idx]
-                
-                sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
-
-                # wavelength-scaled version
-                if save_scaled:
-                    nimg = sci_cube[wave_idx, file_idx]
-                    sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
-                    
-        # save final cubes
-        fits.writeto(os.path.join(products_path, 'science_cube.fits'), sci_cube, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'science_parang.fits'), sci_parang, overwrite=True)
-        fits.writeto(os.path.join(products_path, 'science_derot.fits'), sci_derot, overwrite=True)
-        if save_scaled:
-            fits.writeto(os.path.join(products_path, 'science_cube_scaled.fits'), sci_cube_scaled, overwrite=True)
-
-        # delete big cubes
-        del sci_cube
-        if save_scaled:
-            del sci_cube_scaled
-
-        print()
-        
-
-def sph_ifs_clean(root_path, delete_raw=False, delete_products=False):
-    '''
-    Clean everything except for raw data and science products (by default)
-
-    Parameters
-    ----------
-    root_path : str
-        Path to the dataset
-
-    delete_raw : bool
-        Delete raw data. Default is False
-
-    delete_products : bool
-        Delete science products. Default is False
-    '''
-    
-    # tmp
-    path = os.path.join(root_path, 'tmp')
-    if os.path.exists(path):
-        shutil.rmtree(path, ignore_errors=True)
-    
-    # sof
-    path = os.path.join(root_path, 'sof')
-    if os.path.exists(path):
-        shutil.rmtree(path, ignore_errors=True)
-
-    # calibs
-    path = os.path.join(root_path, 'calib')
-    if os.path.exists(path):
-        shutil.rmtree(path, ignore_errors=True)
-
-    # preproc
-    path = os.path.join(root_path, 'preproc')
-    if os.path.exists(path):
-        shutil.rmtree(path, ignore_errors=True)
-
-    # raw
-    if delete_raw:
-        path = os.path.join(root_path, 'raw')
-        if os.path.exists(path):
-            shutil.rmtree(path, ignore_errors=True)
-
-    # products
-    if delete_products:
-        path = os.path.join(root_path, 'products')
-        if os.path.exists(path):
-            shutil.rmtree(path, ignore_errors=True)
-
 
 class IFSReduction(object):
     '''
@@ -2043,11 +982,10 @@ class IFSReduction(object):
         Collapse and correct raw IFU images
         '''
 
-        sph_ifs_preprocess_science(self._root_path, self._files_info, self._frames_info,
-                                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                                   collapse_science=False, collapse_type='mean', coadd_value=2,
-                                   collapse_psf=True, collapse_center=True)
-        sph_ifs_preprocess_wave(self._root_path, self._files_info)
+        self.sph_ifs_preprocess_science(subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                                        collapse_science=False, collapse_type='mean', coadd_value=2,
+                                        collapse_psf=True, collapse_center=True)
+        self.sph_ifs_preprocess_wave()
 
 
     def process_science(self):
@@ -2057,13 +995,13 @@ class IFSReduction(object):
         '''
 
         # reload existing data frames
-        self.read_info()
+        # self.read_info()
 
         # process science data
-        sph_ifs_science_cubes(self._root_path, self._files_info, self._frames_info_preproc)
-        sph_ifs_wavelength_recalibration(self._root_path)
-        sph_ifs_star_center(self._root_path)
-        sph_ifs_combine_data(self._root_path)
+        self.sph_ifs_science_cubes()
+        self.sph_ifs_wavelength_recalibration()
+        self.sph_ifs_star_center()
+        self.sph_ifs_combine_data()
 
     
     def clean(self):
@@ -2071,7 +1009,7 @@ class IFSReduction(object):
         Clean the reduction directory
         '''
         
-        sph_ifs_clean(self._root_path)
+        self.sph_ifs_clean()
         
         
     def full_reduction(self):
@@ -2827,3 +1765,997 @@ class IFSReduction(object):
 
         # save
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_preprocess_science(self,
+                                   subtract_background=True, fix_badpix=True, correct_xtalk=True,
+                                   collapse_science=False, collapse_type='mean', coadd_value=2,
+                                   collapse_psf=True, collapse_center=True):
+        '''
+        Pre-processes the science frames.
+
+        This function can perform multiple steps:
+          - collapse of the frames according to different schemes
+          - subtract the background
+          - correct bad pixels
+          - correct the spectral crosstalk
+
+        For the science, 2 collapse methods are available: mean or
+        coadd. With mean, the full cubes are mean-combined into a single
+        frame. With coadd, the frames are coadded following the
+        coadd_value. This can result in lost frames if the number of NDIT
+        is not a multiple of coadd_value.
+
+        For the PSFs and star center frames, there is either no collapse
+        or a mean collapse.
+
+        Parameters
+        ----------
+        subtract_background : bool
+            Performs background subtraction. Default is True
+
+        fix_badpix : bool
+            Performs correction of bad pixels. Default is True
+
+        correct_xtalk : bool
+            Performs spectral crosstalk correction. Default is True
+
+        collapse_science :  bool
+            Collapse data for OBJECT cubes. Default is False
+
+        collapse_type : str
+            Type of collapse. Possible values are mean or coadd. Default
+            is mean.
+
+        coadd_value : int
+            Number of consecutive frames to be coadded when collapse_type
+            is coadd. Default is 2
+
+        collapse_psf :  bool
+            Collapse data for OBJECT,FLUX cubes. Default is True. Note
+            that the collapse type is mean and cannot be changed.
+
+        collapse_center :  bool
+            Collapse data for OBJECT,CENTER cubes. Default is True. Note
+            that the collapse type is mean and cannot be changed.    
+        '''
+
+        print('Pre-processing science files')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        frames_info = self._frames_info
+        
+        # clean before we start
+        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc.fits'))
+        for file in files:
+            os.remove(file)
+
+        # bpm
+        if fix_badpix:
+            bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+            bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
+
+            bpm = compute_bad_pixel_map(bpm_files)
+
+        # final dataframe
+        index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
+        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
+
+        # loop on the different type of science files
+        sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
+        dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
+        for typ in sci_types:    
+            # science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
+            sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
+
+            if len(sci_files) == 0:
+                continue        
+
+            for DIT in sci_DITs:
+                sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
+
+                print('{0} files of type {1} with DIT={2} sec'.format(len(sfiles), typ, DIT))
+
+                if subtract_background:
+                    # look for sky, then background, then darks
+                    # normally there should be only one with the proper DIT
+                    dfiles = []
+                    for d in dark_types:
+                        dfiles = files_info[(files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                                            (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+                        if len(dfiles) != 0:
+                            break
+                    print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
+
+                    if len(dfiles) != 1:
+                        raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
+
+                    bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
+
+                # process files
+                for idx, (fname, finfo) in enumerate(sci_files.iterrows()):
+                    # frames_info extract
+                    finfo = frames_info.loc[(fname, slice(None)), :]
+
+                    print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sci_files), fname, len(finfo)))
+
+                    # read data
+                    print('   ==> read data')
+                    img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
+
+                    # add extra dimension to single images to make cubes
+                    if img.ndim == 2:
+                        img = img[np.newaxis, ...]
+
+                    # collapse
+                    if (typ == 'OBJECT,CENTER'):
+                        if collapse_center:
+                            print('   ==> collapse: mean')
+                            img = np.mean(img, axis=0, keepdims=True)
+                            frames_info_new = collapse_frames_info(finfo, fname, 'mean')
+                        else:
+                            frames_info_new = collapse_frames_info(finfo, fname, 'none')
+                    elif (typ == 'OBJECT,FLUX'):
+                        if collapse_psf:
+                            print('   ==> collapse: mean')
+                            img = np.mean(img, axis=0, keepdims=True)
+                            frames_info_new = collapse_frames_info(finfo, fname, 'mean')
+                        else:
+                            frames_info_new = collapse_frames_info(finfo, fname, 'none')
+                    elif (typ == 'OBJECT'):
+                        if collapse_science:                        
+                            if collapse_type == 'mean':
+                                print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
+                                img = np.mean(img, axis=0, keepdims=True)
+
+                                frames_info_new = collapse_frames_info(finfo, fname, 'mean')
+                            elif collapse_type == 'coadd':
+                                if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
+                                    raise TypeError('coadd_value must be an integer >1')
+
+                                coadd_value = int(coadd_value)
+                                NDIT = len(img)
+                                NDIT_new = NDIT // coadd_value
+                                dropped = NDIT % coadd_value
+
+                                if coadd_value > NDIT:
+                                    raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
+
+                                print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+
+                                # coadd frames
+                                nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
+                                for f in range(NDIT_new):
+                                    nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
+                                img = nimg
+
+                                frames_info_new = collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value)
+                            else:
+                                raise ValueError('Unknown collapse type {0}'.format(collapse_type))
+                        else:
+                            frames_info_new = collapse_frames_info(finfo, fname, 'none')
+
+                    # merge collapse collapsed frames_info
+                    frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+
+                    # background subtraction
+                    if subtract_background:
+                        print('   ==> subtract background')
+                        for f in range(len(img)):
+                            img[f] -= bkg
+
+                    # bad pixels correction
+                    if fix_badpix:
+                        print('   ==> correct bad pixels')
+                        for f in range(len(img)):
+                            frame = img[f]
+
+                            frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
+                            frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
+                            frame = sph_ifs_fix_badpix(frame, bpm)
+                            img[f] = frame
+
+                    # spectral crosstalk correction
+                    if correct_xtalk:
+                        print('   ==> correct spectral crosstalk')
+                        for f in range(len(img)):
+                            frame = img[f]
+                            frame = sph_ifs_correct_spectral_xtalk(frame)
+                            img[f] = frame
+
+                    # save DITs individually
+                    for f in range(len(img)):
+                        frame = img[f].squeeze()                    
+                        hdr['HIERARCH ESO DET NDIT'] = 1
+                        fits.writeto(os.path.join(path.preproc, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
+                                     overwrite=True, output_verify='silentfix')
+
+                    print()
+
+            print()
+
+        # sort and save final dataframe
+        frames_info_preproc.sort_values(by='TIME', inplace=True)
+        frames_info_preproc.to_csv(os.path.join(path.preproc, 'frames_preproc.csv'))
+
+        self._frames_info_preproc = frames_info_preproc
+
+        
+    def sph_ifs_preprocess_wave(self):
+        '''
+        Pre-processes the wavelegth calibration frame for later
+        recalibration of the wavelength
+        '''
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+                
+        print('Pre-processing wavelength calibration file')
+
+        # bpm
+        bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+        bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
+        bpm = compute_bad_pixel_map(bpm_files)
+
+        # dark
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                               (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
+        if len(dark_file) == 0:
+            raise ValueError('There should at least 1 dark file for calibrations. Found none.')
+        bkg = fits.getdata(os.path.join(path.calib, dark_file.index[0]+'.fits'))
+
+        # wavelength calibration
+        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+        if len(wave_file) != 1:
+            raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+        fname = wave_file.index[0]
+
+        # read data
+        print(' * {0}'.format(fname))
+        print('   ==> read data')
+        img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
+
+        # collapse
+        print('   ==> collapse: mean')
+        img = np.mean(img, axis=0, keepdims=False)
+
+        # background subtraction
+        print('   ==> subtract background')
+        img -= bkg
+
+        # bad pixels correction
+        print('   ==> correct bad pixels')
+        img = sph_ifs_fix_badpix(img, bpm)
+
+        # spectral crosstalk correction
+        print('   ==> correct spectral crosstalk')
+        img = sph_ifs_correct_spectral_xtalk(img)
+
+        # add fake coordinates
+        hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
+        hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
+
+        # save
+        fits.writeto(os.path.join(path.preproc, fname+'_preproc.fits'), img, hdr,
+                     overwrite=True, output_verify='silentfix')
+
+
+    def sph_ifs_science_cubes(self, postprocess=True, silent=True):
+        '''
+        Create the science cubes from the preprocessed frames
+
+        Parameters
+        ----------
+        postprocess : bool Performs a post-processing of the cubes to
+            remove the unnecessary FITS extensions
+
+        silent : bool
+            Suppress esorex output. Optional, default is True
+        '''
+
+        print('Creating the (x,y,lambda) science cubes')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        frames_info = self._frames_info_preproc
+        
+        # clean before we start
+        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc_?????.fits'))
+        for file in files:
+            os.remove(file)
+
+        # IFS obs mode
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+        if mode == 'OBS_YJ':
+            mode_short = 'YJ'
+        elif mode == 'OBS_H':
+            mode_short = 'YJH'
+        else:
+            raise ValueError('Unknown IFS mode {0}'.format(mode))
+
+        # get list of science files
+        sci_files = glob.glob(path.preproc+'*_preproc.fits')
+        print(' * found {0} pre-processed files'.format(len(sci_files)))
+
+        # get list of calibration files
+        bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
+                              (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]    
+
+        ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
+        if len(ifu_flat_file) != 1:
+            raise ValueError('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
+
+        wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
+        if len(wave_file) != 1:
+            raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
+
+        flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                      (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
+        if len(flat_white_file) != 1:
+            raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
+
+        flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
+        if len(flat_1020_file) != 1:
+            raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
+
+        flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
+        if len(flat_1230_file) != 1:
+            raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
+
+        flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                     (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
+        if len(flat_1300_file) != 1:
+            raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
+
+        if mode == 'OBS_YJH':
+            flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
+                                         (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
+            if len(flat_1550_file) != 1:
+                raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
+
+        # create sof
+        sof = os.path.join(path.sof, 'science.sof')
+        file = open(sof, 'w')
+        for f in sci_files:
+            file.write('{0}     {1}\n'.format(f, 'IFS_SCIENCE_DR_RAW'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, ifu_flat_file.index[0], 'IFS_IFU_FLAT_FIELD'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, wave_file.index[0], 'IFS_WAVECALIB'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IFS_STATIC_BADPIXELMAP'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
+        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
+        if mode == 'OBS_YJH':
+            file.write('{0}{1}     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
+        file.close()
+
+        # execute esorex
+        print(' * starting esorex')
+        args = ['esorex',
+                '--no-checksum=TRUE',
+                '--no-datamd5=TRUE',
+                'sph_ifs_science_dr',
+                '--ifs.science_dr.use_adi=0',
+                '--ifs.science_dr.spec_deconv=FALSE',
+                sof]
+
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
+
+        if proc.returncode != 0:
+            raise ValueError('esorex process was not successful')
+
+        # post-process
+        files = glob.glob(path.tmp+'*_preproc_*.fits')
+        if postprocess:
+            print(' * post-processing files')
+
+            for f in files:
+                # read and save only primary extension
+                data, header = fits.getdata(f, header=True)
+                fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
+
+        # move files to final directory
+        for file in files:
+            shutil.move(file, os.path.join(path.preproc, os.path.basename(file)))
+
+        # save final data frame with files
+        frames_info.to_csv(os.path.join(path.preproc, 'frames.csv'))
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+
+    def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False):
+        '''
+        Performs a recalibration of the wavelength, is star center frames are available
+
+        See Vigan et al. (2015, MNRAS, 454, 129) for details of the
+        wavelength recalibration:
+
+        https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+
+        Parameters
+        ----------
+        high_pass : bool
+            Apply high-pass filter to the image before searching for the satelitte spots
+
+        display : bool
+            Display the fit of the satelitte spots
+        '''
+
+        print('Recalibrating wavelength')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        frames_info = self._frames_info
+        
+        # read final files and frames info
+        fname = os.path.join(path.preproc, 'files.csv')
+
+        if os.path.exists(fname):
+            files_info = pd.read_csv(fname, index_col=0)
+        else:
+            raise FileExistsError('There is no files.csv file. The wavelength recalibration cannot be performed.' +
+                                  'Make sure the pre-processing of the data set has been completed.')
+
+        fname = os.path.join(path.preproc, 'frames.csv')
+        if os.path.exists(fname):
+            frames_info = pd.read_csv(fname, index_col=(0, 1))
+        else:
+            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                                  'Make sure the pre-processing of the data set has been completed.')
+
+        #
+        # DRH wavelength
+        #
+        print(' * extracting calibrated wavelength')
+
+        # get header of any science file
+        starcen_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
+        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files[0], starcen_files[1])
+        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+        hdr = fits.getheader(files[0])
+
+        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+        wave_drh = np.linspace(wave_min, wave_max, nwave)
+
+        #
+        # star center
+        #
+        print(' * fitting satelitte spots')
+
+        # get first DIT of first OBJECT,CENTER in the sequence
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        if len(starcen_files) == 0:
+            print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
+                  'The standard wavelength calibrated by the ESO pripeline will be used.')
+            fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_drh, overwrite=True)
+
+            return wave_drh
+
+        ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
+        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
+
+        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+        cube, hdr = fits.getdata(files[0], header=True)
+
+        # compute centers from waffle spots
+        waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+        spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
+                                                                           high_pass=high_pass, display=display)
+
+        # final scaling
+        wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
+        wave_scale  = wave_scales.mean(axis=1)
+
+        #
+        # wavelength recalibration
+        #    
+        print(' * recalibration')
+
+        # find wavelength calibration file name
+        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
+        fname = '{0}_preproc_'.format(wave_file)
+        file = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+
+        # read cube and measure mean flux in all channels
+        cube, hdr = fits.getdata(file[0], header=True)
+        wave_flux = np.zeros(nwave)
+        aper = aperture.disc(cube.shape[-1], 100, diameter=True)
+        mask = aper != 0
+        for w, f in enumerate(cube):
+            wave_flux[w] = f[mask].mean()
+
+        # fit
+        wave_idx = np.arange(nwave, dtype=np.float)
+        peak_position_lasers = []
+        if ifs_mode == 'OBS_YJ':
+            # peak 1
+            sub_idx  = wave_idx[0:11]
+            sub_flux = wave_flux[0:11]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # peak 2
+            sub_idx  = wave_idx[10:27]
+            sub_flux = wave_flux[10:27]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # peak 3
+            sub_idx  = wave_idx[26:]
+            sub_flux = wave_flux[26:]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # wavelengths
+            wave_lasers = wave_cal_lasers[0:3]
+        elif ifs_mode == 'OBS_YJH':
+            # peak 1
+            sub_idx  = wave_idx[0:8]
+            sub_flux = wave_flux[0:8]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # peak 2
+            sub_idx  = wave_idx[5:17]
+            sub_flux = wave_flux[5:17]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # peak 3
+            sub_idx  = wave_idx[14:26]
+            sub_flux = wave_flux[14:26]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # peak 4
+            sub_idx  = wave_idx[25:]
+            sub_flux = wave_flux[25:]
+            par = fit_peak(sub_idx, sub_flux)
+            peak_position_lasers.append(par[1])
+
+            # wavelengths
+            wave_lasers = wave_cal_lasers[0:4]
+
+        res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
+                             args=(wave_scale, wave_lasers, peak_position_lasers))
+
+        wave_final = np.full(nwave, res.x) * wave_scale
+
+        wave_diff = np.abs(wave_final - wave_drh)*1000
+        print('   ==> difference with calibrated wavelength: ' +
+              'min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
+
+        # save
+        print(' * saving')
+        fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_final, overwrite=True)
+
+        #
+        # summary plot
+        #
+        fig = plt.figure(1, figsize=(17, 5.5))
+        plt.clf()
+        ax = fig.add_subplot(131)
+        ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
+        ax.set_xlabel('x center [pix]')
+        ax.set_ylabel('y center [pix]')
+        ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
+        ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
+        ax.set_title('Frames centers')
+
+        ax = fig.add_subplot(132)
+        ax.plot(wave_scales, linestyle='dotted')
+        ax.plot(wave_scale, color='k', label='Mean')
+        ax.set_xlabel('Spectral channel index')
+        ax.set_ylabel('Scaling factor')
+        ax.set_title('Spectral scaling')
+        ax.legend(loc='upper left')
+
+        ax = fig.add_subplot(133)
+        ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
+        ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
+        for w in wave_cal_lasers:
+            ax.axvline(x=w, linestyle='dashed', color='purple')
+        ax.set_xlabel(r'Wavelength [$\mu$m]')
+        ax.set_ylabel('Flux')
+        ax.legend(loc='upper right')
+        ax.set_title('Wavelength calibration')
+        plt.tight_layout()
+
+
+    def sph_ifs_star_center(self, high_pass=False, display=False):
+        '''
+        Determines the star center for all frames
+
+        Parameters
+        ----------
+        high_pass : bool
+            Apply high-pass filter to the image before searching for the satelitte spots
+
+        display : bool
+            Display the fit of the satelitte spots
+        '''
+
+        print('Star centers determination')
+
+        # parameters
+        path = self._path
+        frames_info = self._frames_info
+        
+        # read final frames info
+        fname = os.path.join(path.preproc, 'frames.csv')
+        if os.path.exists(fname):
+            frames_info = pd.read_csv(fname, index_col=(0, 1))
+        else:
+            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                                  'Make sure the pre-processing of the data set has been completed.')
+
+        # start with OBJECT,FLUX
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+        if len(flux_files) != 0:
+            for file, idx in flux_files.index:
+                print('  ==> OBJECT,FLUX: {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                cube, hdr = fits.getdata(files[0], header=True)
+
+                # wavelegth
+                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+                wave_drh = np.linspace(wave_min, wave_max, nwave)
+
+                # centers
+                img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
+
+                # save
+                fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
+                print()
+
+        # then OBJECT,CENTER
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        if len(starcen_files) != 0:
+            for file, idx in starcen_files.index:
+                print('  ==> OBJECT,CENTER: {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                cube, hdr = fits.getdata(files[0], header=True)
+
+                # wavelegth
+                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
+                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+                wave_drh = np.linspace(wave_min, wave_max, nwave)
+
+                # centers
+                waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation, high_pass=high_pass, display=display)
+
+                # save
+                fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
+                print()
+
+
+    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
+        '''
+        Combine and save the science data into final cubes
+
+        Parameters
+        ----------
+        cpix : bool
+            If True the images are centered on the pixel at coordinate
+            (dim//2,dim//2). If False the images are centered between 4
+            pixels, at coordinates ((dim-1)/2,(dim-1)/2). Default is True.
+
+        psf_dim : even int
+            Size of the PSF images. Default is 80x80 pixels
+
+        science_dim : even int    
+            Size of the science images (star centers and standard
+            coronagraphic images). Default is 290, 290 pixels
+
+        save_scaled : bool    
+            Also save the wavelength-rescaled cubes. Makes the process
+            much longer. The default is False
+
+        '''
+
+        print('Combine science data')
+
+        # parameters
+        path = self._path
+        frames_info = self._frames_info
+        
+        # read final frames info
+        fname = os.path.join(path.preproc, 'frames.csv')
+        if os.path.exists(fname):
+            frames_info = pd.read_csv(fname, index_col=(0, 1))
+        else:
+            raise FileExistsError('There is no frames.csv file. The wavelength recalibration cannot be performed.' +
+                                  'Make sure the pre-processing of the data set has been completed.')
+
+        # read final wavelength calibration
+        fname = os.path.join(path.products, 'wavelength.fits')
+        if not os.path.exists(fname):
+            raise FileExistsError('Missing wavelength.fits file. ' +
+                                  'You must first run the sph_ifs_wavelength_recalibration() method.')    
+        wave = fits.getdata(fname)    
+
+        #
+        # frames info
+        #
+        frames_info.to_csv(os.path.join(path.products, 'frames.csv'))
+
+        #
+        # OBJECT,FLUX
+        #
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+        nfiles = len(flux_files)
+        if nfiles != 0:
+            print(' * OBJECT,FLUX data')
+
+            # final arrays
+            psf_cube   = np.zeros((nwave, nfiles, psf_dim, psf_dim))
+            psf_parang = np.zeros(nfiles)
+            psf_derot  = np.zeros(nfiles)
+            if save_scaled:
+                psf_cube_scaled = np.zeros((nwave, nfiles, psf_dim, psf_dim))
+
+            # final center
+            if cpix:
+                cc = psf_dim // 2
+            else:
+                cc = (psf_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(flux_files.index):
+                print('  ==> {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                cube = fits.getdata(files[0])
+                centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
+
+                # neutral density
+                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
+                psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+
+                # center frames
+                for wave_idx, img in enumerate(cube):
+                    cx, cy = centers[wave_idx, :]
+
+                    img  = img[:-1, :-1].astype(np.float)
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = nimg / DIT / attenuation[wave_idx]
+
+                    psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
+
+                    # wavelength-scaled version
+                    if save_scaled:
+                        nimg = psf_cube[wave_idx, file_idx]
+                        psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+
+            # save final cubes
+            fits.writeto(os.path.join(path.products, 'psf_cube.fits'), psf_cube, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'psf_parang.fits'), psf_parang, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'psf_derot.fits'), psf_derot, overwrite=True)
+            if save_scaled:
+                fits.writeto(os.path.join(path.products, 'psf_cube_scaled.fits'), psf_cube_scaled, overwrite=True)
+
+            # delete big cubes
+            del psf_cube
+            if save_scaled:
+                del psf_cube_scaled
+
+            print()
+
+        #
+        # OBJECT,CENTER
+        #
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        nfiles = len(starcen_files)
+        if nfiles != 0:
+            print(' * OBJECT,CENTER data')
+
+            # final arrays
+            cen_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
+            cen_parang = np.zeros(nfiles)
+            cen_derot  = np.zeros(nfiles)
+            if save_scaled:
+                cen_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
+
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(starcen_files.index):
+                print('  ==> {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                cube = fits.getdata(files[0])
+                centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
+
+                # neutral density
+                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                cen_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
+                cen_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+
+                # center frames
+                for wave_idx, img in enumerate(cube):
+                    cx, cy = centers[wave_idx, :]
+
+                    img  = img[:-1, :-1].astype(np.float)
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = nimg / DIT / attenuation[wave_idx]
+
+                    cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
+
+                    # wavelength-scaled version
+                    if save_scaled:
+                        nimg = cen_cube[wave_idx, file_idx]
+                        cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+
+            # save final cubes
+            fits.writeto(os.path.join(path.products, 'star_center_cube.fits'), cen_cube, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'star_center_parang.fits'), cen_parang, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'star_center_derot.fits'), cen_derot, overwrite=True)
+            if save_scaled:
+                fits.writeto(os.path.join(path.products, 'star_center_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
+
+            # delete big cubes
+            del cen_cube
+            if save_scaled:
+                del cen_cube_scaled
+
+            print()
+
+        #
+        # OBJECT
+        #
+        object_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
+        nfiles = len(object_files)
+        if nfiles != 0:
+            print(' * OBJECT data')
+
+            # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
+            starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+            if len(starcen_files) == 0:
+                print(' ==> no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
+                      'They will just be combined.')
+
+                centers = np.full((nwave, 2), cc)
+            else:
+                fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                centers = fits.getdata(os.path.join(path.preproc, fname))
+
+            # final arrays
+            sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
+            sci_parang = np.zeros(nfiles)
+            sci_derot  = np.zeros(nfiles)
+            if save_scaled:
+                sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
+
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(object_files.index):
+                print('  ==> {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                cube = fits.getdata(files[0])
+
+                # neutral density
+                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                sci_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
+                sci_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+
+                # center frames
+                for wave_idx, img in enumerate(cube):
+                    cx, cy = centers[wave_idx, :]
+
+                    img  = img[:-1, :-1].astype(np.float)
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = nimg / DIT / attenuation[wave_idx]
+
+                    sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
+
+                    # wavelength-scaled version
+                    if save_scaled:
+                        nimg = sci_cube[wave_idx, file_idx]
+                        sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+
+            # save final cubes
+            fits.writeto(os.path.join(path.products, 'science_cube.fits'), sci_cube, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'science_parang.fits'), sci_parang, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'science_derot.fits'), sci_derot, overwrite=True)
+            if save_scaled:
+                fits.writeto(os.path.join(path.products, 'science_cube_scaled.fits'), sci_cube_scaled, overwrite=True)
+
+            # delete big cubes
+            del sci_cube
+            if save_scaled:
+                del sci_cube_scaled
+
+            print()
+
+
+    def sph_ifs_clean(self, delete_raw=False, delete_products=False):
+        '''
+        Clean everything except for raw data and science products (by default)
+
+        Parameters
+        ----------
+        delete_raw : bool
+            Delete raw data. Default is False
+
+        delete_products : bool
+            Delete science products. Default is False
+        '''
+
+        # parameters
+        path = self._path
+                
+        # tmp
+        if os.path.exists(path.tmp):
+            shutil.rmtree(path.tmp, ignore_errors=True)
+
+        # sof
+        if os.path.exists(path.sof):
+            shutil.rmtree(path.sof, ignore_errors=True)
+
+        # calib
+        if os.path.exists(path.calib):
+            shutil.rmtree(path.calib, ignore_errors=True)
+
+        # preproc
+        if os.path.exists(path.preproc):
+            shutil.rmtree(path.preproc, ignore_errors=True)
+
+        # raw
+        if delete_raw:
+            if os.path.exists(path.raw):
+                shutil.rmtree(path.raw, ignore_errors=True)
+
+        # products
+        if delete_products:
+            if os.path.exists(path.products):
+                shutil.rmtree(path.products, ignore_errors=True)
