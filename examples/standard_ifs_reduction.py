@@ -2,8 +2,7 @@ import sys
 import pysphere.IFS as IFS
 
 
-root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
-root_path = '/Users/avigan/Desktop/fourier_dir=x_Ncycle=05_ifs_YJH'
+root_path = '/Users/avigan/data/pySPHERE-test/IFS_sub/'
 
 red = IFS.IFSReduction(root_path)
 
@@ -33,5 +32,5 @@ red = IFS.IFSReduction(root_path)
 # red.sph_ifs_science_cubes(postprocess=True, silent=True)
 # red.sph_ifs_wavelength_recalibration(high_pass=False, display=False)
 # red.sph_ifs_star_center(high_pass=False, display=False)
-# red.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=False)
+red.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=False)
 # red.sph_ifs_clean(delete_raw=False, delete_products=False)

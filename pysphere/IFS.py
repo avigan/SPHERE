@@ -2531,6 +2531,9 @@ class IFSReduction(object):
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
 
+                # mask values outside of IFS FoV
+                cube[cube == 0] = np.nan
+                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -2600,6 +2603,9 @@ class IFSReduction(object):
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
 
+                # mask values outside of IFS FoV
+                cube[cube == 0] = np.nan
+                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -2679,6 +2685,9 @@ class IFSReduction(object):
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube = fits.getdata(files[0])
 
+                # mask values outside of IFS FoV
+                cube[cube == 0] = np.nan
+                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
