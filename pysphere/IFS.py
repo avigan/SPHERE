@@ -93,11 +93,12 @@ recipe_requirements = {
     'sph_ifs_cal_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_specpos'],
     'sph_ifs_cal_ifu_flat': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
                              'sph_ifs_cal_specpos', 'sph_ifs_cal_wave'],
-    'sph_ifs_preprocess_science': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat'],
+    'sph_ifs_preprocess_science': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark',
+                                   'sph_ifs_cal_detector_flat'],
     'sph_ifs_preprocess_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat'],
     'sph_ifs_science_cubes': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
-                              'sph_ifs_cal_specpos', 'sph_ifs_cal_wave', 'sph_ifs_preprocess_science',
-                              'sph_ifs_preprocess_wave'],
+                              'sph_ifs_cal_specpos', 'sph_ifs_cal_wave',
+                              'sph_ifs_preprocess_science', 'sph_ifs_preprocess_wave'],
     'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
                                          'sph_ifs_science_cubes'],    
     'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],
@@ -133,7 +134,9 @@ def check_recipe_execution(recipe_execution, recipe_name):
             missing.append(r)
 
     if not execute_recipe:
-        raise ValueError('{0} cannot executed because the following recipes have not been executed: {1}'.format(recipe_name, missing))
+        raise ValueError('{0} cannot executed because some files have been '.format(recipe_name) +
+                         'removed from the reduction directory ' +
+                         'or the following recipes have not been executed: {0}. '.format(missing))
 
     return execute_recipe
 
@@ -1202,10 +1205,7 @@ class IFSReduction(object):
             frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=True)
             frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
             frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
-            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)
-            
-            # update recipe execution
-            self._recipe_execution['sph_ifs_preprocess_science'] = True
+            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)            
         else:
             frames_info_preproc = None
 
@@ -1224,6 +1224,14 @@ class IFSReduction(object):
                 = os.path.exists(os.path.join(path.products, 'wavelength.fits'))
 
         if frames_info_preproc is not None:
+            done = True
+            files = frames_info_preproc.index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ifs_preprocess_science'] = done
+            
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
