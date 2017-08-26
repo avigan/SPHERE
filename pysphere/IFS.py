@@ -1167,6 +1167,16 @@ class IFSReduction(object):
 
             # update recipe execution
             self._recipe_exec['sort_files'] = True
+            if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DARK'):
+                self._recipe_exec['sph_ifs_cal_dark'] = True
+            if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DFF'):
+                self._recipe_exec['sph_ifs_cal_detector_flat'] = True
+            if np.any(files_info['PRO CATG'] == 'IFS_SPECPOS'):
+                self._recipe_exec['sph_ifs_cal_specpos'] = True
+            if np.any(files_info['PRO CATG'] == 'IFS_WAVECALIB'):
+                self._recipe_exec['sph_ifs_cal_wave'] = True
+            if np.any(files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD'):
+                self._recipe_exec['sph_ifs_cal_ifu_flat'] = True
         else:
             files_info = None
 
