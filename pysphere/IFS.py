@@ -9,18 +9,20 @@ import scipy.ndimage as ndimage
 import scipy.interpolate as interp
 import scipy.optimize as optim
 import shutil
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
+
+from astropy.io import fits
+from astropy.time import Time
+from astropy.modeling import models, fitting
+from matplotlib.backends.backend_pdf import PdfPages
 
 import pysphere.utils.imutils as imutils
 import pysphere.utils.aperture as aperture
 import pysphere.transmission as transmission
 import pysphere.ReductionPath as ReductionPath
-
-from astropy.io import fits
-from astropy.time import Time
-from astropy.modeling import models, fitting
 
 
 # keywords to be saved
@@ -692,7 +694,7 @@ def fit_peak(x, y, display=False):
     return fit.parameters
     
     
-def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=False, display=False):
+def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=False, display=False, save_path=None):
     '''
     Compute star center from waffle images
 
@@ -713,6 +715,9 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
     display : bool
         Display the fit of the satelitte spots
 
+    save_path : str
+        Path where to save the fit images
+    
     Returns
     -------
     spot_center : array_like
@@ -738,6 +743,10 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
+
+    # multi-page PDF to save result
+    if save_path is not None:
+        pdf = PdfPages(save_path)
     
     # loop over images
     spot_center = np.zeros((nwave, 4, 2))
@@ -753,8 +762,9 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
         # optional high-pass filter
         if high_pass:
             img = img - ndimage.median_filter(img, 15, mode='mirror')
-            
-        if display:
+
+        # create plot if needed
+        if save_path or display:
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
             colors = ['red', 'blue', 'magenta', 'purple']
@@ -783,8 +793,9 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
 
             spot_center[idx, s, 0] = cx_final
             spot_center[idx, s, 1] = cy_final
-            
-            if display:
+
+            # plot sattelite spots and fit
+            if save_path or display:
                 ax.plot([cx_final], [cy_final], marker='D', color=colors[s])
                 ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
                 
@@ -811,8 +822,9 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
         spot_dist[idx, 3] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 3, :])**2))
         spot_dist[idx, 4] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 2, :])**2))
         spot_dist[idx, 5] = np.sqrt(np.sum((spot_center[idx, 2, :] - spot_center[idx, 3, :])**2))
-        
-        if display:
+
+        # finalize plot
+        if save_path or display:
             ax.plot([spot_center[idx, 0, 0], spot_center[idx, 2, 0]],
                     [spot_center[idx, 0, 1], spot_center[idx, 2, 1]],
                     color='w', linestyle='dashed')
@@ -823,12 +835,20 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
             ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
             
             plt.tight_layout()
-            plt.pause(0.01)
-    
+
+            if save_path:
+                pdf.savefig()
+
+            if display:
+                plt.pause(1e-3)
+
+    if save_path:
+        pdf.close()
+
     return spot_center, spot_dist, img_center
 
 
-def star_centers_from_PSF_cube(cube, wave, display=False):
+def star_centers_from_PSF_cube(cube, wave, display=False, save_path=None):
     '''
     Compute star center from PSF images
 
@@ -843,6 +863,9 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
     display : bool
         Display the fit of the satelitte spots
 
+    save_path : str
+        Path where to save the fit images
+    
     Returns
     -------
     img_center : array_like
@@ -855,7 +878,11 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
     
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
-    
+
+    # multi-page PDF to save result
+    if save_path is not None:
+        pdf = PdfPages(save_path)
+        
     # loop over images
     img_center = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
@@ -881,7 +908,7 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
         img_center[idx, 0] = cx_final
         img_center[idx, 1] = cy_final
         
-        if display:
+        if save_path or display:
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
             ax = fig.add_subplot(111)
@@ -890,7 +917,15 @@ def star_centers_from_PSF_cube(cube, wave, display=False):
             ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
             plt.tight_layout()
-            plt.pause(0.01)
+
+            if save_path:
+                pdf.savefig()
+
+            if display:
+                plt.pause(1e-3)
+
+    if save_path:
+        pdf.close()
 
     return img_center
 
@@ -2197,7 +2232,7 @@ class IFSReduction(object):
             shutil.move(file, os.path.join(path.preproc, os.path.basename(file)))
 
 
-    def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False):
+    def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False, save=True):
         '''
         Performs a recalibration of the wavelength, is star center frames are available
 
@@ -2212,7 +2247,11 @@ class IFSReduction(object):
             Apply high-pass filter to the image before searching for the satelitte spots
 
         display : bool
-            Display the fit of the satelitte spots
+            Display the fit of the satelitte spots. Default is False.
+
+        save : bool
+            Save the fit of the sattelite spot for quality check. Default is True,
+            although it is a bit slow.
         '''
 
         print('Recalibrating wavelength')
@@ -2259,8 +2298,13 @@ class IFSReduction(object):
 
         # compute centers from waffle spots
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+        if save:
+            save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
+        else:
+            save_path = None
         spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
-                                                                           high_pass=high_pass, display=display)
+                                                                           high_pass=high_pass, display=display,
+                                                                           save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2381,8 +2425,10 @@ class IFSReduction(object):
         ax.set_title('Wavelength calibration')
         plt.tight_layout()
 
+        plt.savefig(os.path.join(path.products, 'wavelegnth_recalibration.pdf'))
 
-    def sph_ifs_star_center(self, high_pass=False, display=False):
+
+    def sph_ifs_star_center(self, high_pass=False, display=False, save=True):
         '''
         Determines the star center for all frames
 
@@ -2393,6 +2439,10 @@ class IFSReduction(object):
 
         display : bool
             Display the fit of the satelitte spots
+
+        save : bool
+            Save the fit of the sattelite spot for quality check. Default is True,
+            although it is a bit slow.
         '''
 
         print('Star centers determination')
@@ -2418,7 +2468,11 @@ class IFSReduction(object):
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
 
                 # centers
-                img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display)
+                if save:
+                    save_path = os.path.join(path.products, fname+'PSF_fitting.pdf')
+                else:
+                    save_path = None
+                img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
@@ -2442,7 +2496,13 @@ class IFSReduction(object):
 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation, high_pass=high_pass, display=display)
+                if save:
+                    save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
+                else:
+                    save_path = None
+                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
+                                                                                   high_pass=high_pass, display=display,
+                                                                                   save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
