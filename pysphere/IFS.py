@@ -98,26 +98,21 @@ recipe_requirements = {
     'sph_ifs_science_cubes': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
                               'sph_ifs_cal_specpos', 'sph_ifs_cal_wave', 'sph_ifs_preprocess_science',
                               'sph_ifs_preprocess_wave'],
-    'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark',
-                                         'sph_ifs_cal_detector_flat', 'sph_ifs_cal_specpos', 'sph_ifs_cal_wave',
-                                         'sph_ifs_preprocess_science', 'sph_ifs_preprocess_wave',
-                                         'sph_ifs_science_cubes'],
-    'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
-                            'sph_ifs_cal_specpos', 'sph_ifs_cal_wave', 'sph_ifs_preprocess_science',
-                            'sph_ifs_preprocess_wave', 'sph_ifs_science_cubes'],
-    'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
-                             'sph_ifs_cal_specpos', 'sph_ifs_cal_wave', 'sph_ifs_preprocess_science',
-                             'sph_ifs_preprocess_wave', 'sph_ifs_science_cubes', 'sph_ifs_star_center']
+    'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
+                                         'sph_ifs_science_cubes'],    
+    'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],
+    'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes',
+                             'sph_ifs_wavelength_recalibration', 'sph_ifs_star_center']
 }
 
 
-def check_recipe_execution(recipe_exec, recipe_name):
+def check_recipe_execution(recipe_execution, recipe_name):
     '''
     Check execution of previous recipes for a given recipe.
 
     Parameters
     ----------
-    recipe_exec : dict
+    recipe_execution : dict
         Status of executed recipes
 
     recipe_name : str
@@ -133,7 +128,7 @@ def check_recipe_execution(recipe_exec, recipe_name):
     execute_recipe = True
     missing = []
     for r in requirements:
-        if not recipe_exec[r]:
+        if not recipe_execution[r]:
             execute_recipe = False
             missing.append(r)
 
@@ -1018,7 +1013,7 @@ class IFSReduction(object):
         self._path = ReductionPath.Path(path)
 
         # execution of recipes
-        self._recipe_exec = {
+        self._recipe_execution = {
             'sort_files': False,
             'sort_frames': False,
             'check_files_association': False,
@@ -1059,8 +1054,8 @@ class IFSReduction(object):
         return self._frames_info_preproc
 
     @property
-    def recipe_exec(self):
-        return self._recipe_exec
+    def recipe_execution(self):
+        return self._recipe_execution
     
     ##################################################
     # Generic class methods
@@ -1166,17 +1161,17 @@ class IFSReduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
 
             # update recipe execution
-            self._recipe_exec['sort_files'] = True
+            self._recipe_execution['sort_files'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DARK'):
-                self._recipe_exec['sph_ifs_cal_dark'] = True
+                self._recipe_execution['sph_ifs_cal_dark'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DFF'):
-                self._recipe_exec['sph_ifs_cal_detector_flat'] = True
+                self._recipe_execution['sph_ifs_cal_detector_flat'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_SPECPOS'):
-                self._recipe_exec['sph_ifs_cal_specpos'] = True
+                self._recipe_execution['sph_ifs_cal_specpos'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_WAVECALIB'):
-                self._recipe_exec['sph_ifs_cal_wave'] = True
+                self._recipe_execution['sph_ifs_cal_wave'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD'):
-                self._recipe_exec['sph_ifs_cal_ifu_flat'] = True
+                self._recipe_execution['sph_ifs_cal_ifu_flat'] = True
         else:
             files_info = None
 
@@ -1193,7 +1188,7 @@ class IFSReduction(object):
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=True)
 
             # update recipe execution
-            self._recipe_exec['sort_frames'] = True
+            self._recipe_execution['sort_frames'] = True
         else:
             frames_info = None
 
@@ -1208,6 +1203,9 @@ class IFSReduction(object):
             frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
             frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
             frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)
+            
+            # update recipe execution
+            self._recipe_execution['sph_ifs_preprocess_science'] = True
         else:
             frames_info_preproc = None
 
@@ -1215,6 +1213,33 @@ class IFSReduction(object):
         self._files_info = files_info
         self._frames_info = frames_info
         self._frames_info_preproc = frames_info_preproc
+
+        # additional checks to update recipe execution
+        if frames_info is not None:
+            wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
+            self._recipe_execution['sph_ifs_preprocess_wave'] \
+                = os.path.exists(os.path.join(path.preproc, wave_file.index[0]+'_preproc.fits'))
+
+            self._recipe_execution['sph_ifs_wavelength_recalibration'] \
+                = os.path.exists(os.path.join(path.products, 'wavelength.fits'))
+
+        if frames_info_preproc is not None:
+            done = True
+            files = frames_info_preproc.index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc_?????'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ifs_science_cubes'] = done
+
+            done = True
+            files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
+                                        (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ifs_star_center'] = done
 
         
     def sort_files(self):
@@ -1265,7 +1290,7 @@ class IFSReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._recipe_exec['sort_files'] = True
+        self._recipe_execution['sort_files'] = True
 
         
     def sort_frames(self):
@@ -1289,7 +1314,7 @@ class IFSReduction(object):
         print('Extracting frames information')
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sort_frames')
+        check_recipe_execution(self._recipe_execution, 'sort_frames')
         
         # parameters
         path = self._path
@@ -1324,7 +1349,7 @@ class IFSReduction(object):
         self._frames_info = frames_info
 
         # update recipe execution
-        self._recipe_exec['sort_frames'] = True
+        self._recipe_execution['sort_frames'] = True
 
 
     def check_files_association(self):
@@ -1333,7 +1358,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'check_files_association')
+        check_recipe_execution(self._recipe_execution, 'check_files_association')
         
         print('Performing file association for calibrations')
 
@@ -1467,7 +1492,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_cal_dark')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark')
         
         print('Creating darks and backgrounds')
 
@@ -1556,7 +1581,7 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_cal_dark'] = True
+        self._recipe_execution['sph_ifs_cal_dark'] = True
 
 
     def sph_ifs_cal_detector_flat(self, silent=True):
@@ -1570,7 +1595,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_cal_detector_flat')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat')
         
         print('Creating flats')
 
@@ -1645,7 +1670,7 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_cal_detector_flat'] = True
+        self._recipe_execution['sph_ifs_cal_detector_flat'] = True
 
 
     def sph_ifs_cal_specpos(self, silent=True):
@@ -1659,7 +1684,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_cal_specpos')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos')
         
         print('Creating specpos')
 
@@ -1731,7 +1756,7 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_cal_specpos'] = True
+        self._recipe_execution['sph_ifs_cal_specpos'] = True
 
 
     def sph_ifs_cal_wave(self, silent=True):
@@ -1745,7 +1770,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_cal_wave')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave')
         
         print('Creating wavelength calibration')
 
@@ -1832,7 +1857,7 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_cal_wave'] = True
+        self._recipe_execution['sph_ifs_cal_wave'] = True
 
 
     def sph_ifs_cal_ifu_flat(self, silent=True):
@@ -1846,7 +1871,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_cal_ifu_flat')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat')
         
         print('Creating IFU flat')
 
@@ -1957,7 +1982,7 @@ class IFSReduction(object):
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_cal_ifu_flat'] = True
+        self._recipe_execution['sph_ifs_cal_ifu_flat'] = True
 
 
     def sph_ifs_preprocess_science(self,
@@ -2014,7 +2039,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_preprocess_science')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science')
         
         print('Pre-processing science files')
 
@@ -2189,7 +2214,7 @@ class IFSReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_preprocess_science'] = True
+        self._recipe_execution['sph_ifs_preprocess_science'] = True
 
         
     def sph_ifs_preprocess_wave(self):
@@ -2199,7 +2224,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_preprocess_wave')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave')
         
         # parameters
         path = self._path
@@ -2255,7 +2280,7 @@ class IFSReduction(object):
                      overwrite=True, output_verify='silentfix')
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_preprocess_wave'] = True
+        self._recipe_execution['sph_ifs_preprocess_wave'] = True
 
 
     def sph_ifs_science_cubes(self, postprocess=True, silent=True):
@@ -2272,7 +2297,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_science_cubes')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes')
         
         print('Creating the (x,y,lambda) science cubes')
 
@@ -2392,7 +2417,7 @@ class IFSReduction(object):
             shutil.move(file, os.path.join(path.preproc, os.path.basename(file)))
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_science_cubes'] = True
+        self._recipe_execution['sph_ifs_science_cubes'] = True
 
 
     def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False, save=True):
@@ -2418,7 +2443,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_wavelength_recalibration')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration')
         
         print('Recalibrating wavelength')
 
@@ -2594,7 +2619,7 @@ class IFSReduction(object):
         plt.savefig(os.path.join(path.products, 'wavelegnth_recalibration.pdf'))
 
         # update recipe execution
-        self._recipe_exec['wavelegnth_recalibration'] = True
+        self._recipe_execution['wavelegnth_recalibration'] = True
 
 
     def sph_ifs_star_center(self, high_pass=False, display=False, save=True):
@@ -2615,7 +2640,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_star_center')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center')
         
         print('Star centers determination')
 
@@ -2681,7 +2706,7 @@ class IFSReduction(object):
                 print()
 
         # update recipe execution
-        self._recipe_exec['sph_ifs_star_center'] = True
+        self._recipe_execution['sph_ifs_star_center'] = True
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
@@ -2709,7 +2734,7 @@ class IFSReduction(object):
         '''
         
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_exec, 'sph_ifs_combine_data')
+        check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data')
         
         print('Combine science data')
 
@@ -2964,6 +2989,10 @@ class IFSReduction(object):
 
             print()
 
+        # update recipe execution
+        self._recipe_execution['sph_ifs_combine_data'] = True
+
+            
 
     def sph_ifs_clean(self, delete_raw=False, delete_products=False):
         '''
