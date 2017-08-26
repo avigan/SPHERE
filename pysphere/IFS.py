@@ -1064,7 +1064,7 @@ class IFSReduction(object):
     # Generic class methods
     ##################################################
 
-    def init_dataset(self):
+    def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
         '''
@@ -1127,7 +1127,7 @@ class IFSReduction(object):
         calibrations to the final (x,y,time,lambda) cubes
         '''
         
-        self.init_dataset()
+        self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
         self.process_science()
