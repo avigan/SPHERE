@@ -168,7 +168,19 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     if method == 'fft':
         if np.mod(np.array(dims), 2).sum() != 0:
             raise ValueError('FFT shift only supports square images of even width')
-    
+
+    # detects NaN and replace them with real values
+    mask = None
+    nan_mask = np.isnan(array)
+    if np.any(nan_mask):
+        medval = np.nanmedian(array)
+        array[nan_mask] = medval
+
+        mask = np.zeros_like(array)
+        mask[nan_mask] = 1
+        
+        mask = _shift_interp_builtin(mask, shift_value, mode='constant', cval=1)
+
     # shift with appropriate function                
     if (method == 'fft'):
         shifted = _shift_fft(array, shift_value)
@@ -180,6 +192,10 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     else:
         raise ValueError('Unknown shift method \'{0}\''.format(method))
 
+    # puts back NaN
+    if mask is not None:
+        shifted[mask >= 0.5] = np.nan
+    
     return shifted
 
 
@@ -433,6 +449,18 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
         if np.mod(np.array(dims), 2).sum() != 0:
             raise ValueError('FFT rotate only supports square images of even width')
     
+    # detects NaN and replace them with real values
+    mask = None
+    nan_mask = np.isnan(array)
+    if np.any(nan_mask):
+        medval = np.nanmedian(array)
+        array[nan_mask] = medval
+
+        mask = np.zeros_like(array)
+        mask[nan_mask] = 1
+        
+        mask = _rotate_interp(mask, value, center, mode='constant', cval=1)
+
     # rotate with appropriate function
     if (method == 'fft'):
         rotated = _rotate_fft(array, value)
@@ -443,6 +471,10 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     else:
         raise ValueError('Unknown rotate method \'{0}\''.format(method))
 
+    # puts back NaN
+    if mask is not None:
+        rotated[mask >= 0.5] = np.nan
+    
     return rotated
 
 
@@ -662,6 +694,10 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     '''
 
     method = method.lower()
+
+    # no scaling needed
+    if scale_value == 1:
+        return array
     
     # array dimensions
     Ndim  = array.ndim
@@ -712,6 +748,23 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
         if (np.mod(np.array(dims), 2).sum() != 0) or (dims[0] != dims[1]):
             raise ValueError('FFT shift only supports square images of even width')
         
+    # detects NaN and replace them with real values
+    mask = None
+    nan_mask = np.isnan(array)
+    if np.any(nan_mask):
+        medval = np.nanmedian(array)
+        array[nan_mask] = medval
+
+        mask = np.zeros_like(array)
+        mask[nan_mask] = 1
+
+        if (method == 'fft'):
+            mask = _scale_interp(mask, np.full(Ndim, scale_value), center, mode='constant', cval=1)            
+        elif (method == 'interp'):
+            mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)
+        elif (method == 'interp_builtin'):
+            mask = _scale_interp_builtin(array, scale_value, mode='constant', cval=1)
+
     # scale with appropriate function
     if (method == 'fft'):
         scaled = _scale_fft(array, scale_value)
@@ -722,6 +775,10 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     else:
         raise ValueError('Unknown scale method \'{0}\''.format(method))
 
+    # puts back NaN
+    if mask is not None:
+        scaled[mask >= 0.5] = np.nan
+    
     return scaled
     
 
