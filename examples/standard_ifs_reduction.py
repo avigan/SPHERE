@@ -24,7 +24,7 @@ red = IFS.IFSReduction(root_path)
 # red.sph_ifs_cal_detector_flat()
 # red.sph_ifs_cal_specpos(silent=True)
 # red.sph_ifs_cal_wave(silent=True)
-# red.sph_ifs_cal_ifu_flat(silent=False)
+red.sph_ifs_cal_ifu_flat(silent=True)
 # red.sph_ifs_preprocess_science(subtract_background=True, fix_badpix=True, correct_xtalk=True,
 #                                collapse_science=True, collapse_type='mean', coadd_value=2,
 #                                collapse_psf=True, collapse_center=True)
