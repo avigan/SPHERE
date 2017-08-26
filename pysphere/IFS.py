@@ -46,7 +46,8 @@ keywords = [
     'HIERARCH ESO SEQ ARM',
     'HIERARCH ESO INS COMB ICOR', 'HIERARCH ESO INS COMB IFLT', 'HIERARCH ESO INS COMB POLA',
     'HIERARCH ESO INS4 FILT2 NAME',
-    'HIERARCH ESO INS4 DROT2 BEGIN', 'HIERARCH ESO INS4 DROT2 END', 'HIERARCH ESO INS4 DROT2 MODE', 
+    'HIERARCH ESO INS4 DROT2 BEGIN', 'HIERARCH ESO INS4 DROT2 END',
+    'HIERARCH ESO INS4 DROT2 POSANG', 'HIERARCH ESO INS4 DROT2 MODE', 
     
     # IFS
     'HIERARCH ESO INS2 MODE', 'HIERARCH ESO INS2 COMB IFS',
@@ -226,6 +227,8 @@ def compute_angles(frames_info):
     if drot_mode == 'ELEV':
         pupoff = 135.99 - 100.48
     elif drot_mode == 'SKY':
+        pupoff = -100.48 + frames_info['INS4 DROT2 POSANG']
+    elif drot_mode == 'STAT':
         pupoff = -100.48
     else:
         raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
@@ -902,7 +905,6 @@ class IFSReduction(object):
     ##################################################
 
     
-    
     ##################################################
     # Constructor
     ##################################################
@@ -965,11 +967,11 @@ class IFSReduction(object):
         Create all static calibrations, mainly with esorex
         '''
         
-        self.sph_ifs_cal_dark()
+        self.sph_ifs_cal_dark(silent=True)
         self.sph_ifs_cal_detector_flat()
-        self.sph_ifs_cal_specpos()
-        self.sph_ifs_cal_wave()
-        self.sph_ifs_cal_ifu_flat()
+        self.sph_ifs_cal_specpos(silent=True)
+        self.sph_ifs_cal_wave(silent=True)
+        self.sph_ifs_cal_ifu_flat(silent=True)
         
 
     def preprocess_science(self):
@@ -990,10 +992,10 @@ class IFSReduction(object):
         '''
 
         # process science data
-        self.sph_ifs_science_cubes()
-        self.sph_ifs_wavelength_recalibration()
-        self.sph_ifs_star_center()
-        self.sph_ifs_combine_data()
+        self.sph_ifs_science_cubes(postprocess=True, silent=True)
+        self.sph_ifs_wavelength_recalibration(high_pass=False, display=False)
+        self.sph_ifs_star_center(high_pass=False, display=False)
+        self.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=False)
 
     
     def clean(self):
@@ -1001,7 +1003,7 @@ class IFSReduction(object):
         Clean the reduction directory
         '''
         
-        self.sph_ifs_clean()
+        self.sph_ifs_clean(delete_raw=False, delete_products=False)
         
         
     def full_reduction(self):
@@ -1269,9 +1271,9 @@ class IFSReduction(object):
         # calibs dark file
         cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
                         (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
-        if len(cfiles) != 1:
+        if len(cfiles) == 0:
             warning_flag += 1
-            print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.6 sec). ' +
+            print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.65 sec). ' +
                   'It is *highly recommended* to include one to obtain the best data reduction. ' +
                   'A single dark/background file is sufficient, and it can easily be downloaded ' +
                   'from the ESO archive')
@@ -1607,7 +1609,7 @@ class IFSReduction(object):
 
         # products
         wav_file = 'wave_calib'
-
+        
         # esorex parameters
         if mode == 'OBS_YJ':
             args = ['esorex',
@@ -1620,7 +1622,7 @@ class IFSReduction(object):
                     '--ifs.wave_calib.wavelength_line3=1.3094',
                     '--ifs.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
                     sof]
-        elif mode == 'OBS_YJH':
+        elif mode == 'OBS_H':
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1719,7 +1721,7 @@ class IFSReduction(object):
         if len(flat_1300_file) != 1:
             raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
 
-        if mode == 'OBS_YJH':
+        if mode == 'OBS_H':
             flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                          (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(flat_1550_file) != 1:
@@ -1736,8 +1738,8 @@ class IFSReduction(object):
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
-        if mode == 'OBS_YJH':
-            file.write('{0}{1}     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
+        if mode == 'OBS_H':
+            file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
         file.close()
 
         # products
@@ -1977,6 +1979,15 @@ class IFSReduction(object):
                             frame = sph_ifs_correct_spectral_xtalk(frame)
                             img[f] = frame
 
+                    # check prensence of coordinates
+                    # if not, warn user and add fake one: it could be internal source data
+                    if hdr.get('HIERARCH ESO TEL TARG ALPHA') is None:
+                        print('Warning: no valid coordinates found in header. Adding fake ones to be able to produce (x,y,lambda) datacubes.')
+                        
+                        hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
+                        hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
+
+                            
                     # save DITs individually
                     for f in range(len(img)):
                         frame = img[f].squeeze()                    
@@ -2124,7 +2135,7 @@ class IFSReduction(object):
         if len(flat_1300_file) != 1:
             raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
 
-        if mode == 'OBS_YJH':
+        if mode == 'OBS_H':
             flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                          (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(flat_1550_file) != 1:
@@ -2143,8 +2154,8 @@ class IFSReduction(object):
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
         file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
-        if mode == 'OBS_YJH':
-            file.write('{0}{1}     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
+        if mode == 'OBS_H':
+            file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
         file.close()
 
         # esorex parameters
@@ -2297,7 +2308,7 @@ class IFSReduction(object):
 
             # wavelengths
             wave_lasers = wave_cal_lasers[0:3]
-        elif ifs_mode == 'OBS_YJH':
+        elif ifs_mode == 'OBS_H':
             # peak 1
             sub_idx  = wave_idx[0:8]
             sub_flux = wave_flux[0:8]
