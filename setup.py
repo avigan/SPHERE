@@ -14,7 +14,7 @@ setup(
         'Intended Audience :: Professional Astronomers',
         'Topic :: High-contrast Imaging and Spectroscopy',
         'Programming Language :: Python :: 3',
-        'License :: OSI Approved :: BSD License'
+        'License :: OSI Approved :: MIT License'
     ],
     keywords='vlt sphere ifs irdis reduction',
     packages=['pysphere', 'pysphere.utils'],
