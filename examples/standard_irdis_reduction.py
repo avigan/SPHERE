@@ -25,6 +25,6 @@ red = IRDIS.ImagingReduction(root_path)
 # red.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
 #                                collapse_science=False, collapse_type='mean', coadd_value=2,
 #                                collapse_psf=True, collapse_center=True)
-red.sph_ird_star_center(high_pass=False, display=False, save=True)
+# red.sph_ird_star_center(high_pass=False, display=False, save=True)
 # red.sph_ird_combine_data(cpix=True, psf_dim=100, science_dim=600, save_scaled=True)
 # red.sph_ird_clean(delete_raw=False, delete_products=False)

@@ -790,6 +790,13 @@ class ImagingReduction(object):
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
 
+            # mask dead regions
+            bpm[:15, :]      = 0
+            bpm[1013:, :]    = 0
+            bpm[:, :50]      = 0
+            bpm[:, 941:1078] = 0
+            bpm[:, 1966:]    = 0
+            
         # flat        
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
                                (files_info['INS COMB IFLT'] == filter_comb)]
@@ -847,7 +854,14 @@ class ImagingReduction(object):
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
                         img = img[np.newaxis, ...]
-                        
+
+                    # mask dead regions
+                    img[:, :15, :]      = np.nan
+                    img[:, 1013:, :]    = np.nan
+                    img[:, :, :50]      = np.nan
+                    img[:, :, 941:1078] = np.nan
+                    img[:, :, 1966:]    = np.nan
+                    
                     # collapse
                     if (typ == 'OBJECT,CENTER'):
                         if collapse_center:
