@@ -77,8 +77,8 @@ for idx in range(len(keywords_short)):
         keywords_short[idx] = key[13:]
         
 # useful parameters
-nwave = 39
-pixel = 7.46
+nwave = 2
+pixel = 12.25
 
 wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
 
@@ -88,7 +88,10 @@ recipe_requirements = {
     'sort_frames': ['sort_files'],
     'check_files_association': ['sort_files'],
     'sph_ird_cal_dark': ['sort_files'],
-    'sph_ird_cal_detector_flat': ['sort_files']
+    'sph_ird_cal_detector_flat': ['sort_files'],
+    'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
+    'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
+    'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science', 'sph_ird_star_center']
 }
 
 
@@ -301,14 +304,20 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
         Combined bad pixel map
     '''
 
+    # check that we have files
+    if len(bpm_files) == 0:
+        raise ValueError('No bad pixel map files provided')
+    
+    # get shape
+    shape = fits.getdata(bpm_files[0]).shape
+    
     # star with empty bpm
-    bpm = np.zeros((2048, 2048), dtype=np.uint8)
-
+    bpm = np.zeros((shape[-2], shape[-1]), dtype=np.uint8)
+    
     # fill if files are provided
-    if len(bpm_files) != 0:
-        for f in bpm_files:
-            data = fits.getdata(f)
-            bpm = np.logical_or(bpm, data)
+    for f in bpm_files:
+        data = fits.getdata(f)
+        bpm = np.logical_or(bpm, data)
 
     bpm = bpm.astype(dtype)
 
@@ -485,9 +494,9 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
     freq = 10 * np.sqrt(2) * 0.97
     box = 8
     if waffle_orientation == '+':
-        orient = 57 * np.pi / 180 + np.pi / 4
+        orient = 0
     elif waffle_orientation == 'x':
-        orient = 57 * np.pi / 180
+        orient = np.pi / 4
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
@@ -499,13 +508,14 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
     # loop over images
     spot_center = np.zeros((nwave, 4, 2))
     spot_dist = np.zeros((nwave, 6))
+    ird_center = np.array(((482, 516), (486, 508)))
     img_center = np.full((nwave, 2), ((dim // 2)-1., (dim // 2)-1.))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
         # center guess
-        cx_int = int(img_center[idx-1, 0])
-        cy_int = int(img_center[idx-1, 1])
+        cx_int = int(ird_center[idx, 0])
+        cy_int = int(ird_center[idx, 1])
 
         # optional high-pass filter
         if high_pass:
@@ -581,6 +591,10 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
                     color='w', linestyle='dashed')
 
             ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
+
+            ext = 1000 / pixel
+            ax.set_xlim(intersect[0]-ext, intersect[0]+ext)
+            ax.set_ylim(intersect[1]-ext, intersect[1]+ext)
             
             plt.tight_layout()
 
@@ -660,10 +674,16 @@ def star_centers_from_PSF_cube(cube, wave, display=False, save_path=None):
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
             ax = fig.add_subplot(111)
+            
             ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm())
             ax.plot([cx_final], [cy_final], marker='D', color='red')
             ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+
+            ext = 1000 / pixel
+            ax.set_xlim(cx_final-ext, cx_final+ext)
+            ax.set_ylim(cy_final-ext, cy_final+ext)
+                        
             plt.tight_layout()
 
             if save_path:
@@ -761,7 +781,8 @@ class ImagingReduction(object):
         Create all static calibrations with esorex
         '''
         
-        pass
+        self.sph_ird_cal_dark(silent=True)
+        self.sph_ird_cal_detector_flat(silent=True)
 
     
     def preprocess_science(self):
@@ -769,7 +790,9 @@ class ImagingReduction(object):
         Extract images in data cubes
         '''
         
-        pass
+        self.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
+                                        collapse_science=False, collapse_type='mean', coadd_value=2,
+                                        collapse_psf=True, collapse_center=True)
 
 
     def process_science(self):
@@ -778,7 +801,8 @@ class ImagingReduction(object):
         cubes
         '''
         
-        pass
+        self.sph_ird_star_center(high_pass=False, display=False, save=True)
+        self.sph_ird_combine_data(cpix=True, psf_dim=100, science_dim=800, save_scaled=False)
 
     
     def clean(self):
@@ -786,7 +810,7 @@ class ImagingReduction(object):
         Clean the reduction directory
         '''
         
-        pass
+        self.sph_ird_clean(delete_raw=False, delete_products=False)
         
         
     def full_reduction(self):
@@ -833,16 +857,10 @@ class ImagingReduction(object):
 
             # update recipe execution
             self._recipe_execution['sort_files'] = True
-            # if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DARK'):
-            #     self._recipe_execution['sph_ifs_cal_dark'] = True
-            # if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DFF'):
-            #     self._recipe_execution['sph_ifs_cal_detector_flat'] = True
-            # if np.any(files_info['PRO CATG'] == 'IFS_SPECPOS'):
-            #     self._recipe_execution['sph_ifs_cal_specpos'] = True
-            # if np.any(files_info['PRO CATG'] == 'IFS_WAVECALIB'):
-            #     self._recipe_execution['sph_ifs_cal_wave'] = True
-            # if np.any(files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD'):
-            #     self._recipe_execution['sph_ifs_cal_ifu_flat'] = True
+            if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
+                self._recipe_execution['sph_ird_cal_dark'] = True
+            if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
+                self._recipe_execution['sph_ird_cal_detector_flat'] = True
         else:
             files_info = None
 
@@ -882,40 +900,24 @@ class ImagingReduction(object):
         self._frames_info = frames_info
         self._frames_info_preproc = frames_info_preproc
 
-        # # additional checks to update recipe execution
-        # if frames_info is not None:
-        #     wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
-        #     self._recipe_execution['sph_ifs_preprocess_wave'] \
-        #         = os.path.exists(os.path.join(path.preproc, wave_file.index[0]+'_preproc.fits'))
+        # additional checks to update recipe execution
+        if frames_info_preproc is not None:
+            done = True
+            files = frames_info_preproc.index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ird_preprocess_science'] = done
 
-        #     self._recipe_execution['sph_ifs_wavelength_recalibration'] \
-        #         = os.path.exists(os.path.join(path.products, 'wavelength.fits'))
-
-        # if frames_info_preproc is not None:
-        #     done = True
-        #     files = frames_info_preproc.index
-        #     for file, idx in files:
-        #         fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-        #         file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-        #         done = done and (len(file) == 1)
-        #     self._recipe_execution['sph_ifs_preprocess_science'] = done
-            
-        #     done = True
-        #     files = frames_info_preproc.index
-        #     for file, idx in files:
-        #         fname = '{0}_DIT{1:03d}_preproc_?????'.format(file, idx)
-        #         file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-        #         done = done and (len(file) == 1)
-        #     self._recipe_execution['sph_ifs_science_cubes'] = done
-
-        #     done = True
-        #     files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
-        #                                 (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
-        #     for file, idx in files:
-        #         fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
-        #         file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-        #         done = done and (len(file) == 1)
-        #     self._recipe_execution['sph_ifs_star_center'] = done
+            done = True
+            files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
+                                        (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ird_star_center'] = done
 
         
     def sort_files(self):
@@ -1046,12 +1048,15 @@ class ImagingReduction(object):
         if len(arm) != 1:
             raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
         
-        # IRDIS obs mode
-        modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE']
-        if len(modes.unique()) != 1:
-            raise ValueError('Sequence is mixing different types of observations.')
+        # IRDIS obs mode and filter combination
+        modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
+        if len(modes != 1):
+            raise ValueError('Sequence is mixing different types of observations: {0}'.format(modes))
 
-        filter_comb = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()[0]
+        filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
+        if len(filter_combs != 1):
+            raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+        filter_comb = filter_combs[0]
         
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
@@ -1129,12 +1134,12 @@ class ImagingReduction(object):
 
         # loops on type and DIT value
         types = ['DARK', 'DARK,BACKGROUND', 'SKY']
-        DITs  = calibs['DET SEQ1 DIT'].unique().round(2)
-        filt  = calibs['INS COMB IFLT'].unique()
+        DITs = calibs['DET SEQ1 DIT'].unique().round(2)
+        filter_combs = calibs['INS COMB IFLT'].unique()
 
         for ctype in types:
             for DIT in DITs:
-                for cfilt in filt:
+                for cfilt in filter_combs:
                     cfiles = calibs[(calibs['DPR TYPE'] == ctype) & (calibs['DET SEQ1 DIT'].round(2) == DIT) &
                                     (calibs['INS COMB IFLT'] == cfilt)]
                     files = cfiles.index
@@ -1242,9 +1247,9 @@ class ImagingReduction(object):
         # get list of files
         raw = files_info[np.logical_not(files_info['PROCESSED'])]
         calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
-        filt = calibs['INS COMB IFLT'].unique()
+        filter_combs = calibs['INS COMB IFLT'].unique()
         
-        for cfilt in filt:
+        for cfilt in filter_combs:
             cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
             files = cfiles.index
 
@@ -1379,13 +1384,24 @@ class ImagingReduction(object):
         for file in files:
             os.remove(file)
 
+        # filter combination
+        filter_comb = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()[0]
+
         # bpm
         if fix_badpix:
-            bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
+            bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
+                                   (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
             bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
 
             bpm = compute_bad_pixel_map(bpm_files)
 
+        # flat        
+        flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
+                               (files_info['INS COMB IFLT'] == filter_comb)]
+        if len(flat_file) != 1:
+            raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+        flat = fits.getdata(os.path.join(path.calib, flat_file.index[0]+'.fits'))
+            
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
@@ -1393,7 +1409,7 @@ class ImagingReduction(object):
         # loop on the different type of science files
         sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
         dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
-        for typ in sci_types:    
+        for typ in sci_types:
             # science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
             sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
@@ -1411,14 +1427,14 @@ class ImagingReduction(object):
                     # normally there should be only one with the proper DIT
                     dfiles = []
                     for d in dark_types:
-                        dfiles = files_info[(files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
+                        dfiles = files_info[(files_info['PRO CATG'] == 'IRD_MASTER_DARK') &
                                             (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
                         if len(dfiles) != 0:
                             break
                     print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
 
                     if len(dfiles) != 1:
-                        raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
+                        raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
 
                     bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
 
@@ -1432,11 +1448,11 @@ class ImagingReduction(object):
                     # read data
                     print('   ==> read data')
                     img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
-
+                    
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
                         img = img[np.newaxis, ...]
-
+                        
                     # collapse
                     if (typ == 'OBJECT,CENTER'):
                         if collapse_center:
@@ -1494,37 +1510,32 @@ class ImagingReduction(object):
                         for f in range(len(img)):
                             img[f] -= bkg
 
+                    # divide flat
+                    if subtract_background:
+                        print('   ==> divide by flat field')
+                        for f in range(len(img)):
+                            img[f] /= flat
+                        
                     # bad pixels correction
                     if fix_badpix:
                         print('   ==> correct bad pixels')
-                        for f in range(len(img)):
+                        for f in range(len(img)):                            
                             frame = img[f]
-
-                            frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                            frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
-                            frame = sph_ifs_fix_badpix(frame, bpm)
+                            frame = imutils.fix_badpix(frame, bpm)
                             img[f] = frame
 
-                    # spectral crosstalk correction
-                    if correct_xtalk:
-                        print('   ==> correct spectral crosstalk')
-                        for f in range(len(img)):
-                            frame = img[f]
-                            frame = sph_ifs_correct_spectral_xtalk(frame)
-                            img[f] = frame
-
-                    # check prensence of coordinates
-                    # if not, warn user and add fake one: it could be internal source data
-                    if hdr.get('HIERARCH ESO TEL TARG ALPHA') is None:
-                        print('Warning: no valid coordinates found in header. Adding fake ones to be able to produce (x,y,lambda) datacubes.')
+                    # reshape data
+                    print('   ==> reshape data')
+                    NDIT = img.shape[0]
+                    nimg = np.zeros((NDIT, 2, 1024, 1024))
+                    for f in range(len(img)):
+                        nimg[f, 0] = img[f, :, 0:1024]
+                        nimg[f, 1] = img[f, :, 1024:]
+                    img = nimg
                         
-                        hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
-                        hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
-
-                            
                     # save DITs individually
                     for f in range(len(img)):
-                        frame = img[f].squeeze()                    
+                        frame = nimg[f, ...].squeeze()                    
                         hdr['HIERARCH ESO DET NDIT'] = 1
                         fits.writeto(os.path.join(path.preproc, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
                                      overwrite=True, output_verify='silentfix')
@@ -1540,415 +1551,10 @@ class ImagingReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._recipe_execution['sph_ifs_preprocess_science'] = True
+        self._recipe_execution['sph_ird_preprocess_science'] = True
 
-        
-    def sph_ifs_preprocess_wave(self):
-        '''
-        Pre-processes the wavelegth calibration frame for later
-        recalibration of the wavelength
-        '''
 
-        # check if recipe can be executed
-        check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave')
-        
-        # parameters
-        path = self._path
-        files_info = self._files_info
-                
-        print('Pre-processing wavelength calibration file')
-
-        # bpm
-        bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
-        bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
-        bpm = compute_bad_pixel_map(bpm_files)
-
-        # dark
-        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                               (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
-        if len(dark_file) == 0:
-            raise ValueError('There should at least 1 dark file for calibrations. Found none.')
-        bkg = fits.getdata(os.path.join(path.calib, dark_file.index[0]+'.fits'))
-
-        # wavelength calibration
-        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
-        if len(wave_file) != 1:
-            raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-        fname = wave_file.index[0]
-
-        # read data
-        print(' * {0}'.format(fname))
-        print('   ==> read data')
-        img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
-
-        # collapse
-        print('   ==> collapse: mean')
-        img = np.mean(img, axis=0, keepdims=False)
-
-        # background subtraction
-        print('   ==> subtract background')
-        img -= bkg
-
-        # bad pixels correction
-        print('   ==> correct bad pixels')
-        img = sph_ifs_fix_badpix(img, bpm)
-
-        # spectral crosstalk correction
-        print('   ==> correct spectral crosstalk')
-        img = sph_ifs_correct_spectral_xtalk(img)
-
-        # add fake coordinates
-        hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
-        hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
-
-        # save
-        fits.writeto(os.path.join(path.preproc, fname+'_preproc.fits'), img, hdr,
-                     overwrite=True, output_verify='silentfix')
-
-        # update recipe execution
-        self._recipe_execution['sph_ifs_preprocess_wave'] = True
-
-
-    def sph_ifs_science_cubes(self, postprocess=True, silent=True):
-        '''
-        Create the science cubes from the preprocessed frames
-
-        Parameters
-        ----------
-        postprocess : bool Performs a post-processing of the cubes to
-            remove the unnecessary FITS extensions
-
-        silent : bool
-            Suppress esorex output. Optional, default is True
-        '''
-
-        # check if recipe can be executed
-        check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes')
-        
-        print('Creating the (x,y,lambda) science cubes')
-
-        # parameters
-        path = self._path
-        files_info = self._files_info
-        
-        # clean before we start
-        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc_?????.fits'))
-        for file in files:
-            os.remove(file)
-
-        # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
-        if mode == 'OBS_YJ':
-            mode_short = 'YJ'
-        elif mode == 'OBS_H':
-            mode_short = 'YJH'
-        else:
-            raise ValueError('Unknown IFS mode {0}'.format(mode))
-
-        # get list of science files
-        sci_files = glob.glob(path.preproc+'*_preproc.fits')
-        print(' * found {0} pre-processed files'.format(len(sci_files)))
-
-        # get list of calibration files
-        bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
-                              (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]    
-
-        ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
-        if len(ifu_flat_file) != 1:
-            raise ValueError('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
-
-        wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
-        if len(wave_file) != 1:
-            raise ValueError('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
-
-        flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                      (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
-        if len(flat_white_file) != 1:
-            raise ValueError('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
-
-        flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                     (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
-        if len(flat_1020_file) != 1:
-            raise ValueError('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
-
-        flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                     (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
-        if len(flat_1230_file) != 1:
-            raise ValueError('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
-
-        flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                     (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
-        if len(flat_1300_file) != 1:
-            raise ValueError('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
-
-        if mode == 'OBS_H':
-            flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
-                                         (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
-            if len(flat_1550_file) != 1:
-                raise ValueError('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
-
-        # create sof
-        sof = os.path.join(path.sof, 'science.sof')
-        file = open(sof, 'w')
-        for f in sci_files:
-            file.write('{0}     {1}\n'.format(f, 'IFS_SCIENCE_DR_RAW'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, ifu_flat_file.index[0], 'IFS_IFU_FLAT_FIELD'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, wave_file.index[0], 'IFS_WAVECALIB'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_SHORT'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_white_file.index[0], 'IFS_MASTER_DFF_LONGBB'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IFS_STATIC_BADPIXELMAP'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1020_file.index[0], 'IFS_MASTER_DFF_LONG1'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1230_file.index[0], 'IFS_MASTER_DFF_LONG2'))
-        file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1300_file.index[0], 'IFS_MASTER_DFF_LONG3'))
-        if mode == 'OBS_H':
-            file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_1550_file.index[0], 'IFS_MASTER_DFF_LONG4'))
-        file.close()
-
-        # esorex parameters
-        print(' * starting esorex')
-        args = ['esorex',
-                '--no-checksum=TRUE',
-                '--no-datamd5=TRUE',
-                'sph_ifs_science_dr',
-                '--ifs.science_dr.use_adi=0',
-                '--ifs.science_dr.spec_deconv=FALSE',
-                sof]
-
-        # check esorex
-        if shutil.which('esorex') is None:
-            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                            'that the ESO pipeline is properly installed before running pySPHERE.')
-        
-        # execute esorex
-        if silent:
-            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
-        else:
-            proc = subprocess.run(args, cwd=path.tmp)
-
-        if proc.returncode != 0:
-            raise ValueError('esorex process was not successful')
-
-        # post-process
-        files = glob.glob(path.tmp+'*_preproc_*.fits')
-        if postprocess:
-            print(' * post-processing files')
-
-            for f in files:
-                # read and save only primary extension
-                data, header = fits.getdata(f, header=True)
-                fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
-
-        # move files to final directory
-        for file in files:
-            shutil.move(file, os.path.join(path.preproc, os.path.basename(file)))
-
-        # update recipe execution
-        self._recipe_execution['sph_ifs_science_cubes'] = True
-
-
-    def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False, save=True):
-        '''
-        Performs a recalibration of the wavelength, is star center frames are available
-
-        See Vigan et al. (2015, MNRAS, 454, 129) for details of the
-        wavelength recalibration:
-
-        https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
-
-        Parameters
-        ----------
-        high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots
-
-        display : bool
-            Display the fit of the satelitte spots. Default is False.
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
-        '''
-
-        # check if recipe can be executed
-        check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration')
-        
-        print('Recalibrating wavelength')
-
-        # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info_preproc
-        
-        #
-        # DRH wavelength
-        #
-        print(' * extracting calibrated wavelength')
-
-        # get header of any science file
-        science_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
-        fname = '{0}_DIT{1:03d}_preproc_'.format(science_files[0], science_files[1])
-        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
-        hdr = fits.getheader(files[0])
-
-        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-        wave_drh = np.linspace(wave_min, wave_max, nwave)
-
-        #
-        # star center
-        #
-        print(' * fitting satelitte spots')
-
-        # get first DIT of first OBJECT,CENTER in the sequence
-        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-        if len(starcen_files) == 0:
-            print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
-                  'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_drh, overwrite=True)
-
-            return wave_drh
-
-        ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
-        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
-
-        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
-        cube, hdr = fits.getdata(files[0], header=True)
-
-        # compute centers from waffle spots
-        waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-        if save:
-            save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
-        else:
-            save_path = None
-        spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
-                                                                           high_pass=high_pass, display=display,
-                                                                           save_path=save_path)
-
-        # final scaling
-        wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
-        wave_scale  = wave_scales.mean(axis=1)
-
-        #
-        # wavelength recalibration
-        #    
-        print(' * recalibration')
-
-        # find wavelength calibration file name
-        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')].index[0]
-        fname = '{0}_preproc_'.format(wave_file)
-        file = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
-
-        # read cube and measure mean flux in all channels
-        cube, hdr = fits.getdata(file[0], header=True)
-        wave_flux = np.zeros(nwave)
-        aper = aperture.disc(cube.shape[-1], 100, diameter=True)
-        mask = aper != 0
-        for w, f in enumerate(cube):
-            wave_flux[w] = f[mask].mean()
-
-        # fit
-        wave_idx = np.arange(nwave, dtype=np.float)
-        peak_position_lasers = []
-        if ifs_mode == 'OBS_YJ':
-            # peak 1
-            sub_idx  = wave_idx[0:11]
-            sub_flux = wave_flux[0:11]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # peak 2
-            sub_idx  = wave_idx[10:27]
-            sub_flux = wave_flux[10:27]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # peak 3
-            sub_idx  = wave_idx[26:]
-            sub_flux = wave_flux[26:]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # wavelengths
-            wave_lasers = wave_cal_lasers[0:3]
-        elif ifs_mode == 'OBS_H':
-            # peak 1
-            sub_idx  = wave_idx[0:8]
-            sub_flux = wave_flux[0:8]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # peak 2
-            sub_idx  = wave_idx[5:17]
-            sub_flux = wave_flux[5:17]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # peak 3
-            sub_idx  = wave_idx[14:26]
-            sub_flux = wave_flux[14:26]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # peak 4
-            sub_idx  = wave_idx[25:]
-            sub_flux = wave_flux[25:]
-            par = fit_peak(sub_idx, sub_flux)
-            peak_position_lasers.append(par[1])
-
-            # wavelengths
-            wave_lasers = wave_cal_lasers[0:4]
-
-        res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
-                             args=(wave_scale, wave_lasers, peak_position_lasers))
-
-        wave_final = np.full(nwave, res.x) * wave_scale
-
-        wave_diff = np.abs(wave_final - wave_drh)*1000
-        print('   ==> difference with calibrated wavelength: ' +
-              'min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
-
-        # save
-        print(' * saving')
-        fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_final, overwrite=True)
-
-        #
-        # summary plot
-        #
-        fig = plt.figure(1, figsize=(17, 5.5))
-        plt.clf()
-        ax = fig.add_subplot(131)
-        ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
-        ax.set_xlabel('x center [pix]')
-        ax.set_ylabel('y center [pix]')
-        ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
-        ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
-        ax.set_title('Frames centers')
-
-        ax = fig.add_subplot(132)
-        ax.plot(wave_scales, linestyle='dotted')
-        ax.plot(wave_scale, color='k', label='Mean')
-        ax.set_xlabel('Spectral channel index')
-        ax.set_ylabel('Scaling factor')
-        ax.set_title('Spectral scaling')
-        ax.legend(loc='upper left')
-
-        ax = fig.add_subplot(133)
-        ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
-        ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
-        for w in wave_cal_lasers:
-            ax.axvline(x=w, linestyle='dashed', color='purple')
-        ax.set_xlabel(r'Wavelength [$\mu$m]')
-        ax.set_ylabel('Flux')
-        ax.legend(loc='upper right')
-        ax.set_title('Wavelength calibration')
-        plt.tight_layout()
-
-        plt.savefig(os.path.join(path.products, 'wavelegnth_recalibration.pdf'))
-
-        # update recipe execution
-        self._recipe_execution['wavelegnth_recalibration'] = True
-
-
-    def sph_ifs_star_center(self, high_pass=False, display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, display=False, save=True):
         '''
         Determines the star center for all frames
 
@@ -1966,39 +1572,39 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center')
+        check_recipe_execution(self._recipe_execution, 'sph_ird_star_center')
         
         print('Star centers determination')
 
         # parameters
         path = self._path
         frames_info = self._frames_info_preproc
+
+        # wavelength
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)                
+        wave = np.array(wave) / 1000.
         
         # start with OBJECT,FLUX
-        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
         if len(flux_files) != 0:
             for file, idx in flux_files.index:
                 print('  ==> OBJECT,FLUX: {0}'.format(file))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
-                # wavelegth
-                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-                wave_drh = np.linspace(wave_min, wave_max, nwave)
-
                 # centers
                 if save:
-                    save_path = os.path.join(path.products, fname+'PSF_fitting.pdf')
+                    save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = star_centers_from_PSF_cube(cube, wave_drh, display=display, save_path=save_path)
+                img_center = star_centers_from_PSF_cube(cube, wave, display=display, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
+                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
                 print()
 
         # then OBJECT,CENTER
@@ -2008,34 +1614,29 @@ class ImagingReduction(object):
                 print('  ==> OBJECT,CENTER: {0}'.format(file))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
-
-                # wavelegth
-                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
-                wave_drh = np.linspace(wave_min, wave_max, nwave)
-
+                
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
                 if save:
-                    save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
+                    save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
                 else:
                     save_path = None
-                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave_drh, waffle_orientation,
+                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave, waffle_orientation,
                                                                                    high_pass=high_pass, display=display,
                                                                                    save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
+                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
                 print()
 
         # update recipe execution
         self._recipe_execution['sph_ifs_star_center'] = True
 
 
-    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
+    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
         '''
         Combine and save the science data into final cubes
         
@@ -2060,7 +1661,7 @@ class ImagingReduction(object):
         '''
         
         # check if recipe can be executed
-        check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data')
+        check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data')
         
         print('Combine science data')
 
@@ -2068,21 +1669,21 @@ class ImagingReduction(object):
         path = self._path
         frames_info = self._frames_info_preproc
         
-        # read final wavelength calibration
-        fname = os.path.join(path.products, 'wavelength.fits')
-        if not os.path.exists(fname):
-            raise FileExistsError('Missing wavelength.fits file. ' +
-                                  'You must first run the sph_ifs_wavelength_recalibration() method.')    
-        wave = fits.getdata(fname)    
+        # wavelength
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)                
+        wave = np.array(wave) / 1000.        
+
+        fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave, overwrite=True)
 
         # max images size
-        if psf_dim > 290:
-            print('Warning: psf_dim cannot be larger than 290 pix. A value of 290 will be used.')
-            psf_dim = 290
+        if psf_dim > 1024:
+            print('Warning: psf_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
+            psf_dim = 1024
 
-        if science_dim > 290:
-            print('Warning: science_dim cannot be larger than 290 pix. A value of 290 will be used.')
-            science_dim = 290
+        if science_dim > 1024:
+            print('Warning: science_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
+            science_dim = 1024
             
         #
         # frames info
@@ -2112,17 +1713,14 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
+                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
 
-                # mask values outside of IFS FoV
-                cube[cube == 0] = np.nan
-                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -2136,7 +1734,7 @@ class ImagingReduction(object):
                 for wave_idx, img in enumerate(cube):
                     cx, cy = centers[wave_idx, :]
 
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -2184,17 +1782,14 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
+                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
 
-                # mask values outside of IFS FoV
-                cube[cube == 0] = np.nan
-                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -2208,7 +1803,7 @@ class ImagingReduction(object):
                 for wave_idx, img in enumerate(cube):
                     cx, cy = centers[wave_idx, :]
 
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -2267,16 +1862,13 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube = fits.getdata(files[0])
 
-                # mask values outside of IFS FoV
-                cube[cube == 0] = np.nan
-                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -2290,7 +1882,7 @@ class ImagingReduction(object):
                 for wave_idx, img in enumerate(cube):
                     cx, cy = centers[wave_idx, :]
 
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -2320,7 +1912,7 @@ class ImagingReduction(object):
 
             
 
-    def sph_ifs_clean(self, delete_raw=False, delete_products=False):
+    def sph_ird_clean(self, delete_raw=False, delete_products=False):
         '''
         Clean everything except for raw data and science products (by default)
 

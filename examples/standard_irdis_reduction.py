@@ -22,12 +22,9 @@ red = IRDIS.ImagingReduction(root_path)
 # red.check_files_association()
 # red.sph_ird_cal_dark(silent=True)
 # red.sph_ird_cal_detector_flat(silent=True)
-red.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
-                               collapse_science=True, collapse_type='mean', coadd_value=2,
-                               collapse_psf=True, collapse_center=True)
-# red.sph_ifs_preprocess_wave()
-# red.sph_ifs_science_cubes(postprocess=True, silent=True)
-# red.sph_ifs_wavelength_recalibration(high_pass=False, display=False, save=True)
-# red.sph_ifs_star_center(high_pass=False, display=False, save=True)
-# red.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=True)
-# red.sph_ifs_clean(delete_raw=False, delete_products=False)
+# red.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
+#                                collapse_science=False, collapse_type='mean', coadd_value=2,
+#                                collapse_psf=True, collapse_center=True)
+# red.sph_ird_star_center(high_pass=False, display=False, save=True)
+red.sph_ird_combine_data(cpix=True, psf_dim=100, science_dim=600, save_scaled=True)
+# red.sph_ird_clean(delete_raw=False, delete_products=False)
