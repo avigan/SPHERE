@@ -2,7 +2,7 @@ import sys
 import pysphere.IFS as IFS
 
 
-root_path = '/Users/avigan/data/pySPHERE-test/IFS_sub/'
+root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
 
 red = IFS.IFSReduction(root_path)
 

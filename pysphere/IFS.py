@@ -1373,6 +1373,11 @@ class IFSReduction(object):
         # parameters
         files_info = self._files_info
         
+        # instrument arm
+        arm = files_info['SEQ ARM'].unique()
+        if len(arm != 1):
+            raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
+        
         # IFS obs mode
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS']
         if len(modes.unique()) != 1:
@@ -1574,6 +1579,7 @@ class IFSReduction(object):
                 # store products
                 files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
                 files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                files_info.loc[dark_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
                 files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
                 files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
                 files_info.loc[dark_file, 'PROCESSED'] = True
@@ -1581,6 +1587,7 @@ class IFSReduction(object):
 
                 files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
                 files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
                 files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
                 files_info.loc[bpm_file, 'PROCESSED'] = True
                 files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
@@ -1663,6 +1670,7 @@ class IFSReduction(object):
             # store products
             files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
             files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[flat_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
             files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
             files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
             files_info.loc[flat_file, 'PROCESSED'] = True
@@ -1670,6 +1678,7 @@ class IFSReduction(object):
 
             files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
             files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
             files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
             files_info.loc[bpm_file, 'PROCESSED'] = True
             files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
@@ -1755,6 +1764,7 @@ class IFSReduction(object):
         # store products
         files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'][0]
         files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'][0]
+        files_info.loc[specp_file, 'INS2 MODE'] = specpos_file['INS2 MODE'][0]
         files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'][0]
         files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'][0]
         files_info.loc[specp_file, 'PROCESSED'] = True
@@ -1856,6 +1866,7 @@ class IFSReduction(object):
         # store products
         files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
         files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
+        files_info.loc[wav_file, 'INS2 MODE'] = wave_file['INS2 MODE'][0]
         files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'][0]
         files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
         files_info.loc[wav_file, 'PROCESSED'] = True
@@ -1981,6 +1992,7 @@ class IFSReduction(object):
         # store products
         files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'][0]
         files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'][0]
+        files_info.loc[ifu_file, 'INS2 MODE'] = ifu_flat_file['INS2 MODE'][0]
         files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'][0]
         files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'][0]
         files_info.loc[ifu_file, 'PROCESSED'] = True
