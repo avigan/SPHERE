@@ -186,15 +186,30 @@ def compute_angles(frames_info):
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG END'] = pa.value + pa_correction
 
-    # pupil offset
-    # PA_on-sky = PA_detector + PARANGLE + True_North + PUPOFFSET + IFSOFFSET
-    #   PUPOFFSET = 135.99±0.11
-    #   IFSOFFSET = 100.48±0.0.10
+    #
+    # Derotation angles
+    #
+    # PA_on-sky = PA_detector + PARANGLE + True_North + PUP_OFFSET + INSTRUMENT_OFFSET
+    #  PUP_OFFSET = -135.99 ± 0.11
+    #  INSTRUMENT_OFFSET
+    #   IFS = +100.48 ± 0.10
+    #   IRD =    0.00 ± 0.00    
+    #
+    instru = frames_info['SEQ ARM'].unique()
+    if len(instru) != 1:
+        raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+    if instru == 'IFS':
+        instru_offset = -100.48
+    elif instru == 'IRDIS':
+        instru_offset = 0.0
+    else:
+        raise ValueError('Unkown instrument {0}'.format(instru))
+        
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
     if len(drot_mode) != 1:
         raise ValueError('Derotator mode has several values in the sequence')
     if drot_mode == 'ELEV':
-        pupoff = 135.99 - 100.48
+        pupoff = 135.99
     elif drot_mode == 'SKY':
         pupoff = -100.48 + frames_info['INS4 DROT2 POSANG']
     elif drot_mode == 'STAT':
@@ -202,7 +217,7 @@ def compute_angles(frames_info):
     else:
         raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
 
-    frames_info['PUPIL OFFSET'] = pupoff
+    frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
