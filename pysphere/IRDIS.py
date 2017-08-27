@@ -93,165 +93,6 @@ recipe_requirements = {
 }
 
 
-def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=False, display=False, save_path=None):
-    '''
-    Compute star center from waffle images
-
-    Parameters
-    ----------
-    cube : array_like
-        Waffle IRDIS cube
-
-    wave : array_like
-        Wavelength values, in nanometers
-
-    waffle_orientation : str
-        String giving the waffle orientation '+' or 'x'
-
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
-    
-    display : bool
-        Display the fit of the satelitte spots
-
-    save_path : str
-        Path where to save the fit images
-    
-    Returns
-    -------
-    spot_center : array_like
-        Centers of each individual spot in each frame of the cube
-
-    spot_dist : array_like
-        The 6 possible distances between the different spots
-
-    img_center : array_like
-        The star center in each frame of the cube
-    '''
-    # standard parameters
-    dim = cube.shape[-1]
-    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
-    
-    # waffle parameters
-    freq = 10 * np.sqrt(2) * 0.97
-    box = 8
-    if waffle_orientation == '+':
-        orient = 0
-    elif waffle_orientation == 'x':
-        orient = np.pi / 4
-
-    # spot fitting
-    xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
-
-    # multi-page PDF to save result
-    if save_path is not None:
-        pdf = PdfPages(save_path)
-    
-    # loop over images
-    spot_center = np.zeros((nwave, 4, 2))
-    spot_dist = np.zeros((nwave, 6))
-    ird_center = np.array(((482, 516), (486, 508)))
-    img_center = np.full((nwave, 2), ((dim // 2)-1., (dim // 2)-1.))
-    for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
-
-        # center guess
-        cx_int = int(ird_center[idx, 0])
-        cy_int = int(ird_center[idx, 1])
-
-        # optional high-pass filter
-        if high_pass:
-            img = img - ndimage.median_filter(img, 15, mode='mirror')
-
-        # create plot if needed
-        if save_path or display:
-            fig = plt.figure(0, figsize=(8, 8))
-            plt.clf()
-            col = ['red', 'blue', 'magenta', 'purple']
-            ax = fig.add_subplot(111)
-            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm())
-            ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
-            
-        # satelitte spots
-        for s in range(4):
-            cx = int(cx_int + freq*loD[idx] * np.cos(orient + np.pi/2*s))
-            cy = int(cy_int + freq*loD[idx] * np.sin(orient + np.pi/2*s))
-
-            sub = img[cy-box:cy+box, cx-box:cx+box]
-
-            # fit: Gaussian + constant
-            imax = np.unravel_index(np.argmax(sub), sub.shape)
-            g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
-                                       x_stddev=loD[idx], y_stddev=loD[idx]) + \
-                                       models.Const2D(amplitude=sub.min())
-            fitter = fitting.LevMarLSQFitter()
-            par = fitter(g_init, xx, yy, sub)
-            fit = par(xx, yy)
-
-            cx_final = cx - box + par[0].x_mean
-            cy_final = cy - box + par[0].y_mean
-
-            spot_center[idx, s, 0] = cx_final
-            spot_center[idx, s, 1] = cy_final
-
-            # plot sattelite spots and fit
-            if save_path or display:
-                ax.plot([cx_final], [cy_final], marker='D', color=col[s])
-                ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
-                
-                axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
-                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max())
-                axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
-                axs.set_xticks([])
-                axs.set_yticks([])
-
-                axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
-                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max())
-                axs.set_xticks([])
-                axs.set_yticks([])
-
-        # lines intersection
-        intersect = toolbox.lines_intersect(spot_center[idx, 0, :], spot_center[idx, 2, :],
-                                            spot_center[idx, 1, :], spot_center[idx, 3, :])
-        img_center[idx] = intersect
-        
-        # scaling
-        spot_dist[idx, 0] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 1] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 2] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 1, :])**2))
-        spot_dist[idx, 3] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 4] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 5] = np.sqrt(np.sum((spot_center[idx, 2, :] - spot_center[idx, 3, :])**2))
-
-        # finalize plot
-        if save_path or display:
-            ax.plot([spot_center[idx, 0, 0], spot_center[idx, 2, 0]],
-                    [spot_center[idx, 0, 1], spot_center[idx, 2, 1]],
-                    color='w', linestyle='dashed')
-            ax.plot([spot_center[idx, 1, 0], spot_center[idx, 3, 0]],
-                    [spot_center[idx, 1, 1], spot_center[idx, 3, 1]],
-                    color='w', linestyle='dashed')
-
-            ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
-
-            ext = 1000 / pixel
-            ax.set_xlim(intersect[0]-ext, intersect[0]+ext)
-            ax.set_ylim(intersect[1]-ext, intersect[1]+ext)
-            
-            plt.tight_layout()
-
-            if save_path:
-                pdf.savefig()
-
-            if display:
-                plt.pause(1e-3)
-
-    if save_path:
-        pdf.close()
-
-    return spot_center, spot_dist, img_center
-
-
 class ImagingReduction(object):
     '''
     SPHERE/IRDIS imaging reduction object
@@ -1178,9 +1019,10 @@ class ImagingReduction(object):
                     save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
                 else:
                     save_path = None
-                spot_center, spot_dist, img_center = star_centers_from_waffle_cube(cube, wave, waffle_orientation,
-                                                                                   high_pass=high_pass, display=display,
-                                                                                   save_path=save_path)
+                spot_center, spot_dist, img_center \
+                    = toolbox.star_centers_from_waffle_cube(cube, wave, 'IRDIS', waffle_orientation,
+                                                            high_pass=high_pass, display=display,
+                                                            save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
