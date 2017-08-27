@@ -10,64 +10,62 @@ from scipy.interpolate import interp1d
 # definition of IRDIS filter combinations
 combinations = {
     # broad-band
-    'BB_Y':     {'CFW': 'B_Y',     'DFW': None},
-    'BB_J':     {'CFW': 'B_J',     'DFW': None},
-    'BB_H':     {'CFW': 'B_H',     'DFW': None},
-    'BB_Ks':    {'CFW': 'B_Ks',    'DFW': None},
+    'BB_Y':     {'CFW': 'B_Y',     'DFW': None, 'Wavelength': (1043, 1043), 'Bandwidth': (140, 140)},
+    'BB_J':     {'CFW': 'B_J',     'DFW': None, 'Wavelength': (1245, 1245), 'Bandwidth': (240, 240)},
+    'BB_H':     {'CFW': 'B_H',     'DFW': None, 'Wavelength': (1625, 1625), 'Bandwidth': (290, 290)},
+    'BB_Ks':    {'CFW': 'B_Ks',    'DFW': None, 'Wavelength': (2182, 2182), 'Bandwidth': (300, 300)},
 
     # dual-band
-    'DB_Y23':   {'CFW': 'B_Y',     'DFW': 'D_Y23'},
-    'DB_J23':   {'CFW': 'B_J',     'DFW': 'D_J23'},
-    'DB_H23':   {'CFW': 'B_H',     'DFW': 'D_H23'},
-    'DB_H32':   {'CFW': 'B_H',     'DFW': 'D_H32'},
-    'DB_NDH23': {'CFW': 'B_ND-H',  'DFW': 'D_H23'},
-    'DB_NDH32': {'CFW': 'B_ND-H',  'DFW': 'D_H32'},
-    'DB_H34':   {'CFW': 'B_Hcmp2', 'DFW': 'D_H34'},
-    'DB_K12':   {'CFW': 'B_Ks',    'DFW': 'D_K12'},
+    'DB_Y23':   {'CFW': 'B_Y',     'DFW': 'D_Y23', 'Wavelength': (1022, 1076), 'Bandwidth': (49, 50)},
+    'DB_J23':   {'CFW': 'B_J',     'DFW': 'D_J23', 'Wavelength': (1190, 1273), 'Bandwidth': (42, 46)},
+    'DB_H23':   {'CFW': 'B_H',     'DFW': 'D_H23', 'Wavelength': (1593, 1667), 'Bandwidth': (52, 54)},
+    'DB_NDH23': {'CFW': 'B_ND-H',  'DFW': 'D_H23', 'Wavelength': (1593, 1667), 'Bandwidth': (52, 54)},
+    'DB_H34':   {'CFW': 'B_Hcmp2', 'DFW': 'D_H34', 'Wavelength': (1667, 1733), 'Bandwidth': (54, 57)},
+    'DB_K12':   {'CFW': 'B_Ks',    'DFW': 'D_K12', 'Wavelength': (2110, 2251), 'Bandwidth': (102, 109)},
 
     # narrow-band
-    'NB_BrG':   {'CFW': 'N_BrG',   'DFW': None},
-    'NB_CO':    {'CFW': 'N_CO',    'DFW': None},
-    'NB_CntH':  {'CFW': 'N_CntH',  'DFW': None},
-    'NB_CntJ':  {'CFW': 'N_CntJ',  'DFW': None},
-    'NB_CntK1': {'CFW': 'N_CntK1', 'DFW': None},
-    'NB_CntK2': {'CFW': 'N_CntK2', 'DFW': None},
-    'NB_FeII':  {'CFW': 'N_FeII',  'DFW': None},
-    'NB_H2':    {'CFW': 'N_H2',    'DFW': None},
-    'NB_HeI':   {'CFW': 'N_HeI',   'DFW': None},
-    'NB_PaB':   {'CFW': 'N_PaB',   'DFW': None},
+    'NB_BrG':   {'CFW': 'N_BrG',   'DFW': None, 'Wavelength': (2170, 2170), 'Bandwidth': (31, 31)},
+    'NB_CO':    {'CFW': 'N_CO',    'DFW': None, 'Wavelength': (2290, 2290), 'Bandwidth': (33, 33)},
+    'NB_CntH':  {'CFW': 'N_CntH',  'DFW': None, 'Wavelength': (1573, 1573), 'Bandwidth': (23, 23)},
+    'NB_CntJ':  {'CFW': 'N_CntJ',  'DFW': None, 'Wavelength': (1213, 1213), 'Bandwidth': (17, 17)},
+    'NB_CntK1': {'CFW': 'N_CntK1', 'DFW': None, 'Wavelength': (2091, 2091), 'Bandwidth': (34, 34)},
+    'NB_CntK2': {'CFW': 'N_CntK2', 'DFW': None, 'Wavelength': (2266, 2266), 'Bandwidth': (32, 32)},
+    'NB_FeII':  {'CFW': 'N_FeII',  'DFW': None, 'Wavelength': (1642, 1642), 'Bandwidth': (24, 24)},
+    'NB_H2':    {'CFW': 'N_H2',    'DFW': None, 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},
+    'NB_HeI':   {'CFW': 'N_HeI',   'DFW': None, 'Wavelength': (1085, 1085), 'Bandwidth': (14, 14)},
+    'NB_PaB':   {'CFW': 'N_PaB',   'DFW': None, 'Wavelength': (1283, 1283), 'Bandwidth': (18, 18)},
 
     # 0-90 deg polarisers
-    'DP_0_BB_Y':      {'CFW': 'B_Y',      'DFW': 'P0-90'},
-    'DP_0_BB_J':      {'CFW': 'B_J',      'DFW': 'P0-90'},
-    'DP_0_BB_H':      {'CFW': 'B_H',      'DFW': 'P0-90'},
-    'DP_0_BB_Ks':     {'CFW': 'B_Ks',     'DFW': 'P0-90'},
-    'DP_0_NB_BrG':    {'CFW': 'N_BrG',    'DFW': 'P0-90'},
-    'DP_0_NB_CO':     {'CFW': 'N_CO',     'DFW': 'P0-90'},
-    'DP_0_NB_ContH':  {'CFW': 'N_ContH',  'DFW': 'P0-90'},
-    'DP_0_NB_ContJ':  {'CFW': 'N_ContJ',  'DFW': 'P0-90'},
-    'DP_0_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P0-90'},
-    'DP_0_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P0-90'},
-    'DP_0_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P0-90'},
-    'DP_0_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P0-90'},    
-    'DP_0_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P0-90'},
-    'DP_0_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P0-90'},
+    'DP_0_BB_Y':      {'CFW': 'B_Y',      'DFW': 'P0-90', 'Wavelength': (1043, 1043), 'Bandwidth': (140, 140)},
+    'DP_0_BB_J':      {'CFW': 'B_J',      'DFW': 'P0-90', 'Wavelength': (1245, 1245), 'Bandwidth': (240, 240)},
+    'DP_0_BB_H':      {'CFW': 'B_H',      'DFW': 'P0-90', 'Wavelength': (1625, 1625), 'Bandwidth': (290, 290)},
+    'DP_0_BB_Ks':     {'CFW': 'B_Ks',     'DFW': 'P0-90', 'Wavelength': (2182, 2182), 'Bandwidth': (300, 300)},
+    'DP_0_NB_BrG':    {'CFW': 'N_BrG',    'DFW': 'P0-90', 'Wavelength': (2170, 2170), 'Bandwidth': (31, 31)},
+    'DP_0_NB_CO':     {'CFW': 'N_CO',     'DFW': 'P0-90', 'Wavelength': (2290, 2290), 'Bandwidth': (33, 33)},
+    'DP_0_NB_ContH':  {'CFW': 'N_ContH',  'DFW': 'P0-90', 'Wavelength': (1573, 1573), 'Bandwidth': (23, 23)},
+    'DP_0_NB_ContJ':  {'CFW': 'N_ContJ',  'DFW': 'P0-90', 'Wavelength': (1213, 1213), 'Bandwidth': (17, 17)},
+    'DP_0_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P0-90', 'Wavelength': (2091, 2091), 'Bandwidth': (34, 34)},
+    'DP_0_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P0-90', 'Wavelength': (2266, 2266), 'Bandwidth': (32, 32)},
+    'DP_0_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P0-90', 'Wavelength': (1642, 1642), 'Bandwidth': (24, 24)},
+    'DP_0_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P0-90', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},    
+    'DP_0_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P0-90', 'Wavelength': (1085, 1085), 'Bandwidth': (14, 14)},
+    'DP_0_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P0-90', 'Wavelength': (1283, 1283), 'Bandwidth': (18, 18)},
 
     # 45-135 deg polarisers
-    'DP_45_BB_Y':      {'CFW': 'B_Y',      'DFW': 'P45-135'},
-    'DP_45_BB_J':      {'CFW': 'B_J',      'DFW': 'P45-135'},
-    'DP_45_BB_H':      {'CFW': 'B_H',      'DFW': 'P45-135'},
-    'DP_45_BB_Ks':     {'CFW': 'B_Ks',     'DFW': 'P45-135'},
-    'DP_45_NB_BrG':    {'CFW': 'N_BrG',    'DFW': 'P45-135'},
-    'DP_45_NB_CO':     {'CFW': 'N_CO',     'DFW': 'P45-135'},
-    'DP_45_NB_ContH':  {'CFW': 'N_ContH',  'DFW': 'P45-135'},
-    'DP_45_NB_ContJ':  {'CFW': 'N_ContJ',  'DFW': 'P45-135'},
-    'DP_45_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P45-135'},
-    'DP_45_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P45-135'},
-    'DP_45_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P45-135'},
-    'DP_45_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P45-135'},    
-    'DP_45_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P45-135'},
-    'DP_45_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P45-135'}
+    'DP_45_BB_Y':      {'CFW': 'B_Y',      'DFW': 'P45-135', 'Wavelength': (1043, 1043), 'Bandwidth': (140, 140)},
+    'DP_45_BB_J':      {'CFW': 'B_J',      'DFW': 'P45-135', 'Wavelength': (1245, 1245), 'Bandwidth': (240, 240)},
+    'DP_45_BB_H':      {'CFW': 'B_H',      'DFW': 'P45-135', 'Wavelength': (1625, 1625), 'Bandwidth': (290, 290)},
+    'DP_45_BB_Ks':     {'CFW': 'B_Ks',     'DFW': 'P45-135', 'Wavelength': (2182, 2182), 'Bandwidth': (300, 300)},
+    'DP_45_NB_BrG':    {'CFW': 'N_BrG',    'DFW': 'P45-135', 'Wavelength': (2170, 2170), 'Bandwidth': (31, 31)},
+    'DP_45_NB_CO':     {'CFW': 'N_CO',     'DFW': 'P45-135', 'Wavelength': (2290, 2290), 'Bandwidth': (33, 33)},
+    'DP_45_NB_ContH':  {'CFW': 'N_ContH',  'DFW': 'P45-135', 'Wavelength': (1573, 1573), 'Bandwidth': (23, 23)},
+    'DP_45_NB_ContJ':  {'CFW': 'N_ContJ',  'DFW': 'P45-135', 'Wavelength': (1213, 1213), 'Bandwidth': (17, 17)},
+    'DP_45_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P45-135', 'Wavelength': (2091, 2091), 'Bandwidth': (34, 34)},
+    'DP_45_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P45-135', 'Wavelength': (2266, 2266), 'Bandwidth': (32, 32)},
+    'DP_45_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P45-135', 'Wavelength': (1642, 1642), 'Bandwidth': (24, 24)},
+    'DP_45_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P45-135', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},    
+    'DP_45_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P45-135', 'Wavelength': (1085, 1085), 'Bandwidth': (14, 14)},
+    'DP_45_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P45-135', 'Wavelength': (1283, 1283), 'Bandwidth': (18, 18)}
 }
 
 # dictionary for already read transmissions
@@ -197,7 +195,7 @@ def irdis_nd(combination, nd_filter):
     Description
     -----------    
     This function works for all the IRDIS broad-band (BB), dual-band
-    (DB) and narrow-band filters. The names of the filter combinations
+    (DB) and narrow-band (NB) filters. The names of the filter combinations
     are provided below.
 
     Broad-band filters combinations:
@@ -366,7 +364,7 @@ def transmission_filter(combination):
     Description
     -----------    
     This function works for all the IRDIS broad-band (BB), dual-band
-    (DB) and narrow-band filters. The names of the filter combinations
+    (DB) and narrow-band (NB) filters. The names of the filter combinations
     are provided below.
 
     Broad-band filters combinations:
@@ -454,4 +452,68 @@ def transmission_filter(combination):
     return wave_grid, tr_0, tr_1
 
 
+def wavelength_bandwidth_filter(combination):
+    '''
+    Provides the wavelength and bandwidth of the filters for a given
+    combination
+
+    Description
+    -----------    
+    This function works for all the IRDIS broad-band (BB), dual-band
+    (DB) and narrow-band (NB) filters. The names of the filter combinations
+    are provided below.
+
+    Broad-band filters combinations:
+     - BB_Y
+     - BB_J
+     - BB_H
+     - BB_Ks
+
+    Dual-band filters combinations:
+     - DB_Y23
+     - DB_J23
+     - DB_H23
+     - DB_H32
+     - DB_NDH23
+     - DB_NDH32
+     - DB_H34
+     - DB_K12
+
+    Narrow-band filters:
+     - NB_BrG
+     - NB_CO
+     - NB_CntH
+     - NB_CntJ
+     - NB_CntK1
+     - NB_CntK2
+     - NB_FeII
+     - NB_H2
+     - NB_Hel
+     - NB_PaB
+
+    
+    Parameters
+    ----------
+    combination : str    
+        Name of the filter combination. This parameter can be read
+        directly from the header of any SPHERE/IRDIS raw file with the
+        keyword 'HIERARCH ESO INS COMB IFLT'
+
+    Returns
+    -------
+    wave : array_like
+        Tuple of central wavelengths, in nanometers
+    
+    bandwidth : array_like
+        Tuple of bandwidth, in nanometers    
+    '''
+
+    setup = combinations.get(combination)
+    if setup is None:
+        raise ValueError('Unknown filter combination {0}'.format(combination))
+    
+    wave = setup['Wavelength']
+    bandwidth = setup['Bandwidth']
+
+    return wave, bandwidth
 
