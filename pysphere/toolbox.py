@@ -432,6 +432,9 @@ def star_centers_from_PSF_cube(cube, wave, pixel, display=False, save_path=None)
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
+        # remove any NaN
+        img = np.nan_to_num(img)
+        
         # center guess
         cy, cx = np.unravel_index(np.argmax(img), img.shape)
 
@@ -562,6 +565,9 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
+        # remove any NaN
+        img = np.nan_to_num(img)
+    
         # center guess
         cx_int = int(center_guess[idx, 0])
         cy_int = int(center_guess[idx, 1])
