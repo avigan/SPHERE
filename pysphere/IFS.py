@@ -316,14 +316,20 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
         Combined bad pixel map
     '''
 
+    # check that we have files
+    if len(bpm_files) == 0:
+        raise ValueError('No bad pixel map files provided')
+    
+    # get shape
+    shape = fits.getdata(bpm_files[0]).shape
+    
     # star with empty bpm
-    bpm = np.zeros((2048, 2048), dtype=np.uint8)
-
+    bpm = np.zeros((shape[-2], shape[-1]), dtype=np.uint8)
+    
     # fill if files are provided
-    if len(bpm_files) != 0:
-        for f in bpm_files:
-            data = fits.getdata(f)
-            bpm = np.logical_or(bpm, data)
+    for f in bpm_files:
+        data = fits.getdata(f)
+        bpm = np.logical_or(bpm, data)
 
     bpm = bpm.astype(dtype)
 
@@ -892,6 +898,10 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
 
             ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
             
+            ext = 1000 / pixel
+            ax.set_xlim(intersect[0]-ext, intersect[0]+ext)
+            ax.set_ylim(intersect[1]-ext, intersect[1]+ext)
+            
             plt.tight_layout()
 
             if save_path:
@@ -970,10 +980,16 @@ def star_centers_from_PSF_cube(cube, wave, display=False, save_path=None):
             fig = plt.figure(0, figsize=(8, 8))
             plt.clf()
             ax = fig.add_subplot(111)
+            
             ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm())
             ax.plot([cx_final], [cy_final], marker='D', color='red')
             ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+
+            ext = 1000 / pixel
+            ax.set_xlim(cx_final-ext, cx_final+ext)
+            ax.set_ylim(cy_final-ext, cy_final+ext)
+
             plt.tight_layout()
 
             if save_path:
@@ -1069,11 +1085,8 @@ class IFSReduction(object):
         Sort files and frames, perform sanity check
         '''
 
-        # sort files and frames
         self.sort_files()
         self.sort_frames()
-
-        # sanity check
         self.check_files_association()
         
     
@@ -1106,7 +1119,6 @@ class IFSReduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
-        # process science data
         self.sph_ifs_science_cubes(postprocess=True, silent=True)
         self.sph_ifs_wavelength_recalibration(high_pass=False, display=False, save=True)
         self.sph_ifs_star_center(high_pass=False, display=False, save=True)
@@ -2112,7 +2124,7 @@ class IFSReduction(object):
                     print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
 
                     if len(dfiles) != 1:
-                        raise ValueError('Unexpected number of background fliles ({0})'.format(len(dfiles)))
+                        raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
 
                     bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
 
@@ -2239,7 +2251,7 @@ class IFSReduction(object):
         
     def sph_ifs_preprocess_wave(self):
         '''
-        Pre-processes the wavelegth calibration frame for later
+        Pre-processes the wavelength calibration frame for later
         recalibration of the wavelength
         '''
 
@@ -2679,7 +2691,7 @@ class IFSReduction(object):
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
-                # wavelegth
+                # wavelength
                 wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
                 wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
@@ -2706,7 +2718,7 @@ class IFSReduction(object):
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
-                # wavelegth
+                # wavelength
                 wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
                 wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
@@ -2806,7 +2818,7 @@ class IFSReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2878,7 +2890,7 @@ class IFSReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2961,7 +2973,7 @@ class IFSReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                print('  ==> {0}'.format(file))
+                print('  ==> {0}, DIT #{1}'.format(file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
