@@ -169,7 +169,7 @@ def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=Fals
             plt.clf()
             col = ['red', 'blue', 'magenta', 'purple']
             ax = fig.add_subplot(111)
-            ax.imshow(img, aspect='equal', vmin=0, vmax=img.max())
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm())
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
             
         # satelitte spots
@@ -1342,8 +1342,8 @@ class ImagingReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
-
+                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))                
+                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
@@ -1397,10 +1397,19 @@ class ImagingReduction(object):
                       'They will just be combined.')
 
                 centers = np.full((nwave, 2), cc)
+
+                # null value for Dithering Motion Stage
+                dms_dx_ref = 0
+                dms_dy_ref = 0
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
                 centers = fits.getdata(os.path.join(path.preproc, fname))
 
+                # Dithering Motion Stage for star center: value is in micron,
+                # and the pixel size is 18 micron
+                dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
+                dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                
             # final arrays
             sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
             sci_parang = np.zeros(nfiles)
@@ -1432,9 +1441,18 @@ class ImagingReduction(object):
                 sci_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
                 sci_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
 
+                # Dithering Motion Stage for star center: value is in micron,
+                # and the pixel size is 18 micron
+                dms_dx = frames_info.loc[(file, idx), 'INS1 PAC X'] / 18
+                dms_dy = frames_info.loc[(file, idx), 'INS1 PAC Y'] / 18
+                
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     cx, cy = centers[wave_idx, :]
+
+                    # DMS contribution
+                    cx = cx + dms_dx_ref + dms_dx
+                    cy = cy + dms_dy_ref + dms_dy
 
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
