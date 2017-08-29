@@ -870,7 +870,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
         return img_clip
 
     
-def fix_badpix(img, bpm, box=5):
+def fix_badpix_vip(img, bpm, box=5):
     '''
     Corrects the bad pixels, marked in the bad pixel mask.
 
@@ -931,6 +931,124 @@ def fix_badpix(img, bpm, box=5):
     img_clean[mask] = img[mask]
     
     return img_clean
+
+
+def fix_badpix(img, bpm, npix=8, weight=False):
+    '''Corrects the bad pixels, marked in the bad pixel mask.
+
+    It will fill in bad pixels by finding the NPIX nearest good
+    pixels, toss the highest and lowest ones of the bunch, and then
+    arithmatically average. Additional it will weight adjacent pixels
+    by inverse of their distances in averaging process if the option
+    is selected.
+
+    Parameters
+    ----------
+    img : array_like
+        Input 2D image
+    
+    bpm : array_like, optional    
+        Input bad pixel map. Good pixels have a value of 0, bad pixels
+        a value of 1.
+
+    npix : int, optional    
+        The number of adjacent good pixels used for the estimation bad
+        pixel value. Default value is 8
+
+    weight : bool, optional
+        Weigh good pixel by inverse of their distance in the averaging
+        process. Default is False
+    
+    Return
+    ------
+    img_clean : array_like
+        Cleaned image
+
+    '''
+    # new arrays
+    img = img.copy()
+    bpm = (bpm != 0)
+
+    # bad pixels
+    bp  = np.where(bpm)
+    nbp = bp[0].size    
+    if nbp == 0:
+        return img
+
+    # usefull parameters
+    ddmin = 2
+    ddmax = 100
+    shape = img.shape
+
+    # create default distance array
+    dd = ddmin
+    xx, yy = np.meshgrid(np.arange(2*dd+1)-dd, np.arange(2*dd+1)-dd)
+    dist_default = np.sqrt(xx**2 + yy**2)
+
+    bpm = np.logical_not(bpm)
+    for cx, cy in zip(bp[1], bp[0]):
+        # default search box is 2*dd+1 pixel
+        dd = ddmin
+
+        # determine search region
+        found = False
+        while not found:
+            x0 = max(cx-dd, 0)
+            x1 = min(cx+dd+1, shape[-1])
+            y0 = max(cy-dd, 0)
+            y1 = min(cy+dd+1, shape[-2])
+
+            bpm_sub = bpm[y0:y1, x0:x1]
+            img_sub = img[y0:y1, x0:x1]
+            
+            if bpm_sub.sum() < npix:
+                dd = dd + 2
+            else:
+                found = True
+
+            if dd > ddmax:
+                break
+            
+        # distance to adjacent good pixels
+        if dd == ddmin:
+            # get default array if dd unchanged
+            dist = dist_default
+        else:
+            # otherwise recompute one
+            xx, yy = np.meshgrid(np.arange(2*dd+1)-dd, np.arange(2*dd+1)-dd)
+            dist = np.sqrt(xx**2 + yy**2)
+            
+        # keep good pixels
+        good_pix  = img_sub[bpm_sub]
+        good_dist = dist[bpm_sub]
+        
+        # sort them by distance
+        ii = np.argsort(good_dist)
+        good_pix  = good_pix[ii]
+        good_dist = good_dist[ii]
+
+        # get values of relevant pixels
+        mm = np.where(good_dist <= good_dist[npix-1])
+        good_pix  = good_pix[mm]
+        good_dist = good_dist[mm]
+
+        ii = np.argsort(good_pix)
+        good_pix  = good_pix[ii]
+        good_dist = good_dist[ii]
+        
+        # calculate new pixel value, tossing the highest and lowest
+        # pixels of the bunch, then weighting by the inverse of the
+        # distances if desired
+        if weight:
+            final_dist = good_dist[1:-1]
+            new_val = np.sum(good_pix[1:-1] / final_dist)
+            new_val = new_val / np.sum(1/final_dist)
+        else:
+            new_val = np.mean(good_pix[1:-1])
+            
+        img[cy, cx] = new_val
+            
+    return img
 
 
 ####################################################################################
