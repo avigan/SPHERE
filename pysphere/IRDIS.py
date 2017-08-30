@@ -930,7 +930,13 @@ class ImagingReduction(object):
                         print('   ==> correct bad pixels')
                         for f in range(len(img)):                            
                             frame = img[f]
-                            frame = imutils.fix_badpix(frame, bpm)
+                            frame = imutils.fix_badpix(frame, bpm, npix=12, weight=True)
+
+                            # additional sigma clipping to remove transitory bad pixels
+                            # not done for OBJECT,FLUX because PSF peak can be clipped
+                            if (typ != 'OBJECT,FLUX'):
+                                frame = imutils.sigma_filter(frame, box=7, nsigma=4, iterate=False)
+
                             img[f] = frame
 
                     # reshape data
@@ -1123,7 +1129,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx, len(flux_files), file, idx))
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(flux_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1192,7 +1198,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx, len(starcen_files), file, idx))
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(starcen_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1281,7 +1287,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx, len(object_files), file, idx))
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(object_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
