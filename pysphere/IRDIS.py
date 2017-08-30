@@ -24,19 +24,6 @@ import pysphere.ReductionPath as ReductionPath
 import pysphere.toolbox as toolbox
 
 
-# specify for each recipe which other recipes need to have been executed before
-recipe_requirements = {
-    'sort_files': [],
-    'sort_frames': ['sort_files'],
-    'check_files_association': ['sort_files'],
-    'sph_ird_cal_dark': ['sort_files'],
-    'sph_ird_cal_detector_flat': ['sort_files'],
-    'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
-    'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-    'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science', 'sph_ird_star_center']
-}
-
-
 class ImagingReduction(object):
     '''
     SPHERE/IRDIS imaging reduction object
@@ -46,6 +33,17 @@ class ImagingReduction(object):
     # Class variables
     ##################################################
 
+    # specify for each recipe which other recipes need to have been executed before
+    recipe_requirements = {
+        'sort_files': [],
+        'sort_frames': ['sort_files'],
+        'check_files_association': ['sort_files'],
+        'sph_ird_cal_dark': ['sort_files'],
+        'sph_ird_cal_detector_flat': ['sort_files'],
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
+        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science', 'sph_ird_star_center']
+    }
     
     ##################################################
     # Constructor

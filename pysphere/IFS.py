@@ -24,31 +24,6 @@ import pysphere.ReductionPath as ReductionPath
 import pysphere.toolbox as toolbox
 
 
-# specify for each recipe which other recipes need to have been executed before
-recipe_requirements = {
-    'sort_files': [],
-    'sort_frames': ['sort_files'],
-    'check_files_association': ['sort_files'],
-    'sph_ifs_cal_dark': ['sort_files'],
-    'sph_ifs_cal_detector_flat': ['sort_files', 'sph_ifs_cal_dark'],
-    'sph_ifs_cal_specpos': ['sort_files', 'sph_ifs_cal_dark'],
-    'sph_ifs_cal_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_specpos'],
-    'sph_ifs_cal_ifu_flat': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
-                             'sph_ifs_cal_specpos', 'sph_ifs_cal_wave'],
-    'sph_ifs_preprocess_science': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark',
-                                   'sph_ifs_cal_detector_flat'],
-    'sph_ifs_preprocess_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat'],
-    'sph_ifs_science_cubes': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
-                              'sph_ifs_cal_specpos', 'sph_ifs_cal_wave',
-                              'sph_ifs_preprocess_science', 'sph_ifs_preprocess_wave'],
-    'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
-                                         'sph_ifs_science_cubes'],    
-    'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],
-    'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes',
-                             'sph_ifs_wavelength_recalibration', 'sph_ifs_star_center']
-}
-
-
 def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     '''
     Compute a master detector flat and associated bad pixel map
@@ -354,6 +329,29 @@ class IFSReduction(object):
     # Class variables
     ##################################################
 
+    # specify for each recipe which other recipes need to have been executed before
+    recipe_requirements = {
+        'sort_files': [],
+        'sort_frames': ['sort_files'],
+        'check_files_association': ['sort_files'],
+        'sph_ifs_cal_dark': ['sort_files'],
+        'sph_ifs_cal_detector_flat': ['sort_files', 'sph_ifs_cal_dark'],
+        'sph_ifs_cal_specpos': ['sort_files', 'sph_ifs_cal_dark'],
+        'sph_ifs_cal_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_specpos'],
+        'sph_ifs_cal_ifu_flat': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
+                                 'sph_ifs_cal_specpos', 'sph_ifs_cal_wave'],
+        'sph_ifs_preprocess_science': ['sort_files', 'sort_frames', 'sph_ifs_cal_dark',
+                                       'sph_ifs_cal_detector_flat'],
+        'sph_ifs_preprocess_wave': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat'],
+        'sph_ifs_science_cubes': ['sort_files', 'sph_ifs_cal_dark', 'sph_ifs_cal_detector_flat',
+                                  'sph_ifs_cal_specpos', 'sph_ifs_cal_wave',
+                                  'sph_ifs_preprocess_science', 'sph_ifs_preprocess_wave'],
+        'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
+                                             'sph_ifs_science_cubes'],    
+        'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],
+        'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes',
+                                 'sph_ifs_wavelength_recalibration', 'sph_ifs_star_center']
+    }
     
     ##################################################
     # Constructor
