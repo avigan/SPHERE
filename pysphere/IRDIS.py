@@ -11,6 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
+import configparser
 
 from astropy.io import fits
 from astropy.modeling import models, fitting
@@ -117,9 +118,24 @@ class ImagingReduction(object):
             Path to the directory containing the raw data
         '''
 
-        # init path
+        # init path and name
         self._path = ReductionPath.Path(path)
+        self._instrument = 'IRDIS'
+        
+        # read configuration file
+        package_directory = os.path.dirname(os.path.abspath(__file__))
+        configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
+        config = configparser.ConfigParser()
+        try:
+            config.read(configfile)
+            
+            self._pixel = float(config.get('instrument', 'pixel'))
+            self._nwave = float(config.get('instrument', 'nwave'))
 
+            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+        except configparser.Error as e:
+            raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
+        
         # execution of recipes
         self._recipe_execution = {
             'sort_files': False,
@@ -133,6 +149,18 @@ class ImagingReduction(object):
     ##################################################
     # Properties
     ##################################################
+    
+    @property
+    def instrument(self):
+        return self._instrument
+
+    @property
+    def pixel(self):
+        return self._pixel
+    
+    @property
+    def nwave(self):
+        return self._nwave
     
     @property
     def path(self):
@@ -153,6 +181,8 @@ class ImagingReduction(object):
     @property
     def recipe_execution(self):
         return self._recipe_execution
+
+
     
     ##################################################
     # Generic class methods
@@ -337,6 +367,24 @@ class ImagingReduction(object):
 
         print(' * found {0} FITS files in {1}'.format(len(files), path.raw))
 
+        # read list of keywords
+        package_directory = os.path.dirname(os.path.abspath(__file__))
+        keywords = []
+        file = open(os.path.join(package_directory, 'instruments', 'keywords.dat'), 'r')
+        for line in file:
+            line = line.strip()
+            if line:
+                if line[0] != '#':
+                    keywords.append(line)
+        file.close()
+
+        # short keywords
+        keywords_short = keywords.copy()
+        for idx in range(len(keywords_short)):
+            key = keywords_short[idx]
+            if key.find('HIERARCH ESO ') != -1:
+                keywords_short[idx] = key[13:]
+        
         # files table
         files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
