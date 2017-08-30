@@ -374,7 +374,7 @@ class ImagingReduction(object):
         print('Extracting frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self._recipe_requirements)
         
         # parameters
         path = self._path
@@ -418,7 +418,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self._recipe_requirements)
         
         print('Performing file association for calibrations')
 
@@ -501,7 +501,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self._recipe_requirements)
         
         print('Creating darks and backgrounds')
 
@@ -618,7 +618,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self._recipe_requirements)
         
         print('Creating flats')
 
@@ -752,7 +752,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self._recipe_requirements)
         
         print('Pre-processing science files')
 
@@ -974,7 +974,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self._recipe_requirements)
         
         print('Star centers determination')
 
@@ -1088,7 +1088,7 @@ class ImagingReduction(object):
         '''
         
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self._recipe_requirements)
         
         print('Combine science data')
 

@@ -718,7 +718,7 @@ class IFSReduction(object):
         print('Extracting frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self._recipe_requirements)
         
         # parameters
         path = self._path
@@ -762,7 +762,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self._recipe_requirements)
         
         print('Performing file association for calibrations')
 
@@ -901,7 +901,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', self._recipe_requirements)
         
         print('Creating darks and backgrounds')
 
@@ -1006,7 +1006,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', self._recipe_requirements)
         
         print('Creating flats')
 
@@ -1097,7 +1097,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', self._recipe_requirements)
         
         print('Creating specpos')
 
@@ -1184,7 +1184,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', self._recipe_requirements)
         
         print('Creating wavelength calibration')
 
@@ -1286,7 +1286,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', self._recipe_requirements)
         
         print('Creating IFU flat')
 
@@ -1455,7 +1455,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', self._recipe_requirements)
         
         print('Pre-processing science files')
 
@@ -1640,7 +1640,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave', self._recipe_requirements)
         
         # parameters
         path = self._path
@@ -1710,7 +1710,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', self._recipe_requirements)
         
         print('Creating the (x,y,lambda) science cubes')
 
@@ -1854,7 +1854,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', self._recipe_requirements)
         
         print('Recalibrating wavelength')
 
@@ -2053,7 +2053,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center', self._recipe_requirements)
         
         print('Star centers determination')
 
@@ -2173,7 +2173,7 @@ class IFSReduction(object):
         '''
         
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data', recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data', self._recipe_requirements)
         
         print('Combine science data')
 
