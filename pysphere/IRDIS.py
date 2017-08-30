@@ -24,63 +24,6 @@ import pysphere.ReductionPath as ReductionPath
 import pysphere.toolbox as toolbox
 
 
-# keywords to be saved
-keywords = [
-    # standard
-    'INSTRUME', 
-    'OBJECT', 'DATE-OBS', 'DATE', 'HIERARCH ESO DET FRAM UTC',
-
-    # DPR
-    'HIERARCH ESO DPR CATG', 'HIERARCH ESO DPR TYPE', 'HIERARCH ESO DPR TECH',
-        
-    # coordinates
-    'HIERARCH ESO TEL GEOLAT', 'HIERARCH ESO TEL GEOLON', 'HIERARCH ESO TEL GEOELEV',
-    'HIERARCH ESO INS4 DROT2 RA', 'HIERARCH ESO INS4 DROT2 DEC',
-    'HIERARCH ESO TEL ALT', 'HIERARCH ESO TEL AZ',
-
-    # SAXO
-    'HIERARCH ESO AOS TTLOOP STATE', 'HIERARCH ESO AOS HOLOOP STATE',
-    'HIERARCH ESO AOS IRLOOP STATE', 'HIERARCH ESO AOS PUPLOOP STATE',
-    'HIERARCH ESO AOS VISWFS MODE',
-
-    # CPI
-    'HIERARCH ESO SEQ ARM',
-    'HIERARCH ESO INS COMB ICOR', 'HIERARCH ESO INS COMB IFLT', 'HIERARCH ESO INS COMB POLA',
-    'HIERARCH ESO INS4 FILT2 NAME',
-    'HIERARCH ESO INS4 DROT2 BEGIN', 'HIERARCH ESO INS4 DROT2 END',
-    'HIERARCH ESO INS4 DROT2 POSANG', 'HIERARCH ESO INS4 DROT2 MODE', 
-    
-    # IFS
-    'HIERARCH ESO INS2 MODE', 'HIERARCH ESO INS2 COMB IFS',
-
-    # IRDIS
-    'HIERARCH ESO INS1 MODE',
-    'HIERARCH ESO INS1 FILT NAME', 'HIERARCH ESO INS1 OPTI2 NAME',
-    'HIERARCH ESO INS1 PAC X', 'HIERARCH ESO INS1 PAC Y',
-    
-    # detector
-    'HIERARCH ESO DET SEQ1 DIT', 'HIERARCH ESO DET NDIT',
-
-    # observing conditions
-    'HIERARCH ESO TEL AIRM START', 'HIERARCH ESO TEL AIRM END',
-    'HIERARCH ESO TEL AMBI FWHM START', 'HIERARCH ESO TEL AMBI FWHM END', 'HIERARCH ESO TEL IA FWHM',
-    'HIERARCH ESO TEL AMBI TAU0', 'HIERARCH ESO TEL AMBI TEMP',
-    'HIERARCH ESO TEL AMBI WINDSP', 'HIERARCH ESO TEL AMBI WINDDIR'
-]
-
-# short keywords
-keywords_short = keywords.copy()
-for idx in range(len(keywords_short)):
-    key = keywords_short[idx]
-    if key.find('HIERARCH ESO ') != -1:
-        keywords_short[idx] = key[13:]
-        
-# useful parameters
-nwave = 2
-pixel = 12.25
-
-wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
-
 # specify for each recipe which other recipes need to have been executed before
 recipe_requirements = {
     'sort_files': [],
@@ -1041,6 +984,7 @@ class ImagingReduction(object):
 
         # parameters
         path = self._path
+        pixel = self._pixel
         frames_info = self._frames_info_preproc
 
         # wavelength
@@ -1154,6 +1098,7 @@ class ImagingReduction(object):
 
         # parameters
         path = self._path
+        nwave = self._nwave
         frames_info = self._frames_info_preproc
         
         # wavelength

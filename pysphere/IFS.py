@@ -24,63 +24,6 @@ import pysphere.ReductionPath as ReductionPath
 import pysphere.toolbox as toolbox
 
 
-# keywords to be saved
-keywords = [
-    # standard
-    'INSTRUME', 
-    'OBJECT', 'DATE-OBS', 'DATE', 'HIERARCH ESO DET FRAM UTC',
-
-    # DPR
-    'HIERARCH ESO DPR CATG', 'HIERARCH ESO DPR TYPE', 'HIERARCH ESO DPR TECH',
-        
-    # coordinates
-    'HIERARCH ESO TEL GEOLAT', 'HIERARCH ESO TEL GEOLON', 'HIERARCH ESO TEL GEOELEV',
-    'HIERARCH ESO INS4 DROT2 RA', 'HIERARCH ESO INS4 DROT2 DEC',
-    'HIERARCH ESO TEL ALT', 'HIERARCH ESO TEL AZ',
-
-    # SAXO
-    'HIERARCH ESO AOS TTLOOP STATE', 'HIERARCH ESO AOS HOLOOP STATE',
-    'HIERARCH ESO AOS IRLOOP STATE', 'HIERARCH ESO AOS PUPLOOP STATE',
-    'HIERARCH ESO AOS VISWFS MODE',
-
-    # CPI
-    'HIERARCH ESO SEQ ARM',
-    'HIERARCH ESO INS COMB ICOR', 'HIERARCH ESO INS COMB IFLT', 'HIERARCH ESO INS COMB POLA',
-    'HIERARCH ESO INS4 FILT2 NAME',
-    'HIERARCH ESO INS4 DROT2 BEGIN', 'HIERARCH ESO INS4 DROT2 END',
-    'HIERARCH ESO INS4 DROT2 POSANG', 'HIERARCH ESO INS4 DROT2 MODE', 
-    
-    # IFS
-    'HIERARCH ESO INS2 MODE', 'HIERARCH ESO INS2 COMB IFS',
-
-    # IRDIS
-    'HIERARCH ESO INS1 MODE',
-    'HIERARCH ESO INS1 FILT NAME', 'HIERARCH ESO INS1 OPTI2 NAME',
-    'HIERARCH ESO INS1 PAC X', 'HIERARCH ESO INS1 PAC Y',
-    
-    # detector
-    'HIERARCH ESO DET SEQ1 DIT', 'HIERARCH ESO DET NDIT',
-
-    # observing conditions
-    'HIERARCH ESO TEL AIRM START', 'HIERARCH ESO TEL AIRM END',
-    'HIERARCH ESO TEL AMBI FWHM START', 'HIERARCH ESO TEL AMBI FWHM END', 'HIERARCH ESO TEL IA FWHM',
-    'HIERARCH ESO TEL AMBI TAU0', 'HIERARCH ESO TEL AMBI TEMP',
-    'HIERARCH ESO TEL AMBI WINDSP', 'HIERARCH ESO TEL AMBI WINDDIR'
-]
-
-# short keywords
-keywords_short = keywords.copy()
-for idx in range(len(keywords_short)):
-    key = keywords_short[idx]
-    if key.find('HIERARCH ESO ') != -1:
-        keywords_short[idx] = key[13:]
-        
-# useful parameters
-nwave = 39
-pixel = 7.46
-
-wave_cal_lasers = [0.9877, 1.1237, 1.3094, 1.5451]
-
 # specify for each recipe which other recipes need to have been executed before
 recipe_requirements = {
     'sort_files': [],
@@ -355,6 +298,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     recalibrated value
     '''
 
+    nwave = wave_scale.size
     idx  = np.arange(nwave, dtype=np.float)
     wave = np.full(nwave, wave_ref) * wave_scale
     intrp_func = interp.interp1d(idx, wave, kind='linear')
@@ -399,164 +343,6 @@ def fit_peak(x, y, display=False):
         plt.tight_layout()
     
     return fit.parameters
-    
-    
-def star_centers_from_waffle_cube(cube, wave, waffle_orientation, high_pass=False, display=False, save_path=None):
-    '''
-    Compute star center from waffle images
-
-    Parameters
-    ----------
-    cube : array_like
-        Waffle IFS cube
-
-    wave : array_like
-        Wavelength values, in nanometers
-
-    waffle_orientation : str
-        String giving the waffle orientation '+' or 'x'
-
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
-    
-    display : bool
-        Display the fit of the satelitte spots
-
-    save_path : str
-        Path where to save the fit images
-    
-    Returns
-    -------
-    spot_center : array_like
-        Centers of each individual spot in each frame of the cube
-
-    spot_dist : array_like
-        The 6 possible distances between the different spots
-
-    img_center : array_like
-        The star center in each frame of the cube
-    '''
-    # standard parameters
-    dim = cube.shape[-1]
-    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
-    
-    # waffle parameters
-    freq = 10 * np.sqrt(2) * 0.97
-    box = 8
-    if waffle_orientation == '+':
-        orient = 57 * np.pi / 180 + np.pi / 4
-    elif waffle_orientation == 'x':
-        orient = 57 * np.pi / 180
-
-    # spot fitting
-    xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
-
-    # multi-page PDF to save result
-    if save_path is not None:
-        pdf = PdfPages(save_path)
-    
-    # loop over images
-    spot_center = np.zeros((nwave, 4, 2))
-    spot_dist = np.zeros((nwave, 6))
-    img_center = np.full((nwave, 2), ((dim // 2)-1., (dim // 2)-1.))
-    for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
-
-        # center guess
-        cx_int = int(img_center[idx-1, 0])
-        cy_int = int(img_center[idx-1, 1])
-
-        # optional high-pass filter
-        if high_pass:
-            img = img - ndimage.median_filter(img, 15, mode='mirror')
-
-        # create plot if needed
-        if save_path or display:
-            fig = plt.figure(0, figsize=(8, 8))
-            plt.clf()
-            col = ['red', 'blue', 'magenta', 'purple']
-            ax = fig.add_subplot(111)
-            ax.imshow(img, aspect='equal', vmin=0, vmax=img.max())
-            ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
-            
-        # satelitte spots
-        for s in range(4):
-            cx = int(cx_int + freq*loD[idx] * np.cos(orient + np.pi/2*s))
-            cy = int(cy_int + freq*loD[idx] * np.sin(orient + np.pi/2*s))
-
-            sub = img[cy-box:cy+box, cx-box:cx+box]
-
-            # fit: Gaussian + constant
-            imax = np.unravel_index(np.argmax(sub), sub.shape)
-            g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
-                                       x_stddev=loD[idx], y_stddev=loD[idx]) + \
-                                       models.Const2D(amplitude=sub.min())
-            fitter = fitting.LevMarLSQFitter()
-            par = fitter(g_init, xx, yy, sub)
-            fit = par(xx, yy)
-
-            cx_final = cx - box + par[0].x_mean
-            cy_final = cy - box + par[0].y_mean
-
-            spot_center[idx, s, 0] = cx_final
-            spot_center[idx, s, 1] = cy_final
-
-            # plot sattelite spots and fit
-            if save_path or display:
-                ax.plot([cx_final], [cy_final], marker='D', color=col[s])
-                ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
-                
-                axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
-                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max())
-                axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
-                axs.set_xticks([])
-                axs.set_yticks([])
-
-                axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
-                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max())
-                axs.set_xticks([])
-                axs.set_yticks([])
-
-        # lines intersection
-        intersect = toolbox.lines_intersect(spot_center[idx, 0, :], spot_center[idx, 2, :],
-                                            spot_center[idx, 1, :], spot_center[idx, 3, :])
-        img_center[idx] = intersect
-        
-        # scaling
-        spot_dist[idx, 0] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 1] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 2] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 1, :])**2))
-        spot_dist[idx, 3] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 4] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 5] = np.sqrt(np.sum((spot_center[idx, 2, :] - spot_center[idx, 3, :])**2))
-
-        # finalize plot
-        if save_path or display:
-            ax.plot([spot_center[idx, 0, 0], spot_center[idx, 2, 0]],
-                    [spot_center[idx, 0, 1], spot_center[idx, 2, 1]],
-                    color='w', linestyle='dashed')
-            ax.plot([spot_center[idx, 1, 0], spot_center[idx, 3, 0]],
-                    [spot_center[idx, 1, 1], spot_center[idx, 3, 1]],
-                    color='w', linestyle='dashed')
-
-            ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
-            
-            ext = 1000 / pixel
-            ax.set_xlim(intersect[0]-ext, intersect[0]+ext)
-            ax.set_ylim(intersect[1]-ext, intersect[1]+ext)
-            
-            plt.tight_layout()
-
-            if save_path:
-                pdf.savefig()
-
-            if display:
-                plt.pause(1e-3)
-
-    if save_path:
-        pdf.close()
-
-    return spot_center, spot_dist, img_center
 
 
 class IFSReduction(object):
@@ -2081,6 +1867,7 @@ class IFSReduction(object):
 
         # parameters
         path = self._path
+        nwave = self._nwave
         files_info = self._files_info
         frames_info = self._frames_info_preproc
         
@@ -2175,7 +1962,7 @@ class IFSReduction(object):
             peak_position_lasers.append(par[1])
 
             # wavelengths
-            wave_lasers = wave_cal_lasers[0:3]
+            wave_lasers = self._wave_cal_lasers[0:3]
         elif ifs_mode == 'OBS_H':
             # peak 1
             sub_idx  = wave_idx[0:8]
@@ -2202,7 +1989,7 @@ class IFSReduction(object):
             peak_position_lasers.append(par[1])
 
             # wavelengths
-            wave_lasers = wave_cal_lasers[0:4]
+            wave_lasers = self._wave_cal_lasers[0:4]
 
         res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
                              args=(wave_scale, wave_lasers, peak_position_lasers))
@@ -2241,7 +2028,7 @@ class IFSReduction(object):
         ax = fig.add_subplot(133)
         ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
         ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
-        for w in wave_cal_lasers:
+        for w in self._wave_cal_lasers:
             ax.axvline(x=w, linestyle='dashed', color='purple')
         ax.set_xlabel(r'Wavelength [$\mu$m]')
         ax.set_ylabel('Flux')
@@ -2279,6 +2066,8 @@ class IFSReduction(object):
 
         # parameters
         path = self._path
+        nwave = self._nwave
+        pixel = self._pixel
         frames_info = self._frames_info_preproc
         
         # start with OBJECT,FLUX
@@ -2397,6 +2186,7 @@ class IFSReduction(object):
 
         # parameters
         path = self._path
+        nwave = self._nwave
         frames_info = self._frames_info_preproc
         
         # read final wavelength calibration
