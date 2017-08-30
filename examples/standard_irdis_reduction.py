@@ -10,7 +10,7 @@ red = IRDIS.ImagingReduction(root_path)
 # red.full_reduction()
 
 # standard manual reduction
-# red.init_reduction()
+red.init_reduction()
 # red.create_static_calibrations()
 # red.preprocess_science()
 # red.process_science()

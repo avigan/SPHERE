@@ -458,7 +458,7 @@ class IFSReduction(object):
     
     def create_static_calibrations(self):
         '''
-        Create all static calibrations, mainly with esorex
+        Create static calibrations, mainly with esorex
         '''
         
         self.sph_ifs_cal_dark()
@@ -514,7 +514,7 @@ class IFSReduction(object):
     
     def read_info(self):
         '''
-        Read the files, calibs and frames information
+        Read the files, calibs and frames information from disk
 
         files_info : dataframe
             The data frame with all the information on files
@@ -697,18 +697,9 @@ class IFSReduction(object):
         
     def sort_frames(self):
         '''
-        Extract the frames information from the science files
+        Extract the frames information from the science files and save
+        result in a data frame
 
-        Parameters
-        ----------
-        root_path : str
-            Path to the dataset
-
-        files_info : dataframe
-            The data frame with all the information on files
-
-        Returns
-        -------
         calibs : dataframe
             A data frame with the information on all frames
         '''
@@ -757,6 +748,9 @@ class IFSReduction(object):
     def check_files_association(self):
         '''
         Performs the calibration files association as a sanity check
+
+        Warnings and errors are reported at the end. Execution is
+        interupted in case of error.
         '''
 
         # check if recipe can be executed
@@ -895,7 +889,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1000,7 +994,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1091,7 +1085,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1178,7 +1172,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1280,7 +1274,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1403,8 +1397,7 @@ class IFSReduction(object):
                                    subtract_background=True, fix_badpix=True, correct_xtalk=True,
                                    collapse_science=False, collapse_type='mean', coadd_value=2,
                                    collapse_psf=True, collapse_center=True):
-        '''
-        Pre-processes the science frames.
+        '''Pre-processes the science frames.
 
         This function can perform multiple steps:
           - collapse of the frames according to different schemes
@@ -1420,6 +1413,10 @@ class IFSReduction(object):
 
         For the PSFs and star center frames, there is either no collapse
         or a mean collapse.
+
+        The pre-processed frames are saved in the preproc
+        sub-directory and will be combined after the (x,y,lambda) cube
+        will be created with esorex.
 
         Parameters
         ----------
@@ -1449,7 +1446,8 @@ class IFSReduction(object):
 
         collapse_center :  bool
             Collapse data for OBJECT,CENTER cubes. Default is True. Note
-            that the collapse type is mean and cannot be changed.    
+            that the collapse type is mean and cannot be changed.
+
         '''
 
         # check if recipe can be executed
@@ -1704,7 +1702,7 @@ class IFSReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -1830,8 +1828,8 @@ class IFSReduction(object):
 
 
     def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False, save=True):
-        '''
-        Performs a recalibration of the wavelength, is star center frames are available
+        '''Performs a recalibration of the wavelength, is star center frames
+        are available
 
         See Vigan et al. (2015, MNRAS, 454, 129) for details of the
         wavelength recalibration:
@@ -1849,6 +1847,7 @@ class IFSReduction(object):
         save : bool
             Save the fit of the sattelite spot for quality check. Default is True,
             although it is a bit slow.
+
         '''
 
         # check if recipe can be executed
@@ -2034,8 +2033,8 @@ class IFSReduction(object):
 
 
     def sph_ifs_star_center(self, high_pass=False, display=False, save=True):
-        '''
-        Determines the star center for all frames
+        '''Determines the star center for all frames where a center can be
+        determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
@@ -2048,6 +2047,7 @@ class IFSReduction(object):
         save : bool
             Save the fit of the sattelite spot for quality check. Default is True,
             although it is a bit slow.
+
         '''
 
         # check if recipe can be executed

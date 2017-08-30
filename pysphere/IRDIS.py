@@ -25,8 +25,9 @@ import pysphere.toolbox as toolbox
 
 
 class ImagingReduction(object):
-    '''
-    SPHERE/IRDIS imaging reduction object
+    '''SPHERE/IRDIS imaging reduction object. It handles the dual-band
+    imaging (DBI) and classifcal imaging (CI) observing modes.
+
     '''
 
     ##################################################
@@ -50,13 +51,13 @@ class ImagingReduction(object):
     ##################################################
     
     def __init__(self, path):
-        '''
-        Initialization of the ImagingReduction
+        '''Initialization of the ImagingReduction instances
 
         Parameters
         ----------
         path : str
             Path to the directory containing the raw data
+
         '''
 
         # init path and name
@@ -142,7 +143,7 @@ class ImagingReduction(object):
     
     def create_static_calibrations(self):
         '''
-        Create all static calibrations with esorex
+        Create static calibrations with esorex
         '''
         
         self.sph_ird_cal_dark()
@@ -151,7 +152,7 @@ class ImagingReduction(object):
     
     def preprocess_science(self):
         '''
-        Extract images in data cubes, clean and collapse
+        Clean and collapse images
         '''
         
         self.sph_ird_preprocess_science()
@@ -193,7 +194,7 @@ class ImagingReduction(object):
     
     def read_info(self):
         '''
-        Read the files, calibs and frames information
+        Read the files, calibs and frames information from disk
 
         files_info : dataframe
             The data frame with all the information on files
@@ -354,18 +355,9 @@ class ImagingReduction(object):
         
     def sort_frames(self):
         '''
-        Extract the frames information from the science files
+        Extract the frames information from the science files and save
+        result in a data frame
 
-        Parameters
-        ----------
-        root_path : str
-            Path to the dataset
-
-        files_info : dataframe
-            The data frame with all the information on files
-
-        Returns
-        -------
         calibs : dataframe
             A data frame with the information on all frames
         '''
@@ -413,7 +405,10 @@ class ImagingReduction(object):
 
     def check_files_association(self):
         '''
-        Performs the calibration files association as a sanity check
+        Performs the calibration files association as a sanity check.
+
+        Warnings and errors are reported at the end. Execution is
+        interupted in case of error.
         '''
 
         # check if recipe can be executed
@@ -496,7 +491,7 @@ class ImagingReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -613,7 +608,7 @@ class ImagingReduction(object):
         Parameters
         ----------
         silent : bool
-            Suppress esorex output. Optional, default is True
+            Suppress esorex output. Default is True
         '''
 
         # check if recipe can be executed
@@ -704,8 +699,7 @@ class ImagingReduction(object):
                                    subtract_background=True, fix_badpix=True,
                                    collapse_science=False, collapse_type='mean', coadd_value=2,
                                    collapse_psf=True, collapse_center=True):
-        '''
-        Pre-processes the science frames.
+        '''Pre-processes the science frames.
 
         This function can perform multiple steps:
           - collapse of the frames according to different schemes
@@ -722,6 +716,9 @@ class ImagingReduction(object):
         For the PSFs and star center frames, there is either no collapse
         or a mean collapse.
 
+        The pre-processed frames are saved in the preproc
+        sub-directory and will be combined later.
+        
         Parameters
         ----------
         subtract_background : bool
@@ -747,7 +744,8 @@ class ImagingReduction(object):
 
         collapse_center :  bool
             Collapse data for OBJECT,CENTER cubes. Default is True. Note
-            that the collapse type is mean and cannot be changed.    
+            that the collapse type is mean and cannot be changed.
+
         '''
 
         # check if recipe can be executed
@@ -956,8 +954,8 @@ class ImagingReduction(object):
 
 
     def sph_ird_star_center(self, high_pass=False, display=False, save=True):
-        '''
-        Determines the star center for all frames
+        '''Determines the star center for all frames where a center can be
+        determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
@@ -970,6 +968,7 @@ class ImagingReduction(object):
         save : bool
             Save the fit of the sattelite spot for quality check. Default is True,
             although it is a bit slow.
+
         '''
 
         # check if recipe can be executed
