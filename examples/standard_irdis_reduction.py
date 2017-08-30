@@ -2,7 +2,7 @@ import sys
 import pysphere.IRDIS as IRDIS
 
 
-root_path = '/Users/avigan/data/pySPHERE-test/IRD2/'
+root_path = '/Users/avigan/data/pySPHERE-test/IRD/'
 
 red = IRDIS.ImagingReduction(root_path)
 
@@ -17,7 +17,7 @@ red = IRDIS.ImagingReduction(root_path)
 # red.clean()
 
 # completely manual reduction (full control)
-red.sort_files()
+# red.sort_files()
 # red.sort_frames()
 # red.check_files_association()
 # red.sph_ird_cal_dark(silent=True)

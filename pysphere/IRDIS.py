@@ -122,8 +122,6 @@ class ImagingReduction(object):
     @property
     def recipe_execution(self):
         return self._recipe_execution
-
-
     
     ##################################################
     # Generic class methods

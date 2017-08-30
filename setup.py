@@ -23,7 +23,8 @@ setup(
     ],
     include_package_data=True,
     package_data={
-        'pysphere': ['data/*.txt', 'data/*.dat', 'data/*.fits'],
+        'pysphere': ['data/*.txt', 'data/*.dat', 'data/*.fits',
+                     'instruments/*.ini', 'instruments/*.dat'],
     },
     zip_safe=False
 )
