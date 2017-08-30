@@ -151,7 +151,7 @@ class ImagingReduction(object):
     
     def preprocess_science(self):
         '''
-        Extract images in data cubes
+        Extract images in data cubes, clean and collapse
         '''
         
         self.sph_ird_preprocess_science()
@@ -159,8 +159,8 @@ class ImagingReduction(object):
 
     def process_science(self):
         '''
-        Perform star center and combine cubes into final (x,y,time,lambda)
-        cubes
+        Perform star center, combine cubes into final (x,y,time,lambda)
+        cubes, correct anamorphism and scale the images
         '''
         
         self.sph_ird_star_center()
@@ -169,7 +169,8 @@ class ImagingReduction(object):
     
     def clean(self):
         '''
-        Clean the reduction directory
+        Clean the reduction directory, leaving only the raw and products
+        sub-directory
         '''
         
         self.sph_ird_clean()
