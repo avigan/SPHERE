@@ -485,7 +485,7 @@ class IFSReduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
-        self.sph_ifs_science_cubes(postprocess=True, silent=True)
+        self.sph_ifs_science_cubes(silent=True)
         self.sph_ifs_wavelength_recalibration(high_pass=False, display=False, save=True)
         self.sph_ifs_star_center(high_pass=False, display=False, save=True)
         self.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=False)
@@ -1699,15 +1699,12 @@ class IFSReduction(object):
         self._recipe_execution['sph_ifs_preprocess_wave'] = True
 
 
-    def sph_ifs_science_cubes(self, postprocess=True, silent=True):
+    def sph_ifs_science_cubes(self, silent=True):
         '''
         Create the science cubes from the preprocessed frames
 
         Parameters
         ----------
-        postprocess : bool Performs a post-processing of the cubes to
-            remove the unnecessary FITS extensions
-
         silent : bool
             Suppress esorex output. Optional, default is True
         '''
@@ -1819,14 +1816,12 @@ class IFSReduction(object):
             raise ValueError('esorex process was not successful')
 
         # post-process
+        print(' * post-processing files')
         files = glob.glob(path.tmp+'*_preproc_*.fits')
-        if postprocess:
-            print(' * post-processing files')
-
-            for f in files:
-                # read and save only primary extension
-                data, header = fits.getdata(f, header=True)
-                fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
+        for f in files:
+            # read and save only primary extension
+            data, header = fits.getdata(f, header=True)
+            fits.writeto(f, data, header, overwrite=True, output_verify='silentfix')
 
         # move files to final directory
         for file in files:
