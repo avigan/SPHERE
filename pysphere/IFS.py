@@ -2124,8 +2124,7 @@ class IFSReduction(object):
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True, save_scaled=False):
-        '''
-        Combine and save the science data into final cubes
+        '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
         (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
@@ -2141,6 +2140,10 @@ class IFSReduction(object):
                      instrumental pupil offset. This is the values
                      that need to be used for aligning the images with
                      North up and East left.
+        
+          - *_frames: a csv file with all the information for every
+                      frames. There is one line by time step in the
+                      data cube.
         
           - *_cube_scaled: the (x,y,time,lambda) cube with images
                            rescaled spectraly. This is useful if you
@@ -2199,12 +2202,7 @@ class IFSReduction(object):
         if science_dim > 290:
             print('Warning: science_dim cannot be larger than 290 pix. A value of 290 will be used.')
             science_dim = 290
-            
-        #
-        # frames info
-        #
-        frames_info.to_csv(os.path.join(path.products, 'frames.csv'))
-
+        
         #
         # OBJECT,FLUX
         #
@@ -2270,6 +2268,7 @@ class IFSReduction(object):
                         psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
 
             # save final cubes
+            flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'))
             fits.writeto(os.path.join(path.products, 'psf_cube.fits'), psf_cube, overwrite=True)
             fits.writeto(os.path.join(path.products, 'psf_parang.fits'), psf_parang, overwrite=True)
             fits.writeto(os.path.join(path.products, 'psf_derot.fits'), psf_derot, overwrite=True)
@@ -2348,6 +2347,7 @@ class IFSReduction(object):
                         cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
 
             # save final cubes
+            starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'))
             fits.writeto(os.path.join(path.products, 'starcenter_cube.fits'), cen_cube, overwrite=True)
             fits.writeto(os.path.join(path.products, 'starcenter_parang.fits'), cen_parang, overwrite=True)
             fits.writeto(os.path.join(path.products, 'starcenter_derot.fits'), cen_derot, overwrite=True)
@@ -2436,6 +2436,7 @@ class IFSReduction(object):
                         sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
 
             # save final cubes
+            object_files.to_csv(os.path.join(path.products, 'science_frames.csv'))
             fits.writeto(os.path.join(path.products, 'science_cube.fits'), sci_cube, overwrite=True)
             fits.writeto(os.path.join(path.products, 'science_parang.fits'), sci_parang, overwrite=True)
             fits.writeto(os.path.join(path.products, 'science_derot.fits'), sci_derot, overwrite=True)
