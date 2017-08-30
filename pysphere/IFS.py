@@ -379,7 +379,7 @@ class IFSReduction(object):
             config.read(configfile)
             
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = float(config.get('instrument', 'nwave'))
+            self._nwave = int(config.get('instrument', 'nwave'))
 
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
         except configparser.Error as e:
@@ -461,11 +461,11 @@ class IFSReduction(object):
         Create all static calibrations, mainly with esorex
         '''
         
-        self.sph_ifs_cal_dark(silent=True)
-        self.sph_ifs_cal_detector_flat(silent=True)
-        self.sph_ifs_cal_specpos(silent=True)
-        self.sph_ifs_cal_wave(silent=True)
-        self.sph_ifs_cal_ifu_flat(silent=True)
+        self.sph_ifs_cal_dark()
+        self.sph_ifs_cal_detector_flat()
+        self.sph_ifs_cal_specpos()
+        self.sph_ifs_cal_wave()
+        self.sph_ifs_cal_ifu_flat()
         
 
     def preprocess_science(self):
@@ -473,9 +473,7 @@ class IFSReduction(object):
         Collapse and correct raw IFU images
         '''
 
-        self.sph_ifs_preprocess_science(subtract_background=True, fix_badpix=True, correct_xtalk=True,
-                                        collapse_science=False, collapse_type='mean', coadd_value=2,
-                                        collapse_psf=True, collapse_center=True)
+        self.sph_ifs_preprocess_science()
         self.sph_ifs_preprocess_wave()
 
 
@@ -485,10 +483,10 @@ class IFSReduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
-        self.sph_ifs_science_cubes(silent=True)
-        self.sph_ifs_wavelength_recalibration(high_pass=False, display=False, save=True)
-        self.sph_ifs_star_center(high_pass=False, display=False, save=True)
-        self.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=290, save_scaled=False)
+        self.sph_ifs_science_cubes()
+        self.sph_ifs_wavelength_recalibration()
+        self.sph_ifs_star_center()
+        self.sph_ifs_combine_data()
 
     
     def clean(self):
@@ -496,7 +494,7 @@ class IFSReduction(object):
         Clean the reduction directory
         '''
         
-        self.sph_ifs_clean(delete_raw=False, delete_products=False)
+        self.sph_ifs_clean()
         
         
     def full_reduction(self):
@@ -718,7 +716,7 @@ class IFSReduction(object):
         print('Extracting frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
         
         # parameters
         path = self._path
@@ -762,7 +760,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
         
         print('Performing file association for calibrations')
 
@@ -901,7 +899,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', self.recipe_requirements)
         
         print('Creating darks and backgrounds')
 
@@ -1006,7 +1004,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', self.recipe_requirements)
         
         print('Creating flats')
 
@@ -1097,7 +1095,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', self.recipe_requirements)
         
         print('Creating specpos')
 
@@ -1184,7 +1182,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', self.recipe_requirements)
         
         print('Creating wavelength calibration')
 
@@ -1286,7 +1284,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', self.recipe_requirements)
         
         print('Creating IFU flat')
 
@@ -1455,7 +1453,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', self.recipe_requirements)
         
         print('Pre-processing science files')
 
@@ -1640,7 +1638,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave', self.recipe_requirements)
         
         # parameters
         path = self._path
@@ -1710,7 +1708,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', self.recipe_requirements)
         
         print('Creating the (x,y,lambda) science cubes')
 
@@ -1854,7 +1852,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', self.recipe_requirements)
         
         print('Recalibrating wavelength')
 
@@ -2053,7 +2051,7 @@ class IFSReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center', self.recipe_requirements)
         
         print('Star centers determination')
 
@@ -2125,7 +2123,7 @@ class IFSReduction(object):
         self._recipe_execution['sph_ifs_star_center'] = True
 
 
-    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
+    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True, save_scaled=False):
         '''
         Combine and save the science data into final cubes
 
@@ -2166,14 +2164,18 @@ class IFSReduction(object):
             Size of the science images (star centers and standard
             coronagraphic images). Default is 290, 290 pixels
 
-        save_scaled : bool    
+        correct_anamorphism : bool
+            Correct the optical anamorphism of the instrument. Default
+            is True. See user manual for details.
+
+        save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The default is False
 
         '''
         
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data', self.recipe_requirements)
         
         print('Combine science data')
 
@@ -2256,6 +2258,12 @@ class IFSReduction(object):
 
                     psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = psf_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
+                        psf_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = psf_cube[wave_idx, file_idx]
@@ -2328,6 +2336,12 @@ class IFSReduction(object):
 
                     cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = cen_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
+                        cen_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = cen_cube[wave_idx, file_idx]
@@ -2410,6 +2424,12 @@ class IFSReduction(object):
 
                     sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = sci_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
+                        sci_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = sci_cube[wave_idx, file_idx]

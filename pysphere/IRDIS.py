@@ -71,7 +71,7 @@ class ImagingReduction(object):
             config.read(configfile)
             
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = float(config.get('instrument', 'nwave'))
+            self._nwave = int(config.get('instrument', 'nwave'))
 
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
         except configparser.Error as e:
@@ -145,8 +145,8 @@ class ImagingReduction(object):
         Create all static calibrations with esorex
         '''
         
-        self.sph_ird_cal_dark(silent=True)
-        self.sph_ird_cal_detector_flat(silent=True)
+        self.sph_ird_cal_dark()
+        self.sph_ird_cal_detector_flat()
 
     
     def preprocess_science(self):
@@ -154,9 +154,7 @@ class ImagingReduction(object):
         Extract images in data cubes
         '''
         
-        self.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
-                                        collapse_science=False, collapse_type='mean', coadd_value=2,
-                                        collapse_psf=True, collapse_center=True)
+        self.sph_ird_preprocess_science()
 
 
     def process_science(self):
@@ -165,8 +163,8 @@ class ImagingReduction(object):
         cubes
         '''
         
-        self.sph_ird_star_center(high_pass=False, display=False, save=True)
-        self.sph_ird_combine_data(cpix=True, psf_dim=100, science_dim=800, save_scaled=False)
+        self.sph_ird_star_center()
+        self.sph_ird_combine_data()
 
     
     def clean(self):
@@ -174,7 +172,7 @@ class ImagingReduction(object):
         Clean the reduction directory
         '''
         
-        self.sph_ird_clean(delete_raw=False, delete_products=False)
+        self.sph_ird_clean()
         
         
     def full_reduction(self):
@@ -374,7 +372,7 @@ class ImagingReduction(object):
         print('Extracting frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
         
         # parameters
         path = self._path
@@ -418,7 +416,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
         
         print('Performing file association for calibrations')
 
@@ -501,7 +499,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements)
         
         print('Creating darks and backgrounds')
 
@@ -618,7 +616,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements)
         
         print('Creating flats')
 
@@ -752,7 +750,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements)
         
         print('Pre-processing science files')
 
@@ -974,7 +972,7 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements)
         
         print('Star centers determination')
 
@@ -1040,7 +1038,7 @@ class ImagingReduction(object):
         self._recipe_execution['sph_ird_star_center'] = True
 
 
-    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
+    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True, save_scaled=False):
         '''
         Combine and save the science data into final cubes
 
@@ -1081,6 +1079,10 @@ class ImagingReduction(object):
             Size of the science images (star centers and standard
             coronagraphic images). Default is 290, 290 pixels
 
+        correct_anamorphism : bool
+            Correct the optical anamorphism of the instrument. Default
+            is True. See user manual for details.
+
         save_scaled : bool    
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The default is False
@@ -1088,7 +1090,7 @@ class ImagingReduction(object):
         '''
         
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self._recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements)
         
         print('Combine science data')
 
@@ -1168,6 +1170,12 @@ class ImagingReduction(object):
 
                     psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = psf_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
+                        psf_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = psf_cube[wave_idx, file_idx]
@@ -1237,6 +1245,12 @@ class ImagingReduction(object):
 
                     cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = cen_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
+                        cen_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = cen_cube[wave_idx, file_idx]
@@ -1334,6 +1348,12 @@ class ImagingReduction(object):
 
                     sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
 
+                    # correct anamorphism
+                    if correct_anamorphism:
+                        nimg = sci_cube[wave_idx, file_idx]
+                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
+                        sci_cube[wave_idx, file_idx] = nimg
+                    
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = sci_cube[wave_idx, file_idx]
