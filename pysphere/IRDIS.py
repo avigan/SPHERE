@@ -1055,6 +1055,29 @@ class ImagingReduction(object):
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, save_scaled=False):
         '''
         Combine and save the science data into final cubes
+
+        All types of data are combined independently: PSFs
+        (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
+        coronagraphic images (OBJECT). For each type of data, the
+        method saves 3 or 4 different files:
+        
+          - *_cube: the (x,y,time,lambda) cube
+        
+          - *_parang: the parallactic angle vector
+        
+          - *_derot: the derotation angles vector. This vector takes
+                     into account the parallactic angle and any
+                     instrumental pupil offset. This is the values
+                     that need to be used for aligning the images with
+                     North up and East left.
+        
+          - *_cube_scaled: the (x,y,time,lambda) cube with images
+                           rescaled spectraly. This is useful if you
+                           plan to perform spectral differential
+                           imaging in your analysis.
+
+        The method also save a frames.csv file with all the
+        information extracted the raw files headers.
         
         Parameters
         ----------
@@ -1231,11 +1254,11 @@ class ImagingReduction(object):
                         cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
 
             # save final cubes
-            fits.writeto(os.path.join(path.products, 'star_center_cube.fits'), cen_cube, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'star_center_parang.fits'), cen_parang, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'star_center_derot.fits'), cen_derot, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'starcenter_cube.fits'), cen_cube, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'starcenter_parang.fits'), cen_parang, overwrite=True)
+            fits.writeto(os.path.join(path.products, 'starcenter_derot.fits'), cen_derot, overwrite=True)
             if save_scaled:
-                fits.writeto(os.path.join(path.products, 'star_center_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
+                fits.writeto(os.path.join(path.products, 'starcenter_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
 
             # delete big cubes
             del cen_cube
