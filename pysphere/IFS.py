@@ -386,8 +386,10 @@ class IFSReduction(object):
             # reduction
             self._reduction_config = dict(config.items('reduction'))
             for key, value in self._reduction_config.items():
-                if (value == 'True') or (value == 'False'):
-                    self._reduction_config[key] = bool(value)
+                if (value == 'True'):
+                    self._reduction_config[key] = True
+                elif (value == 'False'):
+                    self._reduction_config[key] = False
                 else:
                     try:
                         value = int(value)
@@ -454,10 +456,26 @@ class IFSReduction(object):
     def recipe_execution(self):
         return self._recipe_execution
 
+    @property
+    def reduction_config(self):
+        return self._reduction_config    
+
     ##################################################
     # Generic class methods
     ##################################################
 
+    def show_reduction_config(self):
+        '''
+        Shows the reduction configuration
+        '''
+
+        keys = sorted(self._reduction_config.keys())
+
+        print('{0:<30s}{1}'.format('Parameter', 'Value'))
+        print('-'*35)
+        for k in keys:
+            print('{0:<30s}{1}'.format(k+':', self._reduction_config[k]))
+    
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
