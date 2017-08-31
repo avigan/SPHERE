@@ -151,13 +151,43 @@ class ImagingReduction(object):
         Shows the reduction configuration
         '''
 
-        keys = sorted(self._reduction_config.keys())
+        # dictionary
+        dico = self._reduction_config
 
+        # silent parameter
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        for k in keys:
-            print('{0:<30s}{1}'.format(k+':', self._reduction_config[k]))
-    
+        key = 'silent'
+        print('{0:<30s}{1}'.format(key+':', dico[key]))
+
+        # pre-processing
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('preproc_')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key+':', dico[key]))
+
+        # centring
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('center_')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key+':', dico[key]))
+        
+        # combining
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('combine_')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key+':', dico[key]))
+
+        # clean
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('clean_')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key+':', dico[key]))
+        print('-'*35)
+            
+        print()
+        
+           
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
