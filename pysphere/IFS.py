@@ -371,17 +371,29 @@ class IFSReduction(object):
         self._path = ReductionPath.Path(path)
         self._instrument = 'IFS'
         
-        # read configuration file
+        # configuration
         package_directory = os.path.dirname(os.path.abspath(__file__))
         configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
         config = configparser.ConfigParser()
         try:
             config.read(configfile)
-            
+
+            # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
             self._nwave = int(config.get('instrument', 'nwave'))
-
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+
+            # reduction
+            self._reduction_config = dict(config.items('reduction'))
+            for key, value in self._reduction_config.items():
+                if (value == 'True') or (value == 'False'):
+                    self._reduction_config[key] = bool(value)
+                else:
+                    try:
+                        value = int(value)
+                        self._reduction_config[key] = value
+                    except ValueError:
+                        pass
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
