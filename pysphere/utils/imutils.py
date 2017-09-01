@@ -942,6 +942,10 @@ def fix_badpix(img, bpm, npix=8, weight=False):
     by inverse of their distances in averaging process if the option
     is selected.
 
+    Important warning: to make computation faster, the weighing is not
+    applied for bad pixels located within a few pixels from the edges
+    of the image.
+
     Parameters
     ----------
     img : array_like
@@ -1017,7 +1021,11 @@ def fix_badpix(img, bpm, npix=8, weight=False):
             # otherwise recompute one
             xx, yy = np.meshgrid(np.arange(2*dd+1)-dd, np.arange(2*dd+1)-dd)
             dist = np.sqrt(xx**2 + yy**2)
-            
+
+        # no weighing if we at the edges
+        if (bpm_sub.shape != (2*dd+1, 2*dd+1)):
+            dist = np.ones_like(bpm_sub)
+
         # keep good pixels
         good_pix  = img_sub[bpm_sub]
         good_dist = dist[bpm_sub]
@@ -1049,7 +1057,6 @@ def fix_badpix(img, bpm, npix=8, weight=False):
         img[cy, cx] = new_val
             
     return img
-
 
 ####################################################################################
 #
