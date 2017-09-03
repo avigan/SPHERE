@@ -73,9 +73,12 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         flat = ff0 - ff1
     else:
         flat = ff1 - ff0
-    
+
     # bad pixels correction    
-    flat = imutils.fix_badpix(flat, bpm_in, box=5)    
+    flat = imutils.fix_badpix(flat, bpm_in, npix=12, weight=True)
+    fits.writeto('/Users/avigan/data/pySPHERE-test/IFS2/flat_clean.fits', flat, overwrite=True)
+
+    # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
     flat = imutils.sigma_filter(flat, box=5, nsigma=3, iterate=True)
     flat = imutils.sigma_filter(flat, box=7, nsigma=3, iterate=True)
 
@@ -85,7 +88,8 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # additional rounad of bad pixels correction
     bpm = (flat <= 0.9) | (flat >= 1.1)
     bpm = bpm.astype(np.uint8)
-    flat = imutils.fix_badpix(flat, bpm, box=5)
+    flat = imutils.fix_badpix(flat, bpm, npix=12, weight=True)
+    # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
 
     # final products
     flat = flat / np.median(flat)
@@ -480,25 +484,25 @@ class IFSReduction(object):
 
         # pre-processing
         print('-'*35)
-        keys = [key for key in dico if key.startswith('preproc_')]
+        keys = [key for key in dico if key.startswith('preproc')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
 
         # centring
         print('-'*35)
-        keys = [key for key in dico if key.startswith('center_')]
+        keys = [key for key in dico if key.startswith('center')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
         
         # combining
         print('-'*35)
-        keys = [key for key in dico if key.startswith('combine_')]
+        keys = [key for key in dico if key.startswith('combine')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
 
         # clean
         print('-'*35)
-        keys = [key for key in dico if key.startswith('clean_')]
+        keys = [key for key in dico if key.startswith('clean')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
         print('-'*35)
@@ -521,11 +525,13 @@ class IFSReduction(object):
         Create static calibrations, mainly with esorex
         '''
         
-        self.sph_ifs_cal_dark()
-        self.sph_ifs_cal_detector_flat()
-        self.sph_ifs_cal_specpos()
-        self.sph_ifs_cal_wave()
-        self.sph_ifs_cal_ifu_flat()
+        config = self._reduction_config
+        
+        self.sph_ifs_cal_dark(silent=config['silent'])
+        self.sph_ifs_cal_detector_flat(silent=config['silent'])
+        self.sph_ifs_cal_specpos(silent=config['silent'])
+        self.sph_ifs_cal_wave(silent=config['silent'])
+        self.sph_ifs_cal_ifu_flat(silent=config['silent'])
         
 
     def preprocess_science(self):
@@ -533,7 +539,16 @@ class IFSReduction(object):
         Collapse and correct raw IFU images
         '''
 
-        self.sph_ifs_preprocess_science()
+        config = self._reduction_config
+        
+        self.sph_ifs_preprocess_science(subtract_background=config['preproc_subtract_background'],
+                                        fix_badpix=config['preproc_fix_badpix'],
+                                        correct_xtalk=config['preproc_fix_badpix'],
+                                        collapse_science=config['preproc_collapse_science'],
+                                        collapse_type=config['preproc_collapse_type'],
+                                        coadd_value=config['preproc_coadd_value'],
+                                        collapse_psf=config['preproc_collapse_psf'],
+                                        collapse_center=config['preproc_collapse_center'])
         self.sph_ifs_preprocess_wave()
 
 
@@ -543,10 +558,20 @@ class IFSReduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
-        self.sph_ifs_science_cubes()
-        self.sph_ifs_wavelength_recalibration()
-        self.sph_ifs_star_center()
-        self.sph_ifs_combine_data()
+        config = self._reduction_config
+        
+        self.sph_ifs_science_cubes(silent=config['silent'])
+        self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
+                                              display=config['center_display'],
+                                              save=config['center_save'])
+        self.sph_ifs_star_center(high_pass=config['center_high_pass'],
+                                 display=config['center_display'],
+                                 save=config['center_save'])
+        self.sph_ifs_combine_data(cpix=config['combine_cpix'],
+                                  psf_dim=config['combine_psf_dim'],
+                                  science_dim=config['combine_science_dim'],
+                                  correct_anamorphism=config['combine_correct_anamorphism'],
+                                  save_scaled=config['combine_save_scaled'])
 
     
     def clean(self):
@@ -554,7 +579,11 @@ class IFSReduction(object):
         Clean the reduction directory
         '''
         
-        self.sph_ifs_clean()
+        config = self._reduction_config
+        
+        if config['clean']:
+            self.sph_ifs_clean(delete_raw=config['clean_delete_raw'],
+                               delete_products=config['clean_delete_products'])
         
         
     def full_reduction(self):
@@ -567,6 +596,7 @@ class IFSReduction(object):
         self.create_static_calibrations()
         self.preprocess_science()
         self.process_science()
+        self.clean()
 
     ##################################################
     # SPHERE/IFS methods
@@ -1617,7 +1647,7 @@ class IFSReduction(object):
                                 if coadd_value > NDIT:
                                     raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
 
-                                print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+                                print('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
 
                                 # coadd frames
                                 nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
