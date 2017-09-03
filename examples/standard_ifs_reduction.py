@@ -2,7 +2,7 @@ import sys
 import pysphere.IFS as IFS
 
 
-root_path = '/Users/avigan/data/pySPHERE-test/IFS/'
+root_path = '/Users/avigan/data/pySPHERE-test/IFS2/'
 
 red = IFS.IFSReduction(root_path)
 
@@ -21,7 +21,7 @@ red = IFS.IFSReduction(root_path)
 # red.sort_frames()
 # red.check_files_association()
 # red.sph_ifs_cal_dark(silent=True)
-# red.sph_ifs_cal_detector_flat()
+# red.sph_ifs_cal_detector_flat(silent=True)
 # red.sph_ifs_cal_specpos(silent=True)
 # red.sph_ifs_cal_wave(silent=True)
 # red.sph_ifs_cal_ifu_flat(silent=True)

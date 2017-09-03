@@ -162,25 +162,25 @@ class ImagingReduction(object):
 
         # pre-processing
         print('-'*35)
-        keys = [key for key in dico if key.startswith('preproc_')]
+        keys = [key for key in dico if key.startswith('preproc')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
 
         # centring
         print('-'*35)
-        keys = [key for key in dico if key.startswith('center_')]
+        keys = [key for key in dico if key.startswith('center')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
         
         # combining
         print('-'*35)
-        keys = [key for key in dico if key.startswith('combine_')]
+        keys = [key for key in dico if key.startswith('combine')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
 
         # clean
         print('-'*35)
-        keys = [key for key in dico if key.startswith('clean_')]
+        keys = [key for key in dico if key.startswith('clean')]
         for key in keys:
             print('{0:<30s}{1}'.format(key+':', dico[key]))
         print('-'*35)
@@ -205,9 +205,11 @@ class ImagingReduction(object):
         '''
         Create static calibrations with esorex
         '''
+
+        config = self._reduction_config
         
-        self.sph_ird_cal_dark()
-        self.sph_ird_cal_detector_flat()
+        self.sph_ird_cal_dark(silent=config['silent'])
+        self.sph_ird_cal_detector_flat(silent=config['silent'])
 
     
     def preprocess_science(self):
@@ -215,7 +217,15 @@ class ImagingReduction(object):
         Clean and collapse images
         '''
         
-        self.sph_ird_preprocess_science()
+        config = self._reduction_config
+        
+        self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
+                                        fix_badpix=config['preproc_fix_badpix'],
+                                        collapse_science=config['preproc_collapse_science'],
+                                        collapse_type=config['preproc_collapse_type'],
+                                        coadd_value=config['preproc_coadd_value'],
+                                        collapse_psf=config['preproc_collapse_psf'],
+                                        collapse_center=config['preproc_collapse_center'])
 
 
     def process_science(self):
@@ -224,8 +234,16 @@ class ImagingReduction(object):
         cubes, correct anamorphism and scale the images
         '''
         
-        self.sph_ird_star_center()
-        self.sph_ird_combine_data()
+        config = self._reduction_config
+        
+        self.sph_ird_star_center(high_pass=config['center_high_pass'],
+                                 display=config['center_display'],
+                                 save=config['center_save'])
+        self.sph_ird_combine_data(cpix=config['combine_cpix'],
+                                  psf_dim=config['combine_psf_dim'],
+                                  science_dim=config['combine_science_dim'],
+                                  correct_anamorphism=config['combine_correct_anamorphism'],
+                                  save_scaled=config['combine_save_scaled'])
 
     
     def clean(self):
@@ -234,7 +252,11 @@ class ImagingReduction(object):
         sub-directory
         '''
         
-        self.sph_ird_clean()
+        config = self._reduction_config
+
+        if config['clean']:
+            self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
+                               delete_products=config['clean_delete_products'])
         
         
     def full_reduction(self):
@@ -247,6 +269,7 @@ class ImagingReduction(object):
         self.create_static_calibrations()
         self.preprocess_science()
         self.process_science()
+        self.clean()
 
     ##################################################
     # SPHERE/IRDIS methods
@@ -940,10 +963,10 @@ class ImagingReduction(object):
                                 if coadd_value > NDIT:
                                     raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
 
-                                print('   ==> collapse: mean ({0} -> {1} frames, {2} dropped)'.format(NDIT, NDIT_new, dropped))
+                                print('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
 
                                 # coadd frames
-                                nimg = np.empty((NDIT_new, 2048, 2048), dtype=img.dtype)
+                                nimg = np.empty((NDIT_new, 1024, 2048), dtype=img.dtype)
                                 for f in range(NDIT_new):
                                     nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
                                 img = nimg
