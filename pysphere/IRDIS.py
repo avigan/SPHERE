@@ -419,6 +419,15 @@ class ImagingReduction(object):
 
             hdu.close()
 
+        # drop files that are not handled, based on DPR keywords
+        files_info.dropna(subset=['DPR TYPE'], inplace=True)
+        files_info = files_info[(files_info['DPR CATG'] != 'ACQUISITION') & (files_info['DPR TYPE'] != 'OBJECT,AO')]
+        
+        # check instruments
+        instru = files_info['SEQ ARM'].unique()
+        if len(instru) != 1:
+            raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+        
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
