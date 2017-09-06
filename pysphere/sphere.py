@@ -140,7 +140,28 @@ class Dataset:
     #             os.makedirs(ipath)
     #         shutil.move(f, ipath)
 
-    def sort_files_from_archive(self, quiet=False):
+    def sort_files_from_archive(self, silent=True):
+        '''Sort files downloaded from the ESO archive with associated raw
+           calibrations
+
+        When choosing this option from the archive, the data package
+        includes xml files that provide the association between the
+        science files and the calibration files. The method uses these
+        xml files to copy the science and associated raw files into
+        dedicated directories.
+
+        For a given executed OB, the method will extract the target
+        name from the OBS.NAME keyword and the OB ID from the OBS.ID
+        keyword. It will create a directory {OBD.NAME}_id={OBS.ID} and
+        copy the FITS files. Note that any space in the name will be
+        replaced by an underscore to avoid subsequent issues with
+        esorex in the data reduction.
+
+        Parameters
+        ----------
+        silent : bool
+            Display some status of the execution. Default is to be silent
+        '''
         path = self._path
 
         xfiles = glob.glob(path+'*.xml')
@@ -188,6 +209,7 @@ class Dataset:
 
             # target path
             directory = '{0}_id={1}'.format(target, obs_id)
+            directory = '_'.join(directory.split())
             target_path = os.path.join(path, directory, instrument, 'raw')
             if not os.path.exists(target_path):
                 os.makedirs(target_path)
@@ -202,7 +224,7 @@ class Dataset:
                     shutil.copy(file, nfile)
 
             # print status
-            if (quiet is False):
+            if not silent:
                 print('{0} - id={1}'.format(target, obs_id))
                 print(' ==> found {0} files'.format(len(files)))
                 print(' ==> copied to {0}'.format(target_path))
