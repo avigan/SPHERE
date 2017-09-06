@@ -5,102 +5,205 @@ VLT/SPHERE primary module
 import os
 import glob
 import shutil
-import numpy as np
 import pandas as pd
+import xml.etree.ElementTree as etree
 
 from astropy.io import fits
 
 
-class IRDISData:
-    pass
+def process_mainFiles(mainFiles, files, silent=True):
+    '''
+    Process top-level file association XML from the ESO archive
+
+    Parameters
+    ----------
+    mainFiles : etree element
+        Main file element
+
+    files : list
+        List where the files will be appended
+
+    silent : bool
+        Display the activity. Default is True
+    '''
+    # append file names to the list
+    for file in mainFiles:
+        fname = file.attrib['name']
+        files.append(fname)
+
+        if not silent:
+            print(' ==> {0}'.format(fname))
 
 
-class IFSData:
-    pass
+def process_association(tree, files, silent=True):
+    '''
+    Process file association XML from the ESO archive
+
+    Parameters
+    ----------
+    tree : etree element
+        Associated file element
+
+    files : list
+        List where the files will be appended
+
+    silent : bool
+        Display the activity. Default is True
+    '''
+    catg = tree.attrib['category']
+
+    if not silent:
+        print(catg)
+
+    # skip unused calibrations
+    if (catg == 'IFS_STD_ASTROM') or (catg == 'IFS_STD_PHOT') or \
+       (catg == 'IFS_DIST') or (catg == 'IRD_CLI_PHOT') or \
+       (catg == 'IRD_DIST'):
+        if not silent:
+            print(' ==> skipping')
+        return
+
+    # process differently mainFiles from associatedFiles
+    for elt in tree:
+        if elt.tag == 'mainFiles':
+            if not silent:
+                print('mainFiles')
+            process_mainFiles(elt, files)
+        elif elt.tag == 'associatedFiles':
+            if not silent:
+                print('associatedFiles')
+            for nelt in elt:
+                process_association(nelt, files, silent=silent)
 
 
-class SPHEREDataset:
+class Dataset:
     '''
     A SPHERE dataset for a given object
     '''
 
-    rootpath = None
-
-    # IFS
-    ifs_data   = False
-    ifs_sorted = False
-    
-    # IRD
-    ird_data   = False
-    ird_sorted = False
-    
     ######################
     # Constructor
     ######################
-    def __init__(self, rootpath):
+    def __init__(self, path):
         '''
         Initialization code for a SPHERE dataset
 
         Parameters
         ----------
-        rootpath : str
-            Root path to the SPHERE data set
+        path : str
+            Path to the SPHERE data
         '''
 
-        if not isinstance(rootpath, str):
+        if not isinstance(path, str):
             raise ValueError('rootpath must be a string')
-        
-        self.rootpath = os.path.expanduser(rootpath)
 
-        # check if data is already sorted or not
-        ipath = os.path.join(rootpath, 'IFS', 'raw')
-        if len(glob.glob(ipath+'/*.fits')) != 0:
-            self.ifs_data = True
+        # path
+        self._path = os.path.expanduser(path)
+
+        # list of reductions
+        self._IFS_reductions   = []
+        self._IRDIS_reductions = []
+
+        # search for available data
+        print(os.listdir(path))
+        
+    # def sort_files(self):
+    #     '''
+    #     Sort the raw files in the rootpath directory        
+    #     '''
+
+    #     files = glob.glob(self.rootpath+'*.fits')
+
+    #     # check that we have some files
+    #     if len(files) == 0:
+    #         raise ValueError('No raw FITS files in rootpath directory')
+
+    #     print('Found {0} FITS files in {1}'.format(len(files), self.rootpath))
+        
+    #     # sort them by sub-system
+    #     for f in files:
+    #         hdu = fits.open(f)
+    #         subsystem = hdu[0].header['HIERARCH ESO SEQ ARM']
+    #         hdu.close()
+
+    #         # define instrument short name
+    #         if subsystem == 'IFS':
+    #             inst = 'IFS'
+    #         elif subsystem == 'IRDIS':
+    #             inst = 'IRD'
+    #         elif subsystem == 'ZIMPOL':
+    #             inst = 'ZIM'
+
+    #         # move file
+    #         ipath = os.path.join(self.rootpath, inst, 'raw')
+    #         if not os.path.exists(ipath):
+    #             os.makedirs(ipath)
+    #         shutil.move(f, ipath)
+
+    def sort_files_from_archive(self, quiet=False):
+        path = self._path
+
+        xfiles = glob.glob(path+'*.xml')
+
+        if len(xfiles) == 0:
+            print('This path does not appear to contain a dataset downloaded from ' + 
+                  'the ESO archive with associated calibrations. Skipping.')
+            return
+
+        for xfile in xfiles:
+            tree = etree.parse(xfile)
+            root = tree.getroot()            
+
+            # process only IFS and IRDIS science data
+            catg = root.attrib['category']
+            if (catg.find('ACQUISITION') != -1):
+                continue
             
-        ipath = os.path.join(rootpath, 'IRD', 'raw')
-        if len(glob.glob(ipath+'/*.fits')) != 0:
-            self.ird_data = True
+            # get target name from first mainFile element
+            scifiles = root.find('mainFiles')
+            filename = scifiles[0].attrib['name']
 
-    
-    def sort_files(self):
-        '''
-        Sort the raw files in the rootpath directory        
-        '''
+            # target and arm
+            hdu = fits.open(path+filename+'.fits')
 
-        files = glob.glob(self.rootpath+'*.fits')
+            target = hdu[0].header['HIERARCH ESO OBS NAME']
+            obs_id = hdu[0].header['HIERARCH ESO OBS ID']
+            if catg == 'SCIENCE_OBJECT_AO':
+                instrument = 'SPARTA'
+            else:
+                try:
+                    arm = hdu[0].header['HIERARCH ESO SEQ ARM']
+                    if arm == 'IRDIS':
+                        instrument = 'IRDIS'
+                    elif arm == 'IFS':
+                        instrument = 'IFS'                
+                    else:
+                        raise NameError('Unknown arm {0}'.format(arm))
+                except:
+                    continue
 
-        # check that we have some files
-        if len(files) == 0:
-            raise ValueError('No raw FITS files in rootpath directory')
+            # get files
+            files = []
+            process_association(root, files, silent=True)
 
-        print('Found {0} FITS files in {1}'.format(len(files), self.rootpath))
-        
-        # sort them by sub-system
-        for f in files:
-            hdu = fits.open(f)
-            subsystem = hdu[0].header['HIERARCH ESO SEQ ARM']
-            hdu.close()
+            # target path
+            directory = '{0}_id={1}'.format(target, obs_id)
+            target_path = os.path.join(path, directory, instrument, 'raw')
+            if not os.path.exists(target_path):
+                os.makedirs(target_path)
 
-            # define instrument short name
-            if subsystem == 'IFS':
-                inst = 'IFS'
-            elif subsystem == 'IRDIS':
-                inst = 'IRD'
-            elif subsystem == 'ZIMPOL':
-                inst = 'ZIM'
+            # copy files
+            for f in files:
+                file = os.path.join(path, f+'.fits')
+                nfile = os.path.join(target_path, f+'.fits')
 
-            # move file
-            ipath = os.path.join(self.rootpath, inst, 'raw')
-            if not os.path.exists(ipath):
-                os.makedirs(ipath)
-            shutil.move(f, ipath)
-                    
+                # copy if needed
+                if not os.path.exists(nfile):
+                    shutil.copy(file, nfile)
 
-
-
-
-
-root = '/Users/avigan/data/pySPHERE-test/'
-
-sphere_ds = SPHEREDataset(root)
-# sphere_ds.sort_files()
+            # print status
+            if (quiet is False):
+                print('{0} - id={1}'.format(target, obs_id))
+                print(' ==> found {0} files'.format(len(files)))
+                print(' ==> copied to {0}'.format(target_path))
+                print()
