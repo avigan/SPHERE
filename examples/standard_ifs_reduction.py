@@ -2,9 +2,9 @@ import sys
 import pysphere.IFS as IFS
 
 
-root_path = '/Users/avigan/data/pySPHERE-test/IFS2/'
+root_path = '/Users/avigan/data/pySPHERE-test/data_with_raw_calibs_copy/'
 
-red = IFS.IFSReduction(root_path)
+red = IFS.Reduction(root_path)
 
 # one-line reduction
 # red.full_reduction()

@@ -76,7 +76,6 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
 
     # bad pixels correction    
     flat = imutils.fix_badpix(flat, bpm_in, npix=12, weight=True)
-    fits.writeto('/Users/avigan/data/pySPHERE-test/IFS2/flat_clean.fits', flat, overwrite=True)
 
     # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
     flat = imutils.sigma_filter(flat, box=5, nsigma=3, iterate=True)
@@ -324,7 +323,7 @@ def fit_peak(x, y, display=False):
     return fit.parameters
 
 
-class IFSReduction(object):
+class Reduction(object):
     '''
     SPHERE/IFS reduction object
     '''
@@ -768,6 +767,15 @@ class IFSReduction(object):
 
             hdu.close()
 
+        # drop files that are not handled, based on DPR keywords
+        files_info.dropna(subset=['DPR TYPE'], inplace=True)
+        files_info = files_info[(files_info['DPR CATG'] != 'ACQUISITION') & (files_info['DPR TYPE'] != 'OBJECT,AO')]
+
+        # check instruments
+        instru = files_info['SEQ ARM'].unique()
+        if len(instru) != 1:
+            raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+        
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
