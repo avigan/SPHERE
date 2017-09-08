@@ -111,11 +111,9 @@ def sort_files_from_xml(path, silent=True):
 
     xml_files = glob.glob(path+'*.xml')
 
-    if len(xml_files) == 0:
-        print('This path does not appear to contain a dataset downloaded from ' + 
-              'the ESO archive with associated calibrations. Skipping.')
-        return
-
+    print('Sort data based on XML files (ESO automated calibration selection)')
+    print(' ==> {0} XML files\n'.format(len(xml_files)))
+    
     # sort files
     for file in xml_files:
         tree = etree.parse(file)
@@ -214,9 +212,8 @@ def sort_files_from_fits(path, silent=True):
 
     fits_files = glob.glob(path+'*.fits')
 
-    if len(fits_files) == 0:
-        print('This path does not appear to contain FITS files. Skipping.')
-        return
+    print('Sort data based on FITS files')
+    print(' ==> {0} FITS files\n'.format(len(fits_files)))
 
     # sort files
     for file in fits_files:
@@ -302,21 +299,16 @@ class Dataset:
         self._IRDIS_reductions = []
 
         # search for data with calibrations downloaded from ESO archive
-        print('Sort data based on XML files (ESO automated calibration selection')
         xml_files = glob.glob(path+'*.xml')
-        print(' ==> {0} XML files'.format(len(xml_files)))
         if len(xml_files) != 0:
             sort_files_from_xml(path)
 
         # directly search for data
-        print('Sort data based on FITS files')
         fits_files = glob.glob(path+'*.fits')
-        print(' ==> {0} FITS files'.format(len(fits_files)))
         if len(fits_files) != 0:
             sort_files_from_fits(path)
         
         # recursively look for valid reduction
-        print('Create reductions')
         self._create_reductions()
         
     ##################################################
@@ -447,7 +439,9 @@ class Dataset:
         '''
         Detect and create valid reductions in path
         '''
-                
+
+        print('Create reductions from available data')
+
         wpath = os.walk(self._path)
         for w in wpath:
             subs = w[1]
