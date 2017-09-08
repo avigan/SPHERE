@@ -79,6 +79,200 @@ def process_association(tree, files, silent=True):
                 process_association(nelt, files, silent=silent)
 
 
+def sort_files_from_xml(path, silent=True):
+    '''Sort files downloaded from the ESO archive with associated raw
+       calibrations
+
+    When choosing this option from the archive, the data package
+    includes xml files that provide the association between the
+    science files and the calibration files. The method uses these
+    xml files to copy the science and associated raw files into
+    dedicated directories.
+
+    For a given executed OB, the method will extract the target
+    name from the OBS.NAME keyword and the OB ID from the OBS.ID
+    keyword. It will create a directory {OBS.NAME}_id={OBS.ID} and
+    copy the FITS files. Note that any space in the name will be
+    replaced by an underscore to avoid subsequent issues with
+    esorex in the data reduction.
+
+    The files are *copied* because science data acquired on the
+    same night with the same setup can share some calibrations. It
+    is therefore safer to copy the needed fiels instead of moving
+    them. At the end, all the original files are more to the
+    all_files/ subdirectory.
+
+    Parameters
+    ----------
+    silent : bool
+        Display some status of the execution. Default is to be silent
+
+    '''
+
+    xml_files = glob.glob(path+'*.xml')
+
+    if len(xml_files) == 0:
+        print('This path does not appear to contain a dataset downloaded from ' + 
+              'the ESO archive with associated calibrations. Skipping.')
+        return
+
+    # sort files
+    for file in xml_files:
+        tree = etree.parse(file)
+        root = tree.getroot()            
+
+        # process only IFS and IRDIS science data
+        catg = root.attrib['category']
+        if (catg.find('ACQUISITION') != -1):
+            continue
+
+        # get target name from first mainFile element
+        scifiles = root.find('mainFiles')
+        filename = scifiles[0].attrib['name']
+
+        # target and arm
+        hdr = fits.getheader(path+filename+'.fits')
+
+        target = hdr['HIERARCH ESO OBS NAME']
+        obs_id = hdr['HIERARCH ESO OBS ID']
+        if catg == 'SCIENCE_OBJECT_AO':
+            instrument = 'SPARTA'
+        else:
+            try:
+                arm = hdr['HIERARCH ESO SEQ ARM']
+                if arm == 'IRDIS':
+                    instrument = 'IRDIS'
+                elif arm == 'IFS':
+                    instrument = 'IFS'                
+                else:
+                    raise NameError('Unknown arm {0}'.format(arm))
+            except:
+                continue
+
+        # get files
+        files = []
+        process_association(root, files, silent=True)
+
+        # target path
+        directory = '{0}_id={1}'.format(target, obs_id)
+        directory = '_'.join(directory.split())
+        target_path = os.path.join(path, directory, instrument, 'raw')
+        if not os.path.exists(target_path):
+            os.makedirs(target_path)
+
+        # copy files
+        for f in files:
+            file = os.path.join(path, f+'.fits')
+            nfile = os.path.join(target_path, f+'.fits')
+
+            # copy if needed
+            if not os.path.exists(nfile):
+                shutil.copy(file, nfile)
+
+        # print status
+        if not silent:
+            print('{0} - id={1}'.format(target, obs_id))
+            print(' ==> found {0} files'.format(len(files)))
+            print(' ==> copied to {0}'.format(target_path))
+            print()
+
+    # move all files
+    path_new = os.path.join(path, 'all_files')
+    if not os.path.exists(path_new):
+        os.makedirs(path_new)
+
+    files = []
+    files.extend(glob.glob(os.path.join(path+'*.fits')))
+    files.extend(glob.glob(os.path.join(path+'*.xml')))
+    files.extend(glob.glob(os.path.join(path+'*.txt')))        
+
+    if len(files) != 0:
+        for file in files:
+            shutil.move(file, path_new)
+
+
+def sort_files_from_fits(path, silent=True):
+    '''Sort FITS files based only based on their headers
+
+    Contrary to sort_files_from_xml(), this method is dumb in the
+    sense that it does not try to keep any file associated. It
+    just sorts the FITS files as a function of the
+    sub-system. Still very convenient when manually downloading
+    data and calibrations.
+
+    And contrary to sort_files_from_xml(), the files are directly
+    moved to their sub-system directory. This makes this method
+    much faster than sort_files_from_xml(). At the end, all
+    unsorted files are moved to an unsorted_files/ subdirectory.
+
+    Parameters
+    ----------
+    silent : bool
+        Display some status of the execution. Default is to be silent
+
+    '''
+
+    fits_files = glob.glob(path+'*.fits')
+
+    if len(fits_files) == 0:
+        print('This path does not appear to contain FITS files. Skipping.')
+        return
+
+    # sort files
+    for file in fits_files:
+        # target and arm
+        hdr = fits.getheader(file)
+
+        try:
+            target = hdr['HIERARCH ESO OBS NAME']
+            obs_id = hdr['HIERARCH ESO OBS ID']
+            dpr_type = hdr['HIERARCH ESO DPR TYPE']
+        except:
+            continue
+
+        if dpr_type == 'OBJECT,AO':
+            instrument = 'SPARTA'
+        else:
+            try:
+                arm = hdr['HIERARCH ESO SEQ ARM']
+                if arm == 'IRDIS':
+                    instrument = 'IRDIS'
+                elif arm == 'IFS':
+                    instrument = 'IFS'                
+                else:
+                    raise NameError('Unknown arm {0}'.format(arm))
+            except:
+                continue
+
+        # target path
+        target_path = os.path.join(path, instrument, 'raw')
+        if not os.path.exists(target_path):
+            os.makedirs(target_path)
+
+        # move file
+        nfile = os.path.join(target_path, os.path.basename(file))
+        shutil.move(file, nfile)
+
+        # print status
+        if not silent:
+            print('{0} - id={1}'.format(target, obs_id))
+            print(' ==> copied to {0}'.format(target_path))
+            print()
+
+    # move all files
+    path_new = os.path.join(path, 'unsorted_files')
+    if not os.path.exists(path_new):
+        os.makedirs(path_new)
+
+    files = []
+    files.extend(glob.glob(os.path.join(path+'*.fits')))
+    files.extend(glob.glob(os.path.join(path+'*.txt')))        
+
+    if len(files) != 0:
+        for file in files:
+            shutil.move(file, path_new)
+
+
 class Dataset:
     '''
     A SPHERE dataset for a given object
@@ -108,45 +302,23 @@ class Dataset:
         self._IRDIS_reductions = []
 
         # search for data with calibrations downloaded from ESO archive
+        print('Sort data based on XML files (ESO automated calibration selection')
         xml_files = glob.glob(path+'*.xml')
+        print(' ==> {0} XML files'.format(len(xml_files)))
         if len(xml_files) != 0:
-            print('Searching for for data with calibrations downloaded from ESO archive')
-            self.sort_files_from_archive()
+            sort_files_from_xml(path)
 
+        # directly search for data
+        print('Sort data based on FITS files')
+        fits_files = glob.glob(path+'*.fits')
+        print(' ==> {0} FITS files'.format(len(fits_files)))
+        if len(fits_files) != 0:
+            sort_files_from_fits(path)
+        
         # recursively look for valid reduction
-        wpath = os.walk(path)
-        for w in wpath:
-            subs = w[1]
-            if 'raw' in subs:                
-                # if directory has a raw/ sub-directory, make sure it
-                # has FITS files and that they are from a valid
-                # sub-system
-                reduction_path = w[0]                
-                fits_files = glob.glob(os.path.join(reduction_path, 'raw', '*.fits'))
-                if len(fits_files) != 0:
-                    hdr = fits.getheader(fits_files[0])
-                    try:
-                        arm = hdr['HIERARCH ESO SEQ ARM']
-                        if arm == 'IRDIS':
-                            instrument = 'IRDIS'
-                            reduction  = IRDIS.ImagingReduction(reduction_path)
-                            self._IRDIS_reductions.append(reduction)
-                        elif arm == 'IFS':
-                            instrument = 'IFS'
-                            reduction  = IFS.Reduction(reduction_path)
-                            self._IFS_reductions.append(reduction)
-                        else:
-                            raise NameError('Unknown arm {0}'.format(arm))
-                    except:
-                        continue
-
-                    print(reduction_path)
-                    print('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
-                    print()
-
-        # merge all reductions into a single list
-        self._reductions = self._IFS_reductions + self._IRDIS_reductions
-    
+        print('Create reductions')
+        self._create_reductions()
+        
     ##################################################
     # Representation
     ##################################################
@@ -270,108 +442,43 @@ class Dataset:
     ##################################################
     # Class methods
     ##################################################
-    
-    def sort_files_from_archive(self, silent=True):
-        '''Sort files downloaded from the ESO archive with associated raw
-           calibrations
-
-        When choosing this option from the archive, the data package
-        includes xml files that provide the association between the
-        science files and the calibration files. The method uses these
-        xml files to copy the science and associated raw files into
-        dedicated directories.
-
-        For a given executed OB, the method will extract the target
-        name from the OBS.NAME keyword and the OB ID from the OBS.ID
-        keyword. It will create a directory {OBD.NAME}_id={OBS.ID} and
-        copy the FITS files. Note that any space in the name will be
-        replaced by an underscore to avoid subsequent issues with
-        esorex in the data reduction.
-
-        Parameters
-        ----------
-        silent : bool
-            Display some status of the execution. Default is to be silent
+        
+    def _create_reductions(self):
         '''
-        path = self._path
+        Detect and create valid reductions in path
+        '''
+                
+        wpath = os.walk(self._path)
+        for w in wpath:
+            subs = w[1]
+            if 'raw' in subs:                
+                # if directory has a raw/ sub-directory, make sure it
+                # has FITS files and that they are from a valid
+                # sub-system
+                reduction_path = w[0]                
+                fits_files = glob.glob(os.path.join(reduction_path, 'raw', '*.fits'))
+                if len(fits_files) != 0:
+                    hdr = fits.getheader(fits_files[0])
+                    try:
+                        arm = hdr['HIERARCH ESO SEQ ARM']
+                        if arm == 'IRDIS':
+                            instrument = 'IRDIS'
+                            reduction  = IRDIS.ImagingReduction(reduction_path)
+                            self._IRDIS_reductions.append(reduction)
+                        elif arm == 'IFS':
+                            instrument = 'IFS'
+                            reduction  = IFS.Reduction(reduction_path)
+                            self._IFS_reductions.append(reduction)
+                        else:
+                            raise NameError('Unknown arm {0}'.format(arm))
+                    except:
+                        continue
 
-        xml_files = glob.glob(path+'*.xml')
+                    print(reduction_path)
+                    print('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
+                    print()
 
-        if len(xml_files) == 0:
-            print('This path does not appear to contain a dataset downloaded from ' + 
-                  'the ESO archive with associated calibrations. Skipping.')
-            return
-
-        # sort files
-        for file in xml_files:
-            tree = etree.parse(file)
-            root = tree.getroot()            
-
-            # process only IFS and IRDIS science data
-            catg = root.attrib['category']
-            if (catg.find('ACQUISITION') != -1):
-                continue
-            
-            # get target name from first mainFile element
-            scifiles = root.find('mainFiles')
-            filename = scifiles[0].attrib['name']
-
-            # target and arm
-            hdu = fits.open(path+filename+'.fits')
-
-            target = hdu[0].header['HIERARCH ESO OBS NAME']
-            obs_id = hdu[0].header['HIERARCH ESO OBS ID']
-            if catg == 'SCIENCE_OBJECT_AO':
-                instrument = 'SPARTA'
-            else:
-                try:
-                    arm = hdu[0].header['HIERARCH ESO SEQ ARM']
-                    if arm == 'IRDIS':
-                        instrument = 'IRDIS'
-                    elif arm == 'IFS':
-                        instrument = 'IFS'                
-                    else:
-                        raise NameError('Unknown arm {0}'.format(arm))
-                except:
-                    continue
-
-            # get files
-            files = []
-            process_association(root, files, silent=True)
-
-            # target path
-            directory = '{0}_id={1}'.format(target, obs_id)
-            directory = '_'.join(directory.split())
-            target_path = os.path.join(path, directory, instrument, 'raw')
-            if not os.path.exists(target_path):
-                os.makedirs(target_path)
-
-            # copy files
-            for f in files:
-                file = os.path.join(path, f+'.fits')
-                nfile = os.path.join(target_path, f+'.fits')
-
-                # copy if needed
-                if not os.path.exists(nfile):
-                    shutil.copy(file, nfile)
-
-            # print status
-            if not silent:
-                print('{0} - id={1}'.format(target, obs_id))
-                print(' ==> found {0} files'.format(len(files)))
-                print(' ==> copied to {0}'.format(target_path))
-                print()
-
-        # move all files
-        path_new = os.path.join(path, 'files')
-        if not os.path.exists(path_new):
-            os.makedirs(path_new)
-            
-        files = []
-        files.extend(glob.glob(os.path.join(path+'*.fits')))
-        files.extend(glob.glob(os.path.join(path+'*.xml')))
-        files.extend(glob.glob(os.path.join(path+'*.txt')))        
-
-        if len(files) != 0:
-            for file in files:
-                shutil.move(file, path_new)
+        # merge all reductions into a single list
+        self._reductions = self._IFS_reductions + self._IRDIS_reductions
+        
+    
