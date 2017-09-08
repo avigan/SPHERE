@@ -8,6 +8,9 @@ import shutil
 import pandas as pd
 import xml.etree.ElementTree as etree
 
+import pysphere.IRDIS as IRDIS
+import pysphere.IFS as IFS
+
 from astropy.io import fits
 
 
@@ -95,7 +98,7 @@ class Dataset:
         '''
 
         if not isinstance(path, str):
-            raise ValueError('rootpath must be a string')
+            raise ValueError('path must be a string')
 
         # path
         self._path = os.path.expanduser(path)
@@ -104,42 +107,170 @@ class Dataset:
         self._IFS_reductions   = []
         self._IRDIS_reductions = []
 
-        # search for available data
-        print(os.listdir(path))
+        # search for data with calibrations downloaded from ESO archive
+        xml_files = glob.glob(path+'*.xml')
+        if len(xml_files) != 0:
+            print('Searching for for data with calibrations downloaded from ESO archive')
+            self.sort_files_from_archive()
+
+        # recursively look for valid reduction
+        wpath = os.walk(path)
+        for w in wpath:
+            subs = w[1]
+            if 'raw' in subs:                
+                # if directory has a raw/ sub-directory, make sure it
+                # has FITS files and that they are from a valid
+                # sub-system
+                reduction_path = w[0]                
+                fits_files = glob.glob(os.path.join(reduction_path, 'raw', '*.fits'))
+                if len(fits_files) != 0:
+                    hdr = fits.getheader(fits_files[0])
+                    try:
+                        arm = hdr['HIERARCH ESO SEQ ARM']
+                        if arm == 'IRDIS':
+                            instrument = 'IRDIS'
+                            reduction  = IRDIS.ImagingReduction(reduction_path)
+                            self._IRDIS_reductions.append(reduction)
+                        elif arm == 'IFS':
+                            instrument = 'IFS'
+                            reduction  = IFS.Reduction(reduction_path)
+                            self._IFS_reductions.append(reduction)
+                        else:
+                            raise NameError('Unknown arm {0}'.format(arm))
+                    except:
+                        continue
+
+                    print(reduction_path)
+                    print('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
+                    print()
+
+        # merge all reductions into a single list
+        self._reductions = self._IFS_reductions + self._IRDIS_reductions
+    
+    ##################################################
+    # Representation
+    ##################################################
+    
+    def __repr__(self):
+        return '<SPHERE datasets: {0} IFS, {1} IRDIS>'.format(len(self._IFS_reductions), len(self._IRDIS_reductions))
+    
+    ##################################################
+    # Properties
+    ##################################################
+    
+    @property
+    def reductions(self):
+        return self._reductions
+
+    @property
+    def IRDIS_reductions(self):
+        return self._IRDIS_reductions
+
+    @property
+    def IFS_reductions(self):
+        return self._IFS_reductions
+
+    ##################################################
+    # Generic class methods
+    ##################################################
+    
+    def init_reduction(self):
+        '''
+        Sort files and frames, perform sanity check
+        '''
+
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Initialization of {0} reduction at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
+            
+            r.init_reduction()
+
+
+    def create_static_calibrations(self):
+        '''
+        Create static calibrations with esorex
+        '''
+
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Static calibrations for {0} at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
+            
+            r.create_static_calibrations()
+
+            
+    def preprocess_science(self):
+        '''
+        Clean and collapse images
+        '''
         
-    # def sort_files(self):
-    #     '''
-    #     Sort the raw files in the rootpath directory        
-    #     '''
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Pre-process data for {0} at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
+            
+            r.preprocess_science()
 
-    #     files = glob.glob(self.rootpath+'*.fits')
-
-    #     # check that we have some files
-    #     if len(files) == 0:
-    #         raise ValueError('No raw FITS files in rootpath directory')
-
-    #     print('Found {0} FITS files in {1}'.format(len(files), self.rootpath))
+            
+    def process_science(self):
+        '''
+        Perform star center, combine cubes into final (x,y,time,lambda)
+        cubes, correct anamorphism and scale the images
+        '''
         
-    #     # sort them by sub-system
-    #     for f in files:
-    #         hdu = fits.open(f)
-    #         subsystem = hdu[0].header['HIERARCH ESO SEQ ARM']
-    #         hdu.close()
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Process data for {0} at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
 
-    #         # define instrument short name
-    #         if subsystem == 'IFS':
-    #             inst = 'IFS'
-    #         elif subsystem == 'IRDIS':
-    #             inst = 'IRD'
-    #         elif subsystem == 'ZIMPOL':
-    #             inst = 'ZIM'
+            r.process_science()
 
-    #         # move file
-    #         ipath = os.path.join(self.rootpath, inst, 'raw')
-    #         if not os.path.exists(ipath):
-    #             os.makedirs(ipath)
-    #         shutil.move(f, ipath)
+    
+    def clean(self):
+        '''
+        Clean the reduction directory, leaving only the raw and products
+        sub-directory
+        '''
+        
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Clean {0} reduction at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
 
+            r.clean()
+        
+        
+    def full_reduction(self):
+        '''
+        Performs a full reduction of a data set, from the static
+        calibrations to the final (x,y,time,lambda) cubes
+        '''
+        
+        for r in self._reductions:
+            print()
+            print('*')
+            print('* Full {0} reduction at path {1}'.format(r.instrument, r.path))
+            print('*')
+            print()
+            
+            r.full_reduction()
+
+            
+    ##################################################
+    # Class methods
+    ##################################################
+    
     def sort_files_from_archive(self, silent=True):
         '''Sort files downloaded from the ESO archive with associated raw
            calibrations
@@ -164,15 +295,16 @@ class Dataset:
         '''
         path = self._path
 
-        xfiles = glob.glob(path+'*.xml')
+        xml_files = glob.glob(path+'*.xml')
 
-        if len(xfiles) == 0:
+        if len(xml_files) == 0:
             print('This path does not appear to contain a dataset downloaded from ' + 
                   'the ESO archive with associated calibrations. Skipping.')
             return
 
-        for xfile in xfiles:
-            tree = etree.parse(xfile)
+        # sort files
+        for file in xml_files:
+            tree = etree.parse(file)
             root = tree.getroot()            
 
             # process only IFS and IRDIS science data
@@ -229,3 +361,17 @@ class Dataset:
                 print(' ==> found {0} files'.format(len(files)))
                 print(' ==> copied to {0}'.format(target_path))
                 print()
+
+        # move all files
+        path_new = os.path.join(path, 'files')
+        if not os.path.exists(path_new):
+            os.makedirs(path_new)
+            
+        files = []
+        files.extend(glob.glob(os.path.join(path+'*.fits')))
+        files.extend(glob.glob(os.path.join(path+'*.xml')))
+        files.extend(glob.glob(os.path.join(path+'*.txt')))        
+
+        if len(files) != 0:
+            for file in files:
+                shutil.move(file, path_new)
