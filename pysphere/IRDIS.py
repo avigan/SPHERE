@@ -60,6 +60,11 @@ class ImagingReduction(object):
 
         '''
 
+        # zeroth-order reduction validation
+        raw = os.path.join(path, 'raw')
+        if not os.path.exists(raw):
+            raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        
         # init path and name
         self._path = ReductionPath.Path(path)
         self._instrument = 'IRDIS'
@@ -392,7 +397,7 @@ class ImagingReduction(object):
         files = [os.path.splitext(os.path.basename(f))[0] for f in files]
 
         if len(files) == 0:
-            raise ValueError('No raw FITS files in root_path directory')
+            raise ValueError('No raw FITS files in reduction path')
 
         print(' * found {0} FITS files in {1}'.format(len(files), path.raw))
 
