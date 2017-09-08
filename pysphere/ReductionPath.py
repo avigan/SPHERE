@@ -25,6 +25,13 @@ class Path(object):
 
         # create directories
         self.create_subdirectories()
+
+    ##################################################
+    # Representation
+    ##################################################
+    
+    def __repr__(self):
+        return self._root
     
     ##################################################
     # Properties

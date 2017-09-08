@@ -103,6 +103,13 @@ class ImagingReduction(object):
         self.read_info()
     
     ##################################################
+    # Representation
+    ##################################################
+    
+    def __repr__(self):
+        return '<Reduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+    
+    ##################################################
     # Properties
     ##################################################
     
