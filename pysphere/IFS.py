@@ -948,9 +948,9 @@ class Reduction(object):
         cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
                         (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(cfiles) == 0:
-            warning_flag += 1
-            print(' * Warning: there is no dark/background for the basic calibrations (DIT=1.65 sec). ' +
-                  'It is *highly recommended* to include one to obtain the best data reduction. ' +
+            error_flag += 1
+            print(' * Error: there is no dark/background for the basic calibrations (DIT=1.65 sec). ' +
+                  'It is mandatory to include one to obtain the best data reduction. ' +
                   'A single dark/background file is sufficient, and it can easily be downloaded ' +
                   'from the ESO archive')
 
