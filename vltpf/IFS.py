@@ -17,11 +17,11 @@ from astropy.io import fits
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
-import pysphere.utils.imutils as imutils
-import pysphere.utils.aperture as aperture
-import pysphere.transmission as transmission
-import pysphere.ReductionPath as ReductionPath
-import pysphere.toolbox as toolbox
+import vltpf.utils.imutils as imutils
+import vltpf.utils.aperture as aperture
+import vltpf.transmission as transmission
+import vltpf.ReductionPath as ReductionPath
+import vltpf.toolbox as toolbox
 
 
 def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
@@ -1063,7 +1063,7 @@ class Reduction(object):
                 # check esorex
                 if shutil.which('esorex') is None:
                     raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                                    'that the ESO pipeline is properly installed before running pySPHERE.')
+                                    'that the ESO pipeline is properly installed before running VLTPF.')
 
                 # execute esorex
                 if silent:
@@ -1248,7 +1248,7 @@ class Reduction(object):
         # check esorex
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                            'that the ESO pipeline is properly installed before running pySPHERE.')
+                            'that the ESO pipeline is properly installed before running VLTPF.')
         
         # execute esorex
         if silent:
@@ -1350,7 +1350,7 @@ class Reduction(object):
         # check esorex
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                            'that the ESO pipeline is properly installed before running pySPHERE.')
+                            'that the ESO pipeline is properly installed before running VLTPF.')
         
         # execute esorex
         if silent:
@@ -1476,7 +1476,7 @@ class Reduction(object):
         # check esorex
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                            'that the ESO pipeline is properly installed before running pySPHERE.')
+                            'that the ESO pipeline is properly installed before running VLTPF.')
         
         # execute esorex
         if silent:
@@ -1910,7 +1910,7 @@ class Reduction(object):
         # check esorex
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                            'that the ESO pipeline is properly installed before running pySPHERE.')
+                            'that the ESO pipeline is properly installed before running VLTPF.')
         
         # execute esorex
         if silent:

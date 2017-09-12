@@ -1,5 +1,5 @@
 import sys
-import pysphere.IRDIS as IRDIS
+import vltpf.IRDIS as IRDIS
 
 
 root_path = '/Users/avigan/data/pySPHERE-test/IRD/'

@@ -1,5 +1,5 @@
 import sys
-import pysphere.IFS as IFS
+import vltpf.IFS as IFS
 
 
 root_path = '/Users/avigan/data/pySPHERE-test/data_with_raw_calibs_copy/'

@@ -8,8 +8,8 @@ import shutil
 import pandas as pd
 import xml.etree.ElementTree as etree
 
-import pysphere.IRDIS as IRDIS
-import pysphere.IFS as IFS
+import vltpf.IRDIS as IRDIS
+import vltpf.IFS as IFS
 
 from astropy.io import fits
 

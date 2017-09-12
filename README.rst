@@ -1,5 +1,5 @@
-pySPHERE
-========
+VLTPF
+=====
 
 **Warning**
 -----------
@@ -9,7 +9,7 @@ pySPHERE
 Information
 -----------
 
-This repository provides tools for the reduction of VLT/SPHERE data.
+This repository provides tools for the reduction of VLT/SPHERE data. SPHERE is the planet finder instrument of the Very Large Telescope.
 
 Credits
 -------
