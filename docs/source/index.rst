@@ -1,10 +1,10 @@
-.. pySPHERE documentation master file, created by
-   sphinx-quickstart on Fri Sep  8 15:40:31 2017.
+.. VLTPF documentation master file, created by
+   sphinx-quickstart on Thu Sep 14 15:53:51 2017.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to pySPHERE's documentation!
-====================================
+Welcome to VLTPF's documentation!
+=================================
 
 .. toctree::
    :maxdepth: 2
