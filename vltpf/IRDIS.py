@@ -85,16 +85,16 @@ class ImagingReduction(object):
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._reduction_config = dict(config.items('reduction'))
-            for key, value in self._reduction_config.items():
+            self._config = dict(config.items('reduction'))
+            for key, value in self._config.items():
                 if (value == 'True'):
-                    self._reduction_config[key] = True
+                    self._config[key] = True
                 elif (value == 'False'):
-                    self._reduction_config[key] = False
+                    self._config[key] = False
                 else:
                     try:
                         value = int(value)
-                        self._reduction_config[key] = value
+                        self._config[key] = value
                     except ValueError:
                         pass
         except configparser.Error as e:
@@ -154,20 +154,20 @@ class ImagingReduction(object):
         return self._recipe_execution
     
     @property
-    def reduction_config(self):
-        return self._reduction_config    
+    def config(self):
+        return self._config    
 
     ##################################################
     # Generic class methods
     ##################################################
 
-    def show_reduction_config(self):
+    def show_config(self):
         '''
         Shows the reduction configuration
         '''
 
         # dictionary
-        dico = self._reduction_config
+        dico = self._config
 
         # silent parameter
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
@@ -221,7 +221,7 @@ class ImagingReduction(object):
         Create static calibrations with esorex
         '''
 
-        config = self._reduction_config
+        config = self._config
         
         self.sph_ird_cal_dark(silent=config['silent'])
         self.sph_ird_cal_detector_flat(silent=config['silent'])
@@ -232,7 +232,7 @@ class ImagingReduction(object):
         Clean and collapse images
         '''
         
-        config = self._reduction_config
+        config = self._config
         
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -249,7 +249,7 @@ class ImagingReduction(object):
         cubes, correct anamorphism and scale the images
         '''
         
-        config = self._reduction_config
+        config = self._config
         
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  display=config['center_display'],
@@ -267,7 +267,7 @@ class ImagingReduction(object):
         sub-directory
         '''
         
-        config = self._reduction_config
+        config = self._config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
