@@ -173,31 +173,31 @@ class ImagingReduction(object):
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
         key = 'silent'
-        print('{0:<30s}{1}'.format(key+':', dico[key]))
+        print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
         keys = [key for key in dico if key.startswith('preproc')]
         for key in keys:
-            print('{0:<30s}{1}'.format(key+':', dico[key]))
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # centring
         print('-'*35)
         keys = [key for key in dico if key.startswith('center')]
         for key in keys:
-            print('{0:<30s}{1}'.format(key+':', dico[key]))
+            print('{0:<30s}{1}'.format(key, dico[key]))
         
         # combining
         print('-'*35)
         keys = [key for key in dico if key.startswith('combine')]
         for key in keys:
-            print('{0:<30s}{1}'.format(key+':', dico[key]))
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # clean
         print('-'*35)
         keys = [key for key in dico if key.startswith('clean')]
         for key in keys:
-            print('{0:<30s}{1}'.format(key+':', dico[key]))
+            print('{0:<30s}{1}'.format(key, dico[key]))
         print('-'*35)
             
         print()
