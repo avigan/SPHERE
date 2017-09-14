@@ -290,21 +290,22 @@ class Dataset:
 
         if not isinstance(path, str):
             raise ValueError('path must be a string')
-
+        
         # path
-        self._path = os.path.expanduser(path)
+        path = os.path.expanduser(os.path.join(path, ''))
+        self._path = path
 
         # list of reductions
         self._IFS_reductions   = []
         self._IRDIS_reductions = []
 
         # search for data with calibrations downloaded from ESO archive
-        xml_files = glob.glob(path+'*.xml')
+        xml_files = glob.glob(os.path.join(path, '*.xml'))
         if len(xml_files) != 0:
             sort_files_from_xml(path)
 
         # directly search for data
-        fits_files = glob.glob(path+'*.fits')
+        fits_files = glob.glob(os.path.join(path, '*.fits'))
         if len(fits_files) != 0:
             sort_files_from_fits(path)
         

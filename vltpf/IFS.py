@@ -371,7 +371,7 @@ class Reduction(object):
         '''
 
         # expand path
-        path = os.path.expanduser(path)
+        path = os.path.expanduser(os.path.join(path, ''))
         
         # zeroth-order reduction validation
         raw = os.path.join(path, 'raw')
