@@ -208,11 +208,11 @@ class ImagingReduction(object):
         Sort files and frames, perform sanity check
         '''
 
-        # sort files and frames
+        # make sure we have sub-directories
+        self._path.create_subdirectories()
+                
         self.sort_files()
         self.sort_frames()
-
-        # sanity check
         self.check_files_association()
         
     
