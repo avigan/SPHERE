@@ -872,6 +872,7 @@ class Reduction(object):
         print('Performing file association for calibrations')
 
         # parameters
+        path = self._path
         files_info = self._files_info
         
         # instrument arm
@@ -905,52 +906,148 @@ class Reduction(object):
 
         # white flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
-        if len(cfiles) != 2:
+        if len(cfiles) < 2:
             error_flag += 1
-            print(' * Error: there should be 2 flat files for white lamp!')
+            print(' * Error: there should be 2 flat files for white lamp, found {0}'.format(len(cfiles)))
+        elif len(cfiles) > 2:
+            warning_flag += 1
+            print(' * Warning: there should be 2 flat files for white lamp, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # 1020 nm flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
-        if len(cfiles) != 2:
+        if len(cfiles) < 2:
             error_flag += 1
-            print(' * Error: there should be 2 flat files for 1020 nm filter!')
+            print(' * Error: there should be 2 flat files for 1020 nm filter, found {0}'.format(len(cfiles)))
+        elif len(cfiles) > 2:
+            warning_flag += 1
+            print(' * Warning: there should be 2 flat files for 1020 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # 1230 nm flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
-        if len(cfiles) != 2:
+        if len(cfiles) < 2:
             error_flag += 1
-            print(' * Error: there should be 2 flat files for 1230 nm filter!')
+            print(' * Error: there should be 2 flat files for 1230 nm filter, found {0}'.format(len(cfiles)))
+        elif len(cfiles) > 2:
+            warning_flag += 1
+            print(' * Warning: there should be 2 flat files for 1230 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # 1300 nm flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
-        if len(cfiles) != 2:
+        if len(cfiles) < 2:
             error_flag += 1
-            print(' * Error: there should be 2 flat files for 1300 nm filter!')
+            print(' * Error: there should be 2 flat files for 1300 nm filter, found {0}'.format(len(cfiles)))
+        elif len(cfiles) > 2:
+            warning_flag += 1
+            print(' * Warning: there should be 2 flat files for 1300 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # 1550 nm flat (YJH mode only)
         if mode_short == 'YJH':
             cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
-            if len(cfiles) != 2:
+            if len(cfiles) < 2:
                 error_flag += 1
-                print(' * Error: there should be 2 flat files for 1550 nm filter!')
+                print(' * Error: there should be 2 flat files for 1550 nm filter, found {0}'.format(len(cfiles)))
+        elif len(cfiles) > 2:
+            warning_flag += 1
+            print(' * Warning: there should be 2 flat files for 1550 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # spectra position
         cfiles = calibs[(calibs['DPR TYPE'] == 'SPECPOS,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-        if len(cfiles) != 1:
+        if len(cfiles) == 0:
             error_flag += 1
-            print(' * Error: there should be 1 spectra position file!')
+            print(' * Error: there should be 1 spectra position file, found none.')
+        elif len(cfiles) > 1:
+            warning_flag += 1
+            print(' * Warning: there should be 1 spectra position file, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # wavelength
         cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-        if len(cfiles) != 1:
+        if len(cfiles) == 0:
             error_flag += 1
-            print(' * Error: there should be 1 wavelength calibration file!')
+            print(' * Error: there should be 1 wavelength calibration file, found none.')
+        elif len(cfiles) > 1:
+            warning_flag += 1
+            print(' * Warning: there should be 1 wavelength calibration file, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # IFU flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
-        if len(cfiles) != 1:
+        if len(cfiles) == 0:
             error_flag += 1
-            print(' * Error: there should be 1 IFU flat file!')
+            print(' * Error: there should be 1 IFU flat file, found none')
+        elif len(cfiles) > 1:
+            warning_flag += 1
+            print(' * Warning: there should be 1 IFU flat file, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[2:].index, inplace=True)
 
         # calibs dark file
         cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
@@ -994,6 +1091,10 @@ class Reduction(object):
         if error_flag:
             raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
 
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        self._files_info = files_info
+    
         
     def sph_ifs_cal_dark(self, silent=True):
         '''
