@@ -60,6 +60,9 @@ class ImagingReduction(object):
 
         '''
 
+        # expand path
+        path = os.path.expanduser(path)
+        
         # zeroth-order reduction validation
         raw = os.path.join(path, 'raw')
         if not os.path.exists(raw):

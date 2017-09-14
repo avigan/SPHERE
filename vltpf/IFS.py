@@ -370,6 +370,9 @@ class Reduction(object):
             Path to the directory containing the raw data
         '''
 
+        # expand path
+        path = os.path.expanduser(path)
+        
         # zeroth-order reduction validation
         raw = os.path.join(path, 'raw')
         if not os.path.exists(raw):
