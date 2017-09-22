@@ -588,6 +588,7 @@ class Reduction(object):
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
+                                  nocenter=config['combine_nocenter'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
@@ -2345,7 +2346,7 @@ class Reduction(object):
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', save_scaled=False):
+                             shift_method='fft', nocenter=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -2393,6 +2394,12 @@ class Reduction(object):
             Correct the optical anamorphism of the instrument. Default
             is True. See user manual for details.
 
+        nocenter : bool        
+            Control if images are centered or not before being
+            combined. Useful if centering must be done
+            afterwards. Default is False. Note that if nocenter is
+            True, the save_scaled option is automatically disabled.
+        
         shift_method : str
             Method to scaling and shifting the images: fft or interp.
             Default is fft
@@ -2474,7 +2481,10 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    cx, cy = centers[wave_idx, :]
+                    if nocenter:
+                        cx, cy = cc, cc
+                    else:
+                        cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
@@ -2553,7 +2563,10 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    cx, cy = centers[wave_idx, :]
+                    if nocenter:
+                        cx, cy = cc, cc
+                    else:
+                        cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
@@ -2595,11 +2608,20 @@ class Reduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
             # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
             if len(starcen_files) == 0:
-                print(' ==> no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
-                      'They will just be combined.')
+                if len(starcen_files) == 0:
+                    print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
+                          'They will just be combined.')
+                elif nocenter:
+                    print('Warning: images will not be centered. They will just be combined.')
 
                 centers = np.full((nwave, 2), cc)
             else:
@@ -2612,12 +2634,6 @@ class Reduction(object):
             sci_derot  = np.zeros(nfiles)
             if save_scaled:
                 sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
-
-            # final center
-            if cpix:
-                cc = science_dim // 2
-            else:
-                cc = (science_dim - 1) / 2
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
