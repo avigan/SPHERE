@@ -513,7 +513,47 @@ class ImagingReduction(object):
 
         # update recipe execution
         self._recipe_execution['sort_frames'] = True
+        
+        #
+        # print some info
+        #
+        cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
+        if len(cinfo) == 0:
+            cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        
+        ra_drot   = cinfo['INS4 DROT2 RA'][0]
+        ra_drot_h = np.floor(ra_drot/1e4)
+        ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
+        ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
+        RA = '{:02.0f}:{:02.0f}:{:02.3f}'.format(ra_drot_h, ra_drot_m, ra_drot_s)
+        
+        dec_drot  = cinfo['INS4 DROT2 DEC'][0]
+        sign = np.sign(dec_drot)
+        udec_drot  = np.abs(dec_drot)
+        dec_drot_d = np.floor(udec_drot/1e4)
+        dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
+        dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
+        dec_drot_d *= sign
+        DEC = '{:02.0f}:{:02.0f}:{:02.2f}'.format(dec_drot_d, dec_drot_m, dec_drot_s)
 
+        pa_start = cinfo['PARANG'][0]
+        pa_end   = cinfo['PARANG'][-1]
+
+        date = str(cinfo['DATE'][0])[0:10]
+        
+        print(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
+        print(' * RA / DEC:    {0} / {1}'.format(RA, DEC))
+        print(' * Date:        {0}'.format(date))
+        print(' * Instrument:  {0}'.format(cinfo['SEQ ARM'][0]))
+        print(' * Derotator:   {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
+        print(' * Coronagraph: {0}'.format(cinfo['INS COMB ICOR'][0]))
+        print(' * Mode:        {0}'.format(cinfo['INS1 MODE'][0]))
+        print(' * Filter:      {0}'.format(cinfo['INS COMB IFLT'][0]))
+        print(' * DIT:         {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
+        print(' * NDIT:        {0:.0f}'.format(cinfo['DET NDIT'][0]))
+        print(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
+        print(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
+        
 
     def check_files_association(self):
         '''
