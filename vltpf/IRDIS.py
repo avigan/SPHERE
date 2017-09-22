@@ -1106,7 +1106,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # centers
@@ -1128,7 +1128,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
                 
                 # centers
