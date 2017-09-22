@@ -1237,7 +1237,12 @@ class ImagingReduction(object):
         if science_dim > 1024:
             print('Warning: science_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
             science_dim = 1024
-            
+
+        # centering
+        if nocenter:
+            shift_method = 'roll'
+            centers_default = np.array([[484, 517], [486, 508]])
+        
         #
         # OBJECT,FLUX
         #
@@ -1281,7 +1286,7 @@ class ImagingReduction(object):
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     if nocenter:
-                        cx, cy = cc, cc
+                        cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
 
@@ -1360,7 +1365,7 @@ class ImagingReduction(object):
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     if nocenter:
-                        cx, cy = cc, cc
+                        cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
 
@@ -1404,12 +1409,6 @@ class ImagingReduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
-            # final center
-            if cpix:
-                cc = science_dim // 2
-            else:
-                cc = (science_dim - 1) / 2
-            
             # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
             if (len(starcen_files) == 0) or nocenter:
@@ -1419,7 +1418,7 @@ class ImagingReduction(object):
                 elif nocenter:
                     print('Warning: images will not be centered. They will just be combined.')
 
-                centers = np.full((nwave, 2), cc)
+                centers = centers_default
 
                 # null value for Dithering Motion Stage
                 dms_dx_ref = 0
@@ -1432,7 +1431,13 @@ class ImagingReduction(object):
                 # and the pixel size is 18 micron
                 dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
                 dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
-                
+
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
             # final arrays
             sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
             sci_parang = np.zeros(nfiles)

@@ -2435,7 +2435,12 @@ class Reduction(object):
         if science_dim > 290:
             print('Warning: science_dim cannot be larger than 290 pix. A value of 290 will be used.')
             science_dim = 290
-        
+
+        # centering
+        if nocenter:
+            shift_method = 'roll'
+            centers_default = np.full((nwave, 2), 290//2)
+
         #
         # OBJECT,FLUX
         #
@@ -2482,7 +2487,7 @@ class Reduction(object):
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     if nocenter:
-                        cx, cy = cc, cc
+                        cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
 
@@ -2564,7 +2569,7 @@ class Reduction(object):
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     if nocenter:
-                        cx, cy = cc, cc
+                        cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
 
@@ -2608,12 +2613,6 @@ class Reduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
-            # final center
-            if cpix:
-                cc = science_dim // 2
-            else:
-                cc = (science_dim - 1) / 2
-
             # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
             if len(starcen_files) == 0:
@@ -2623,10 +2622,16 @@ class Reduction(object):
                 elif nocenter:
                     print('Warning: images will not be centered. They will just be combined.')
 
-                centers = np.full((nwave, 2), cc)
+                centers = centers_default
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
                 centers = fits.getdata(os.path.join(path.preproc, fname))
+
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
 
             # final arrays
             sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
