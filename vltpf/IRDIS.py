@@ -452,6 +452,9 @@ class ImagingReduction(object):
         files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
 
+        # sort by acquisition time
+        files_info.sort_values(by='DATE OBS', inplace=True)
+        
         # save files_info
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))    
         self._files_info = files_info
