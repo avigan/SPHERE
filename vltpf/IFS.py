@@ -588,6 +588,7 @@ class Reduction(object):
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
+                                  method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
     
@@ -2343,7 +2344,8 @@ class Reduction(object):
         self._recipe_execution['sph_ifs_star_center'] = True
 
 
-    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True, save_scaled=False):
+    def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
+                             shift_method='fft', save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -2391,6 +2393,10 @@ class Reduction(object):
             Correct the optical anamorphism of the instrument. Default
             is True. See user manual for details.
 
+        shift_method : str
+            Method to scaling and shifting the images: fft or interp.
+            Default is fft
+        
         save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The default is False
@@ -2471,7 +2477,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
                     psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
@@ -2485,7 +2491,7 @@ class Reduction(object):
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = psf_cube[wave_idx, file_idx]
-                        psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+                        psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
             flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'))
@@ -2550,7 +2556,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
                     cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
@@ -2564,7 +2570,7 @@ class Reduction(object):
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = cen_cube[wave_idx, file_idx]
-                        cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+                        cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
             starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'))
@@ -2639,7 +2645,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method='fft')
+                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
                     sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
@@ -2653,7 +2659,7 @@ class Reduction(object):
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = sci_cube[wave_idx, file_idx]
-                        sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method='fft')
+                        sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
             object_files.to_csv(os.path.join(path.products, 'science_frames.csv'))
