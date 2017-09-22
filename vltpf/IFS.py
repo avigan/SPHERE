@@ -804,7 +804,7 @@ class Reduction(object):
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
 
         # sort by acquisition time
-        files_info.sort_values(by='DATE OBS', inplace=True)
+        files_info.sort_values(by='DATE-OBS', inplace=True)
         
         # save files_info
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))    
