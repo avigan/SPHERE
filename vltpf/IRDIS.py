@@ -1265,7 +1265,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
                 
@@ -1344,7 +1344,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))                
                 
@@ -1471,7 +1471,6 @@ class ImagingReduction(object):
                     cx = cx + dms_dx_ref + dms_dx
                     cy = cy + dms_dy_ref + dms_dy
 
-                    print(cc-cx, cc-cy)
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
