@@ -2438,6 +2438,7 @@ class Reduction(object):
 
         # centering
         if nocenter:
+            print('Warning: images will not be centered. They will just be combined.')
             shift_method = 'roll'
             centers_default = np.full((nwave, 2), 290//2)
 
@@ -2616,11 +2617,8 @@ class Reduction(object):
             # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
             if len(starcen_files) == 0:
-                if len(starcen_files) == 0:
-                    print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
-                          'They will just be combined.')
-                elif nocenter:
-                    print('Warning: images will not be centered. They will just be combined.')
+                print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
+                      'They will just be combined.')
 
                 centers = centers_default
             else:
