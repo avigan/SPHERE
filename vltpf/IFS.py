@@ -588,7 +588,7 @@ class Reduction(object):
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
-                                  method=config['combine_shift_method'],
+                                  shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
     
