@@ -483,9 +483,8 @@ def star_centers_from_PSF_cube(cube, wave, pixel, display=False, save_path=None)
     return img_center
 
 
-def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, high_pass=False, display=False, save_path=None):
-    '''
-    Compute star center from waffle images
+def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, high_pass=False, smooth=0, display=False, save_path=None):
+    '''Compute star center from waffle images
 
     Parameters
     ----------
@@ -501,8 +500,14 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
     waffle_orientation : str
         String giving the waffle orientation '+' or 'x'
 
-    high_pass : bool
-        Apply high-pass filter to the image before searching for the satelitte spots
+    high_pass : bool    
+        Apply high-pass filter to the image before searching for the
+        satelitte spots
+
+    smooth : int    
+        Apply a gaussian smoothing to the images to reduce noise. The
+        value is the sigma of the gaussian in pixel.  Default is no
+        smoothing
     
     display : bool
         Display the fit of the satelitte spots
@@ -520,6 +525,7 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
 
     img_center : array_like
         The star center in each frame of the cube
+
     '''
 
     # instrument
@@ -554,7 +560,7 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
 
     # center guess
     if instrument == 'IFS':
-        center_guess = np.full((nwave, 2), ((dim // 2)-1., (dim // 2)-1.))
+        center_guess = np.full((nwave, 2), ((dim // 2)+3, (dim // 2)-1))
     elif instrument == 'IRDIS':
         center_guess = np.array(((485, 520), (486, 508)))
 
@@ -576,6 +582,10 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
         if high_pass:
             img = img - ndimage.median_filter(img, 15, mode='mirror')
 
+        # optional smoothing
+        if smooth > 0:
+            img = ndimage.gaussian_filter(img, smooth)
+            
         # create plot if needed
         if save_path or display:
             fig = plt.figure(0, figsize=(8, 8))
