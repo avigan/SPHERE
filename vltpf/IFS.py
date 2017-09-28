@@ -2071,7 +2071,8 @@ class Reduction(object):
             proc = subprocess.run(args, cwd=path.tmp)
 
         if proc.returncode != 0:
-            raise ValueError('esorex process was not successful')
+            # raise ValueError('esorex process was not successful')
+            print('Error: esorex was not successful. Trying to process some of the frames...')
 
         # post-process
         print(' * post-processing files')
