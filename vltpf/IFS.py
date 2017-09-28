@@ -1977,7 +1977,7 @@ class Reduction(object):
         files_info = self._files_info
         
         # clean before we start
-        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc_?????.fits'))
+        files = glob.glob(os.path.join(path.tmp, '*_DIT???_preproc_?????.fits'))
         for file in files:
             os.remove(file)
 
