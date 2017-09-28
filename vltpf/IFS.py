@@ -2123,7 +2123,7 @@ class Reduction(object):
         nwave = self._nwave
         files_info = self._files_info
         frames_info = self._frames_info_preproc
-        
+
         #
         # DRH wavelength
         #
@@ -2332,7 +2332,7 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # wavelength
@@ -2359,7 +2359,7 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # wavelength
@@ -2510,7 +2510,7 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'?????.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
 
@@ -2592,7 +2592,7 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'?????.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'centers.fits'))
 
