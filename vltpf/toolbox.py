@@ -483,7 +483,7 @@ def star_centers_from_PSF_cube(cube, wave, pixel, display=False, save_path=None)
     return img_center
 
 
-def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, high_pass=False, display=False, save_path=None):
+def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, high_pass=False, center_offset=(0, 0), display=False, save_path=None):
     '''
     Compute star center from waffle images
 
@@ -504,6 +504,9 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
     high_pass : bool
         Apply high-pass filter to the image before searching for the satelitte spots
     
+    center_offset : tuple
+        Apply an (x,y) offset to the default center position. Default is no offset
+        
     display : bool
         Display the fit of the satelitte spots
 
@@ -568,9 +571,9 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
         # remove any NaN
         img = np.nan_to_num(img)
     
-        # center guess
-        cx_int = int(center_guess[idx, 0])
-        cy_int = int(center_guess[idx, 1])
+        # center guess (+offset)
+        cx_int = int(center_guess[idx, 0]) + center_offset[0]
+        cy_int = int(center_guess[idx, 1]) + center_offset[1]
 
         # optional high-pass filter
         if high_pass:

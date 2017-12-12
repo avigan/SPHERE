@@ -579,9 +579,11 @@ class Reduction(object):
         
         self.sph_ifs_science_cubes(silent=config['silent'])
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
+                                              offset=config['center_offset'],
                                               display=config['center_display'],
                                               save=config['center_save'])
         self.sph_ifs_star_center(high_pass=config['center_high_pass'],
+                                 offset=config['center_offset'],
                                  display=config['center_display'],
                                  save=config['center_save'])
         self.sph_ifs_combine_data(cpix=config['combine_cpix'],
@@ -2090,7 +2092,7 @@ class Reduction(object):
         self._recipe_execution['sph_ifs_science_cubes'] = True
 
 
-    def sph_ifs_wavelength_recalibration(self, high_pass=False, display=False, save=True):
+    def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), display=False, save=True):
         '''Performs a recalibration of the wavelength, is star center frames
         are available
 
@@ -2104,6 +2106,10 @@ class Reduction(object):
         high_pass : bool
             Apply high-pass filter to the image before searching for the satelitte spots
 
+        offset : tuple
+            Apply an (x,y) offset to the default center position, for the waffle centering.
+            Default is no offset
+        
         display : bool
             Display the fit of the satelitte spots. Default is False.
 
@@ -2167,8 +2173,8 @@ class Reduction(object):
             save_path = None
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                    high_pass=high_pass, display=display,
-                                                    save_path=save_path)
+                                                    high_pass=high_pass, center_offset=offset,
+                                                    display=display, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2295,7 +2301,7 @@ class Reduction(object):
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
 
 
-    def sph_ifs_star_center(self, high_pass=False, display=False, save=True):
+    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), display=False, save=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -2304,6 +2310,10 @@ class Reduction(object):
         high_pass : bool
             Apply high-pass filter to the image before searching for the satelitte spots
 
+        offset : tuple
+            Apply an (x,y) offset to the default center position, for the waffle centering.
+            Default is no offset
+        
         display : bool
             Display the fit of the satelitte spots
 
@@ -2375,8 +2385,8 @@ class Reduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                            high_pass=high_pass, display=display,
-                                                            save_path=save_path)
+                                                            high_pass=high_pass, center_offset=offset,
+                                                            display=display, save_path=save_path)
                 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)

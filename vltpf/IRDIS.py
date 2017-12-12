@@ -252,6 +252,7 @@ class ImagingReduction(object):
         config = self._config
         
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
+                                 offset=eval(config['center_offset']),
                                  display=config['center_display'],
                                  save=config['center_save'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
@@ -1105,7 +1106,7 @@ class ImagingReduction(object):
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
-    def sph_ird_star_center(self, high_pass=False, display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), display=False, save=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1114,6 +1115,10 @@ class ImagingReduction(object):
         high_pass : bool
             Apply high-pass filter to the image before searching for the satelitte spots
 
+        offset : tuple
+            Apply an (x,y) offset to the default center position, for the waffle centering.
+            Default is no offset
+        
         display : bool
             Display the fit of the satelitte spots
 
@@ -1179,8 +1184,8 @@ class ImagingReduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_cube(cube, wave, 'IRDIS', waffle_orientation,
-                                                            high_pass=high_pass, display=display,
-                                                            save_path=save_path)
+                                                            high_pass=high_pass, center_offset=offset, 
+                                                            display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
