@@ -2446,9 +2446,14 @@ class Reduction(object):
             is True. See user manual for details.
 
         nocenter : bool        
-            Control if images are centered or not before being
-            combined. Useful if centering must be done
-            afterwards. Default is False. Note that if nocenter is
+            Control if images are finely centered or not before being
+            combined. However the images are still roughly centered by
+            shifting them by an integer number of pixel to bring the
+            center of the data close to the center of the images. This
+            option is useful if fine centering must be done
+            afterwards.
+
+        Default is False. Note that if nocenter is
             True, the save_scaled option is automatically disabled.
         
         shift_method : str
