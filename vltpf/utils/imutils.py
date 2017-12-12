@@ -11,8 +11,6 @@ import scipy.fftpack as fft
 import scipy.ndimage as ndimage
 import warnings
 
-from astropy.convolution import convolve, Box2DKernel
-
 ####################################################################################
 #
 # SHIFT
