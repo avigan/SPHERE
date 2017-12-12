@@ -830,13 +830,12 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
 
     # clip bad pixels
     box2 = box**2
-    
-    kernel = Box2DKernel(box)
-    img_clip = (convolve(img, kernel)*box2 - img) / (box2-1)
-    
+
+    img_clip = (ndimage.uniform_filter(img, box, mode='constant')*box2 - img) / (box2-1)
+
     imdev = (img - img_clip)**2
     fact = nsigma**2 / (box2-2)
-    imvar = fact*(convolve(imdev, kernel)*box2 - imdev)
+    imvar = fact*(ndimage.uniform_filter(imdev, box, mode='constant')*box2 - imdev)
     
     wok = np.nonzero(imdev < imvar)
     nok = wok[0].size
@@ -853,9 +852,10 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     _mask[img != img_clip] = True
 
     # iterations
+    nchange = img.size - nok
     if (iterate is True):
         _iters = _iters+1
-        if (_iters >= max_iter):
+        if (_iters >= max_iter) or (nchange == 0):
             if return_mask:
                 return img_clip, _mask
             else:
@@ -869,7 +869,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     else:
         return img_clip
 
-    
+
 def fix_badpix_vip(img, bpm, box=5):
     '''
     Corrects the bad pixels, marked in the bad pixel mask.
