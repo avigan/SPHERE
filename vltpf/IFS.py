@@ -884,6 +884,8 @@ class Reduction(object):
         pa_start = cinfo['PARANG'][0]
         pa_end   = cinfo['PARANG'][-1]
 
+        posang   = cinfo['INS4 DROT2 POSANG'].unique()
+        
         date = str(cinfo['DATE'][0])[0:10]
         
         print(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
@@ -898,6 +900,7 @@ class Reduction(object):
         print(' * NDIT:        {0:.0f}'.format(cinfo['DET NDIT'][0]))
         print(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
         print(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
+        print(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
 
     def check_files_association(self):
