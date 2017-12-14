@@ -325,7 +325,8 @@ def fit_peak(x, y, display=False):
 
 class Reduction(object):
     '''
-    SPHERE/IFS reduction object
+    SPHERE/IFS reduction class. It handles indifferently IFS-YJ or
+    IFS-YJH (aka IFS-H, IFS-EXT) data sets.
     '''
 
     ##################################################

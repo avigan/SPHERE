@@ -25,9 +25,10 @@ import vltpf.toolbox as toolbox
 
 
 class ImagingReduction(object):
-    '''SPHERE/IRDIS imaging reduction object. It handles the dual-band
-    imaging (DBI) and classifcal imaging (CI) observing modes.
-
+    '''
+    SPHERE/IRDIS imaging reduction class. It handles both the
+    dual-band imaging (DBI) and classical imaging (CI) observing
+    modes.
     '''
 
     ##################################################
