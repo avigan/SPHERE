@@ -86,18 +86,9 @@ class ImagingReduction(object):
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._config = dict(config.items('reduction'))
+            self._config = dict(config.items('reduction-imaging'))
             for key, value in self._config.items():
-                if (value == 'True'):
-                    self._config[key] = True
-                elif (value == 'False'):
-                    self._config[key] = False
-                else:
-                    try:
-                        value = int(value)
-                        self._config[key] = value
-                    except ValueError:
-                        pass
+                self._config[key] = eval(value)
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -1599,3 +1590,4 @@ class ImagingReduction(object):
         if delete_products:
             if os.path.exists(path.products):
                 shutil.rmtree(path.products, ignore_errors=True)
+
