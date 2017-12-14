@@ -11,6 +11,8 @@ import scipy.fftpack as fft
 import scipy.ndimage as ndimage
 import warnings
 
+from astropy.convolution import convolve, Box2DKernel
+
 ####################################################################################
 #
 # SHIFT
@@ -829,11 +831,20 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     # clip bad pixels
     box2 = box**2
 
-    img_clip = (ndimage.uniform_filter(img, box, mode='constant')*box2 - img) / (box2-1)
+    kernel = Box2DKernel(box)
+    img_clip = (convolve(img, kernel)*box2 - img) / (box2-1)
 
     imdev = (img - img_clip)**2
     fact = nsigma**2 / (box2-2)
-    imvar = fact*(ndimage.uniform_filter(imdev, box, mode='constant')*box2 - imdev)
+    imvar = fact*(convolve(imdev, kernel)*box2 - imdev)
+
+    # following solution is faster but does not support bad pixels
+    # see avigan/VLTPF#49
+    # img_clip = (ndimage.uniform_filter(img, box, mode='constant')*box2 - img) / (box2-1)
+
+    # imdev = (img - img_clip)**2
+    # fact = nsigma**2 / (box2-2)
+    # imvar = fact*(ndimage.uniform_filter(imdev, box, mode='constant')*box2 - imdev)
     
     wok = np.nonzero(imdev < imvar)
     nok = wok[0].size
