@@ -1165,9 +1165,10 @@ class Reduction(object):
         files_info = self._files_info
         
         # get list of files
-        raw = files_info[np.logical_not(files_info['PROCESSED'])]
-        calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
-                     (files_info['DPR TYPE'] == 'SKY')]
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'DARK') |
+                             (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
+                             (files_info['DPR TYPE'] == 'SKY'))]
 
         # loops on type and DIT value
         types = ['DARK', 'DARK,BACKGROUND', 'SKY']
@@ -1270,8 +1271,9 @@ class Reduction(object):
         files_info = self._files_info
         
         # get list of files
-        raw = files_info[np.logical_not(files_info['PROCESSED'])]
-        calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
+                             (files_info['DPR TECH'] == 'IMAGE'))]
 
         # IFS obs mode
         mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    

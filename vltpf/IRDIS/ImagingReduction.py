@@ -657,9 +657,10 @@ class ImagingReduction(object):
         files_info = self._files_info
         
         # get list of files
-        raw = files_info[np.logical_not(files_info['PROCESSED'])]
-        calibs = raw[(files_info['DPR TYPE'] == 'DARK') | (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
-                     (files_info['DPR TYPE'] == 'SKY')]
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'DARK') |
+                             (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
+                             (files_info['DPR TYPE'] == 'SKY'))]
 
         # loops on type and DIT value
         types = ['DARK', 'DARK,BACKGROUND', 'SKY']
@@ -774,8 +775,9 @@ class ImagingReduction(object):
         files_info = self._files_info
         
         # get list of files
-        raw = files_info[np.logical_not(files_info['PROCESSED'])]
-        calibs = raw[(files_info['DPR TYPE'] == 'FLAT,LAMP') | (files_info['DPR TECH'] == 'IMAGE')]
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
+                             (files_info['DPR TECH'] == 'IMAGE'))]
         filter_combs = calibs['INS COMB IFLT'].unique()
         
         for cfilt in filter_combs:
