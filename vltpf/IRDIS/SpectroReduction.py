@@ -83,16 +83,11 @@ class SpectroReduction(object):
             # reduction
             self._config = dict(config.items('reduction-spectro'))
             for key, value in self._config.items():
-                if (value == 'True'):
-                    self._config[key] = True		
-                elif (value == 'False'):		
-                    self._config[key] = False		
-                else:		
-                    try:		
-                        value = int(value)		
-                        self._config[key] = value		
-                    except ValueError:		
-                        pass                
+                try:
+                    val = eval(value)
+                except NameError:
+                    val = value                    
+                self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -207,7 +202,9 @@ class SpectroReduction(object):
         # make sure we have sub-directories
         self._path.create_subdirectories()
                 
-        pass
+        self.sort_files()
+        self.sort_frames()
+        self.check_files_association()
     
     
     def create_static_calibrations(self):

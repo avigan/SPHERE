@@ -398,16 +398,11 @@ class Reduction(object):
             # reduction
             self._config = dict(config.items('reduction'))
             for key, value in self._config.items():
-                if (value == 'True'):
-                    self._config[key] = True		
-                elif (value == 'False'):		
-                    self._config[key] = False		
-                else:		
-                    try:		
-                        value = int(value)		
-                        self._config[key] = value		
-                    except ValueError:		
-                        pass                
+                try:
+                    val = eval(value)
+                except NameError:
+                    val = value                    
+                self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
