@@ -165,12 +165,12 @@ def sph_ifs_fix_badpix(img, bpm):
     '''
     Clean the bad pixels in an IFU image
 
-    Extremely effective routine to remove bad pixels. It goes through
-    all bad pixels and fit a line beween the first good pixels
-    encountered along the same column as the bad pixel, i.e. along the
-    spectral axis of each micro-spectrum. Works very well because as
-    zeroth-order the spectrum is very smooth and can be approximated
-    by a line over one (or a few) bad pixels.
+    Extremely effective routine to remove bad pixels in IFS data. It
+    goes through all bad pixels and fit a line beween the first good
+    pixels encountered along the same column as the bad pixel,
+    i.e. along the spectral axis of each micro-spectrum. Works very
+    well because as zeroth-order the spectrum is very smooth and can
+    be approximated by a line over one (or a few) bad pixels.
 
     Parameters
     ----------
@@ -213,8 +213,8 @@ def sph_ifs_fix_badpix(img, bpm):
         sub = img_clean[y-ext:y+ext+1, x]
 
         # sub-regions "above" and "below" the bad pixel
-        sub_low = np.flip(img_clean[y-ext//2:y, x], axis=0)
-        sub_hig = img_clean[y+1:y+1+ext//2, x]
+        sub_low = np.flip(img_clean[y-ext:y, x], axis=0)
+        sub_hig = img_clean[y+1:y+1+ext, x]
 
         # if any of the two is completely bad: skip
         # occurs only in the vignetted areas
