@@ -106,7 +106,7 @@ class SpectroReduction(object):
     ##################################################
     
     def __repr__(self):
-        return '<ImagingReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+        return '<SpectroReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
     
     ##################################################
     # Properties
