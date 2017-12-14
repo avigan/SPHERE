@@ -1591,3 +1591,240 @@ class ImagingReduction(object):
             if os.path.exists(path.products):
                 shutil.rmtree(path.products, ignore_errors=True)
 
+
+
+class SpectroReduction(object):
+    '''
+    SPHERE/IRDIS long-slit spectroscopy reduction class. It handles
+    both the low and medium resolution modes (LRS, MRS)
+    '''
+
+    ##################################################
+    # Class variables
+    ##################################################
+
+    # specify for each recipe which other recipes need to have been executed before
+    recipe_requirements = {
+        'sort_files': [],
+        'sort_frames': ['sort_files'],
+        'check_files_association': ['sort_files']
+    }
+    
+    ##################################################
+    # Constructor
+    ##################################################
+    
+    def __init__(self, path):
+        '''Initialization of the SpectroReduction instances
+
+        Parameters
+        ----------
+        path : str
+            Path to the directory containing the raw data
+
+        '''
+
+        # expand path
+        path = os.path.expanduser(os.path.join(path, ''))
+        
+        # zeroth-order reduction validation
+        raw = os.path.join(path, 'raw')
+        if not os.path.exists(raw):
+            raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        
+        # init path and name
+        self._path = ReductionPath.Path(path)
+        self._instrument = 'IRDIS'
+        
+        # configuration
+        package_directory = os.path.dirname(os.path.abspath(__file__))
+        configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
+        config = configparser.ConfigParser()
+        try:
+            config.read(configfile)
+
+            # instrument
+            self._pixel = float(config.get('instrument', 'pixel'))
+            self._nwave = int(config.get('instrument', 'nwave'))
+            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+
+            # reduction
+            self._config = dict(config.items('reduction-spectro'))
+            for key, value in self._config.items():
+                self._config[key] = eval(value)
+        except configparser.Error as e:
+            raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
+        
+        # execution of recipes
+        self._recipe_execution = {
+            'sort_files': False,
+            'sort_frames': False,
+            'check_files_association': False
+        }
+        
+        # reload any existing data frames
+        self.read_info()
+    
+    ##################################################
+    # Representation
+    ##################################################
+    
+    def __repr__(self):
+        return '<ImagingReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+    
+    ##################################################
+    # Properties
+    ##################################################
+    
+    @property
+    def instrument(self):
+        return self._instrument
+
+    @property
+    def pixel(self):
+        return self._pixel
+    
+    @property
+    def nwave(self):
+        return self._nwave
+    
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def files_info(self):
+        return self._files_info
+    
+    @property
+    def frames_info(self):
+        return self._frames_info
+    
+    @property
+    def frames_info_preproc(self):
+        return self._frames_info_preproc
+
+    @property
+    def recipe_execution(self):
+        return self._recipe_execution
+    
+    @property
+    def config(self):
+        return self._config    
+
+    ##################################################
+    # Generic class methods
+    ##################################################
+
+    def show_config(self):
+        '''
+        Shows the reduction configuration
+        '''
+
+        # dictionary
+        dico = self._config
+
+        # silent parameter
+        print('{0:<30s}{1}'.format('Parameter', 'Value'))
+        print('-'*35)
+        key = 'silent'
+        print('{0:<30s}{1}'.format(key, dico[key]))
+
+        # pre-processing
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('preproc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
+        # centring
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('center')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+        
+        # combining
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('combine')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
+        # clean
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('clean')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+        print('-'*35)
+            
+        print()
+        
+           
+    def init_reduction(self):
+        '''
+        Sort files and frames, perform sanity check
+        '''
+
+        # make sure we have sub-directories
+        self._path.create_subdirectories()
+                
+        pass
+    
+    
+    def create_static_calibrations(self):
+        '''
+        Create static calibrations with esorex
+        '''
+
+        config = self._config
+        
+        pass
+
+    
+    def preprocess_science(self):
+        '''
+        Clean and collapse images
+        '''
+        
+        config = self._config
+        
+        pass
+    
+
+    def process_science(self):
+        '''
+        Perform star center, combine cubes into final (x,y,time,lambda)
+        cubes, correct anamorphism and scale the images
+        '''
+        
+        config = self._config
+        
+        pass
+    
+    
+    def clean(self):
+        '''
+        Clean the reduction directory, leaving only the raw and products
+        sub-directory
+        '''
+        
+        config = self._config
+
+        pass
+    
+        
+    def full_reduction(self):
+        '''
+        Performs a full reduction of a data set, from the static
+        calibrations to the final (x,y,time,lambda) cubes
+        '''
+        
+        self.init_reduction()
+        self.create_static_calibrations()
+        self.preprocess_science()
+        self.process_science()
+        self.clean()
+
+    ##################################################
+    # SPHERE/IRDIS methods
+    ##################################################
+    
+    # TBD
