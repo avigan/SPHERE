@@ -340,7 +340,7 @@ def _rotate_interp(array, alpha, center, mode='constant', cval=0):
     xp = (x-center[0])*np.cos(alpha_rad) + (y-center[1])*np.sin(alpha_rad) + center[0]
     yp = -(x-center[0])*np.sin(alpha_rad) + (y-center[1])*np.cos(alpha_rad) + center[1]
 
-    rotated = ndimage.map_coordinates(img, [yp, xp], mode=mode, cval=cval, order=3)
+    rotated = ndimage.map_coordinates(array, [yp, xp], mode=mode, cval=cval, order=3)
     
     return rotated
 
