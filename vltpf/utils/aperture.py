@@ -125,7 +125,7 @@ def disc_obstructed(dim, size, obs, **kwargs):
         raise ValueError('obs value must be within [0,1]')
         return None
         
-    ap_out = disc(dim, size, **kwargs)    
+    ap_out = disc(dim, size, **kwargs)
     ap_in = disc(dim, size*obs, **kwargs)
         
     return ap_out - ap_in
@@ -273,8 +273,110 @@ def _rotate_interp(array, alpha, center, mode='constant', cval=0):
     return rotated
 
 
+def _rotate_spider_interp(array, alpha0, center0, alpha1, center1):
+    '''
+    Rotation around a provided center
+
+    This is the only way to be sure where exactly is the center of rotation.
+
+    '''
+    dtype = array.dtype
+    dims  = array.shape
+    alpha0_rad = -np.deg2rad(alpha0)
+    alpha1_rad = -np.deg2rad(alpha1)
+
+    x, y = np.meshgrid(np.arange(dims[1], dtype=dtype), np.arange(dims[0], dtype=dtype))
+
+    x0 =  (x-center0[0])*np.cos(alpha0_rad) + (y-center0[1])*np.sin(alpha0_rad) + center0[0]
+    y0 = -(x-center0[0])*np.sin(alpha0_rad) + (y-center0[1])*np.cos(alpha0_rad) + center0[1]
+
+    x1 =  (x0-center1[0])*np.cos(alpha1_rad) + (y0-center1[1])*np.sin(alpha1_rad) + center1[0]
+    y1 = -(x0-center1[0])*np.sin(alpha1_rad) + (y0-center1[1])*np.cos(alpha1_rad) + center1[1]
+    
+    rotated = ndimage.map_coordinates(array, [y1, x1], mode='constant', cval=0, order=3)
+    
+    return rotated
+
+
+def vlt_pupil(dim, diameter, spiders=False, spiders_orientation=0):
+    '''Very Large Telescope theoretical pupil with central obscuration and spiders
+
+    Parameters
+    ----------
+    dim : int
+        Size of the output array
+    
+    diameter : int
+        Diameter the disk
+
+    spiders : bool
+        Draw spiders. Default is False
+
+    spiders_orientation : float
+        Orientation of the spiders. The zero-orientation corresponds
+        to the orientation of the spiders when observing in ELEV
+        mode. Default is 0
+
+    Returns
+    -------
+    pup : array
+        An array containing a disc with the specified parameters
+
+    '''
+
+    # central obscuration & spiders (in fraction of the pupil)
+    obs  = 1100/8000
+    spdr = 0.008
+
+    # spiders
+    if spiders:
+        # adds some padding on the borders
+        tdim = dim+50
+
+        # dimensions
+        cc = tdim // 2
+        spdr = int(max(1, spdr*dim))
+            
+        ref = np.zeros((tdim, tdim))
+        ref[cc:, cc:cc+spdr] = 1
+        spider1 = _rotate_interp(ref, -5.5, (cc, cc+diameter/2))
+
+        ref = np.zeros((tdim, tdim))
+        ref[:cc, cc-spdr+1:cc+1] = 1
+        spider2 = _rotate_interp(ref, -5.5, (cc, cc-diameter/2))
+        
+        ref = np.zeros((tdim, tdim))
+        ref[cc:cc+spdr, cc:] = 1
+        spider3 = _rotate_interp(ref, 5.5, (cc+diameter/2, cc))
+        
+        ref = np.zeros((tdim, tdim))
+        ref[cc-spdr+1:cc+1, :cc] = 1
+        spider4 = _rotate_interp(ref, 5.5, (cc-diameter/2, cc))
+
+        spider0 = spider1 + spider2 + spider3 + spider4
+
+        spider0 = _rotate_interp(spider1+spider2+spider3+spider4, 45+spiders_orientation, (cc, cc))
+        
+        spider0 = 1 - spider0
+        spider0 = spider0[25:-25, 25:-25]
+    else:
+        spider0 = np.ones(dim)
+
+    # main pupil
+    pup = disc_obstructed(dim, diameter, obs, diameter=True, strict=False, cpix=True)
+
+    # add spiders
+    pup *= spider0
+    
+    return pup
+
+
 def sphere_pupil(dim, diameter, dead_actuator_diameter=0.025, spiders=False, spiders_orientation=0):
-    '''SPHERE pupil with dead actuators mask and spiders
+    '''
+    SPHERE pupil with dead actuators mask and spiders. Measured from a
+    real pupil image acquired with IRDIS. In this SPHERE pupil, the origin
+    and angle of the spiders are tweaked to match exactly the pupil as 
+    seen by SPHERE.
 
     Parameters
     ----------
@@ -303,38 +405,63 @@ def sphere_pupil(dim, diameter, dead_actuator_diameter=0.025, spiders=False, spi
     '''
 
     # central obscuration & spiders (in fraction of the pupil)
-    obs  = 0.14
-    spdr = 0.005
-
-    # main pupil
-    pup = disc_obstructed(dim, diameter, obs, diameter=True, strict=False, cpix=True)
+    obs  = 1100/8000
+    spdr = 0.008
 
     # spiders
-    spdr = max(1, spdr*dim)
-    ref = np.zeros((dim, dim))
-    ref[int(dim//2):, int((dim-spdr)/2+1):int((dim+spdr)//2)] = 1
+    if spiders:
+        # adds some padding on the borders
+        tdim = dim+50
 
-    cc = dim/2
-    spdr1 = _rotate_interp(ref, -5.5, (cc, cc+diameter/2))
-    spdr2 = _rotate_interp(np.rot90(ref, k=1),  5.5, (cc+diameter/2, cc))
-    
-    spdr0 = spdr1 + spdr2
-    spdr0 = np.roll(np.roll(spdr0, -1, axis=0), -1, axis=1) + np.rot90(spdr0, k=2)
-    spdr0 = _rotate_interp(spdr0, 45+spiders_orientation, (cc, cc))
-    spdr0 = np.roll(np.roll(spdr0, 1, axis=0), 1, axis=1)
-    
-    pup *= 1-spdr0
-    
-    # dead actuators    
-    xarr = np.array([ 0.1534,  -0.0984, -0.1963,  0.2766,  0.3297])
-    yarr = np.array([-0.0768,  -0.1240, -0.3542, -0.2799, -0.2799])
-    for i in range(len(xarr)):
-        cx = xarr[i] * diameter + diameter/2
-        cy = yarr[i] * diameter + diameter/2
+        # dimensions
+        cc = tdim // 2
+        spdr = int(max(1, spdr*dim))
+            
+        ref = np.zeros((tdim, tdim))
+        ref[cc:, cc+2:cc+spdr+2] = 1
+        spider1 = _rotate_interp(ref, -5.1, (cc, cc+diameter/2))
+
+        ref = np.zeros((tdim, tdim))
+        ref[:cc, cc-spdr+1:cc+1] = 1
+        spider2 = _rotate_interp(ref, -5.1, (cc, cc-diameter/2))
         
-        dead = disc(dim, dead_actuator_diameter*diameter, center=(cx, cy), invert=True)
+        ref = np.zeros((tdim, tdim))
+        ref[cc+1:cc+spdr+1, cc:] = 1
+        spider3 = _rotate_interp(ref, 5.5, (cc+diameter/2, cc))
+        
+        ref = np.zeros((tdim, tdim))
+        ref[cc-spdr+1+2:cc+1+2, :cc] = 1
+        spider4 = _rotate_interp(ref, 5.7, (cc-diameter/2, cc))
 
-        pup *= dead
+        spider0 = spider1 + spider2 + spider3 + spider4
+
+        spiders_orientation_correction = -1
+        spider0 = _rotate_interp(spider1+spider2+spider3+spider4,
+                                 45+spiders_orientation+spiders_orientation_correction, (cc, cc))
+        
+        spider0 = 1 - spider0
+        spider0 = spider0[25:-25, 25:-25]
+    else:
+        spider0 = np.ones(dim)
+
+    # main pupil
+    pup = disc(dim, diameter, diameter=True, strict=False, cpix=True)
+
+    # central obscuration and spiders
+    pup -= disc(dim, diameter*obs, center=(dim//2+1.5, dim//2), diameter=True, strict=False, cpix=True)
+    pup *= spider0
+    
+    # dead actuators
+    if dead_actuator_diameter > 0:
+        xarr = np.array([ 0.1534,  -0.0984, -0.1963,  0.2766,  0.3297])
+        yarr = np.array([-0.0768,  -0.1240, -0.3542, -0.2799, -0.2799])
+        for i in range(len(xarr)):
+            cx = xarr[i] * diameter + dim/2
+            cy = yarr[i] * diameter + dim/2
+
+            dead = disc(dim, dead_actuator_diameter*diameter, center=(cx, cy), invert=True)
+
+            pup *= dead
 
     return pup
 
@@ -346,12 +473,15 @@ if __name__ == "__main__":
     diam = 81
     obs  = 0.2
     
-    d1 = disc_obstructed(dim, diam, obs, cpix=False, center=(), strict=True, invert=True)
+    d1 = disc_obstructed(dim, diam, obs, cpix=False, center=(), strict=True)
+    d2 = sphere_pupil(dim, dim, spiders=1)
     
     r, t = coordinates(dim, diam, cpix=False, strict=False, center=(100, 111))
 
+    plt.figure(1, figsize=(15, 7))
     plt.clf()
-    plt.imshow(d1)
+    plt.subplot(121)
+    plt.imshow(d1, vmin=0, vmax=1, origin=1)
+    plt.subplot(122)
+    plt.imshow(d2, vmin=0, vmax=1, origin=1)
 
-    # plt.clf()
-    # plt.imshow(sphere_pupil_internal(384, 384))
