@@ -39,7 +39,8 @@ class SpectroReduction(object):
     recipe_requirements = {
         'sort_files': [],
         'sort_frames': ['sort_files'],
-        'check_files_association': ['sort_files']
+        'check_files_association': ['sort_files'],
+        'sph_ird_cal_dark': ['sort_files']
     }
     
     ##################################################
@@ -107,6 +108,9 @@ class SpectroReduction(object):
     
     def __repr__(self):
         return '<SpectroReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+    
+    def __format__(self):
+        return self.__repr__()
     
     ##################################################
     # Properties
@@ -293,7 +297,7 @@ class SpectroReduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
             
             # update recipe execution
-            # self._recipe_execution['sort_files'] = True
+            self._recipe_execution['sort_files'] = True
             # if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
             #     self._recipe_execution['sph_ird_cal_dark'] = True
             # if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
@@ -529,3 +533,227 @@ class SpectroReduction(object):
         print(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
         print(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         print(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
+
+        
+    def check_files_association(self):
+        '''
+        Performs the calibration files association as a sanity check.
+
+        Warnings and errors are reported at the end. Execution is
+        interupted in case of error.
+        '''
+
+        print('check_files_association() not implemented yet')
+
+    
+    def sph_ird_cal_dark(self, silent=True):
+        '''
+        Create the dark and background calibrations
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Default is True
+        '''
+
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements)
+        
+        print('Creating darks and backgrounds')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'DARK') |
+                             (files_info['DPR TYPE'] == 'DARK,BACKGROUND') |
+                             (files_info['DPR TYPE'] == 'SKY'))]
+
+        # loops on type and DIT value
+        types = ['DARK', 'DARK,BACKGROUND', 'SKY']
+        DITs = calibs['DET SEQ1 DIT'].unique().round(2)
+        filter_combs = calibs['INS COMB IFLT'].unique()
+
+        for ctype in types:
+            for DIT in DITs:
+                for cfilt in filter_combs:
+                    cfiles = calibs[(calibs['DPR TYPE'] == ctype) & (calibs['DET SEQ1 DIT'].round(2) == DIT) &
+                                    (calibs['INS COMB IFLT'] == cfilt)]
+                    files = cfiles.index
+
+                    # skip non-existing combinations
+                    if len(cfiles) == 0:
+                        continue
+
+                    print(' * {0} in filter {1} with DIT={2:.2f} sec ({3} files)'.format(ctype, cfilt, DIT, len(cfiles)))
+
+                    # create sof
+                    sof = os.path.join(path.sof, 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT))
+                    file = open(sof, 'w')
+                    for f in files:
+                        file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
+                    file.close()
+
+                    # products
+                    if ctype == 'SKY':
+                        loc = 'sky'
+                    else:
+                        loc = 'internal'
+                    dark_file = 'dark_{0}_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
+                    bpm_file  = 'dark_{0}_bpm_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
+
+                    # different max level in LRS
+                    max_level = 1000
+                    if cfilt in ['S_LR']:
+                        max_level = 15000
+                    
+                    # esorex parameters    
+                    args = ['esorex',
+                            '--no-checksum=TRUE',
+                            '--no-datamd5=TRUE',
+                            'sph_ird_master_dark',
+                            '--ird.master_dark.sigma_clip=5.0',
+                            '--ird.master_dark.save_addprod=TRUE',
+                            '--ird.master_dark.max_acceptable={0}'.format(max_level),
+                            '--ird.master_dark.outfilename={0}{1}.fits'.format(path.calib, dark_file),
+                            '--ird.master_dark.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                            sof]
+
+                    # check esorex
+                    if shutil.which('esorex') is None:
+                        raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                                        'that the ESO pipeline is properly installed before running VLTPF.')
+
+                    # execute esorex
+                    if silent:
+                        proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+                    else:
+                        proc = subprocess.run(args, cwd=path.tmp)
+
+                    if proc.returncode != 0:
+                        raise ValueError('esorex process was not successful')
+
+                    # store products
+                    files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+                    files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                    files_info.loc[dark_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+                    files_info.loc[dark_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+                    files_info.loc[dark_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+                    files_info.loc[dark_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+                    files_info.loc[dark_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+                    files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+                    files_info.loc[dark_file, 'PROCESSED'] = True
+                    files_info.loc[dark_file, 'PRO CATG'] = 'IRD_MASTER_DARK'
+
+                    files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+                    files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+                    files_info.loc[bpm_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+                    files_info.loc[bpm_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+                    files_info.loc[bpm_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+                    files_info.loc[bpm_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+                    files_info.loc[bpm_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+                    files_info.loc[bpm_file, 'PROCESSED'] = True
+                    files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_STATIC_BADPIXELMAP'
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_cal_dark'] = True
+
+
+    def sph_ird_cal_detector_flat(self, silent=True):
+        '''
+        Create the detector flat calibrations
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Default is True
+        '''
+
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements)
+        
+        print('Creating flats')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        calibs = files_info[np.logical_not(files_info['PROCESSED']) &
+                            ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
+                             (files_info['DPR TECH'] == 'IMAGE'))]
+        filter_combs = calibs['INS COMB IFLT'].unique()
+        
+        for cfilt in filter_combs:
+            cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
+            files = cfiles.index
+
+            print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
+            
+            # create sof
+            sof = os.path.join(path.sof, 'flat_filt={0}.sof'.format(cfilt))
+            file = open(sof, 'w')
+            for f in files:
+                file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+            file.close()
+
+            # products
+            flat_file = 'flat_filt={0}'.format(cfilt)
+            bpm_file  = 'flat_bpm_filt={0}'.format(cfilt)
+            
+            # esorex parameters    
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ird_instrument_flat',
+                    '--ird.instrument_flat.save_addprod=TRUE',
+                    '--ird.instrument_flat.outfilename={0}{1}.fits'.format(path.calib, flat_file),
+                    '--ird.instrument_flat.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                    sof]
+
+            # check esorex
+            if shutil.which('esorex') is None:
+                raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                                'that the ESO pipeline is properly installed before running VLTPF.')
+
+            # execute esorex
+            if silent:
+                proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+            else:
+                proc = subprocess.run(args, cwd=path.tmp)
+
+            if proc.returncode != 0:
+                raise ValueError('esorex process was not successful')
+
+            # store products
+            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[flat_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+            files_info.loc[flat_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+            files_info.loc[flat_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+            files_info.loc[flat_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+            files_info.loc[flat_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+            files_info.loc[flat_file, 'PROCESSED'] = True
+            files_info.loc[flat_file, 'PRO CATG'] = 'IRD_FLAT_FIELD'
+
+            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[bpm_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+            files_info.loc[bpm_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+            files_info.loc[bpm_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+            files_info.loc[bpm_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+            files_info.loc[bpm_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+            files_info.loc[bpm_file, 'PROCESSED'] = True
+            files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
+        
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_cal_detector_flat'] = True
