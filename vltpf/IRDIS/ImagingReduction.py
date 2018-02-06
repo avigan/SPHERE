@@ -1306,15 +1306,16 @@ class ImagingReduction(object):
             science_dim = 1024
 
         # centering
+        centers_default = np.array([[484, 517], [486, 508]])
         if skip_center:
             print('Warning: images will not be centered. They will just be combined.')
             shift_method = 'roll'
-            centers_default = np.array([[484, 517], [486, 508]])
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
             if manual_center.shape != (2, 2):
                 raise ValueError('manual_center does not have the right number of dimensions.')
+            
             print('Warning: images will be centered at the user-provided values.')
 
         #

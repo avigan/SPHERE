@@ -2162,8 +2162,6 @@ class Reduction(object):
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
             fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_drh, overwrite=True)
 
-            return wave_drh
-
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
         fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
 
@@ -2518,10 +2516,10 @@ class Reduction(object):
             science_dim = 290
 
         # centering
+        centers_default = np.full((nwave, 2), 290//2)
         if skip_center:
             print('Warning: images will not be centered. They will just be combined.')
             shift_method = 'roll'
-            centers_default = np.full((nwave, 2), 290//2)
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
