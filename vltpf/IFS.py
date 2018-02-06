@@ -589,7 +589,8 @@ class Reduction(object):
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
-                                  nocenter=config['combine_nocenter'],
+                                  manual_center=config['combine_manual_center'],
+                                  skip_center=config['combine_skip_center'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
@@ -2408,7 +2409,7 @@ class Reduction(object):
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', nocenter=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -2456,7 +2457,14 @@ class Reduction(object):
             Correct the optical anamorphism of the instrument. Default
             is True. See user manual for details.
 
-        nocenter : bool        
+        manual_center : array
+            User provided centers for the OBJECT,CENTER and OBJECT
+            frames. This should be an array of either 2 or nwavex2
+            values. If a manual center is provided, the value of
+            skip_center is ignored for the OBJECT,CENTER and OBJECT
+            frames. Default is None
+
+        skip_center : bool        
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -2464,7 +2472,7 @@ class Reduction(object):
             option is useful if fine centering must be done
             afterwards.
 
-        Default is False. Note that if nocenter is
+        Default is False. Note that if skip_center is
             True, the save_scaled option is automatically disabled.
         
         shift_method : str
@@ -2504,10 +2512,20 @@ class Reduction(object):
             science_dim = 290
 
         # centering
-        if nocenter:
+        if skip_center:
             print('Warning: images will not be centered. They will just be combined.')
             shift_method = 'roll'
             centers_default = np.full((nwave, 2), 290//2)
+
+        if manual_center is not None:
+            manual_center = np.array(manual_center)
+            if (manual_center.shape != (2,)) or (manual_center.shape != (nwave, 2)):
+                raise ValueError('manual_center does not have the right number of dimensions.')
+            
+            if manual_center.shape == (2,):
+                manual_center = np.full((nwave, 2), manual_center)
+
+            print('Warning: images will be centered at the user-provided values.')
 
         #
         # OBJECT,FLUX
@@ -2554,7 +2572,7 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if nocenter:
+                    if skip_center:
                         cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
@@ -2636,10 +2654,13 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if nocenter:
-                        cx, cy = centers_default[wave_idx, :]
+                    if manual_center is not None:
+                        cx, cy = manual_center[wave_idx, :]
                     else:
-                        cx, cy = centers[wave_idx, :]
+                        if skip_center:
+                            cx, cy = centers_default[wave_idx, :]
+                        else:
+                            cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
@@ -2683,11 +2704,15 @@ class Reduction(object):
 
             # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-            if len(starcen_files) == 0:
+            if len(starcen_files) == 0 or (manual_center is not None):
                 print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
                       'They will just be combined.')
 
-                centers = centers_default
+                # choose between manual center or default centers
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    centers = centers_default
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
                 centers = fits.getdata(os.path.join(path.preproc, fname))
