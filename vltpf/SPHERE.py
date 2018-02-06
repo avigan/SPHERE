@@ -119,6 +119,8 @@ def sort_files_from_xml(path, silent=True):
         tree = etree.parse(file)
         root = tree.getroot()            
 
+        print(os.path.basename(file))
+        
         # process only IFS and IRDIS science data
         catg = root.attrib['category']
         if (catg.find('ACQUISITION') != -1):
@@ -163,6 +165,10 @@ def sort_files_from_xml(path, silent=True):
             file = os.path.join(path, f+'.fits')
             nfile = os.path.join(target_path, f+'.fits')
 
+            # check if file actually exists
+            if not os.path.exists(file):
+                continue
+            
             # copy if needed
             if not os.path.exists(nfile):
                 shutil.copy(file, nfile)

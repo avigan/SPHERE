@@ -114,6 +114,9 @@ class ImagingReduction(object):
     def __repr__(self):
         return '<ImagingReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
     
+    def __format__(self):
+        return self.__repr__()
+    
     ##################################################
     # Properties
     ##################################################
@@ -1177,6 +1180,13 @@ class ImagingReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
+
+                # coronagraph
+                coro_name = starcen_files.loc[(file, idx), 'INS COMB ICOR']
+                if coro_name == 'N_NS_CLEAR':
+                    coro = False
+                else:
+                    coro = True
                 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
@@ -1186,8 +1196,8 @@ class ImagingReduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_cube(cube, wave, 'IRDIS', waffle_orientation,
-                                                            high_pass=high_pass, center_offset=offset, 
-                                                            display=display, save_path=save_path)
+                                                            high_pass=high_pass, center_offset=offset,
+                                                            coro=coro, display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)

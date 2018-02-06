@@ -433,6 +433,9 @@ class Reduction(object):
     
     def __repr__(self):
         return '<Reduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+
+    def __format__(self):
+        return self.__repr__()
     
     ##################################################
     # Properties
@@ -2161,11 +2164,18 @@ class Reduction(object):
             return wave_drh
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
-        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])    
+        fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
 
         files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
         cube, hdr = fits.getdata(files[0], header=True)
 
+        # coronagraph
+        coro_name = starcen_files['INS COMB ICOR'].values[0]
+        if coro_name == 'N_NS_CLEAR':
+            coro = False
+        else:
+            coro = True
+        
         # compute centers from waffle spots
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
         if save:
@@ -2175,7 +2185,7 @@ class Reduction(object):
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_cube(cube, wave_drh, 'IFS', waffle_orientation,
                                                     high_pass=high_pass, center_offset=offset,
-                                                    display=display, save_path=save_path)
+                                                    coro=coro, display=display, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])

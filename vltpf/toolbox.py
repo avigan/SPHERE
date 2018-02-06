@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 
+import vltpf.utils.aperture as aperture
+
 from astropy.io import fits
 from astropy.time import Time
 from astropy.modeling import models, fitting
@@ -483,7 +485,9 @@ def star_centers_from_PSF_cube(cube, wave, pixel, display=False, save_path=None)
     return img_center
 
 
-def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, high_pass=False, center_offset=(0, 0), smooth=0, display=False, save_path=None):
+def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
+                                  high_pass=False, center_offset=(0, 0), smooth=0,
+                                  coro=True, display=False, save_path=None):
     '''
     Compute star center from waffle images
 
@@ -512,7 +516,10 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
     
     center_offset : tuple
         Apply an (x,y) offset to the default center position. Default is no offset
-        
+    
+    coro : bool
+        Observation was performed with a coronagraph. Default is True
+
     display : bool
         Display the fit of the satelitte spots
 
@@ -567,7 +574,7 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
         center_guess = np.full((nwave, 2), ((dim // 2)+3, (dim // 2)-1))
     elif instrument == 'IRDIS':
         center_guess = np.array(((485, 520), (486, 508)))
-
+    
     # loop over images
     spot_center = np.zeros((nwave, 4, 2))
     spot_dist = np.zeros((nwave, 6))
@@ -589,6 +596,12 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation, hi
         # optional smoothing
         if smooth > 0:
             img = ndimage.gaussian_filter(img, smooth)
+
+        # mask for non-coronagraphic observations
+        if not coro:
+            mask = aperture.disc(cube[0].shape[-1], 5*loD[idx], diameter=False,
+                                 center=(cx_int, cy_int), invert=True)
+            img *= mask
             
         # create plot if needed
         if save_path or display:
