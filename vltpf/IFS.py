@@ -2354,9 +2354,15 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'*[0-9].fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
+                # mask edges (bad pixels can have higher values than the PSF peak)
+                print(cube.shape)
+                cube[:, :70, :]  = 0
+                cube[:, :, :25]  = 0
+                cube[:, :, 250:] = 0
+                
                 # wavelength
                 wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
                 wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
@@ -2381,7 +2387,7 @@ class Reduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = glob.glob(os.path.join(path.preproc, fname+'*[0-9].fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # wavelength
