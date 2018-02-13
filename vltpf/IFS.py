@@ -2143,7 +2143,7 @@ class Reduction(object):
         # get header of any science file
         science_files = frames_info[frames_info['DPR CATG'] == 'SCIENCE'].index[0]
         fname = '{0}_DIT{1:03d}_preproc_'.format(science_files[0], science_files[1])
-        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+        files = glob.glob(os.path.join(path.preproc, fname+'*[0-9].fits'))
         hdr = fits.getheader(files[0])
 
         wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
@@ -2165,7 +2165,7 @@ class Reduction(object):
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
         fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
 
-        files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+        files = glob.glob(os.path.join(path.preproc, fname+'*[0-9].fits'))
         cube, hdr = fits.getdata(files[0], header=True)
 
         # coronagraph
@@ -2356,8 +2356,7 @@ class Reduction(object):
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # mask edges (bad pixels can have higher values than the PSF peak)
-                print(cube.shape)
-                cube[:, :70, :]  = 0
+                cube[:, :40, :]  = 0
                 cube[:, :, :25]  = 0
                 cube[:, :, 250:] = 0
                 
