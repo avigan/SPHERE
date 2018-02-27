@@ -556,7 +556,9 @@ def _scale_fft(array, scale_value, alt_criterion=False):
     dim   = array.shape[0]    # square-even images checked before
     dtype = array.dtype.kind
 
-    zoom_io = scale_value
+    # take the first of the two values. Check done before that the two
+    # values are identical
+    zoom_io = scale_value[0]
 
     # We want Fechs *close* *to* N'/N" where N" = N + 2*KF, N' = N + 2*KD
     #   => N" = 2*round(N'/(2*Fechs))
@@ -723,8 +725,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
         if (scale_value.size != Ndim):
             raise ValueError('Number of dimensions in array and scale value don\'t match')
     elif isinstance(scale_value, (int, float)):
-        if method != 'fft':
-            scale_value = np.full(Ndim, scale_value)
+        scale_value = np.full(Ndim, scale_value)
     else:
         raise ValueError('Shift value of type \'{0}\' is not allowed'.format(type(scale_value).__name__))
 
@@ -746,7 +747,10 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     # FFT limitations
     if method == 'fft':
         if (np.mod(np.array(dims), 2).sum() != 0) or (dims[0] != dims[1]):
-            raise ValueError('FFT shift only supports square images of even width')
+            raise ValueError('FFT scale only supports square images of even width')
+
+        if scale_value[0] != scale_value[1]:
+            raise ValueError('FFT scale only supports identical factor along the two dimensions')
         
     # detects NaN and replace them with real values
     mask = None
@@ -759,7 +763,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
         mask[nan_mask] = 1
 
         if (method == 'fft'):
-            mask = _scale_interp(mask, np.full(Ndim, scale_value), center, mode='constant', cval=1)            
+            mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)            
         elif (method == 'interp'):
             mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)
         elif (method == 'interp_builtin'):
