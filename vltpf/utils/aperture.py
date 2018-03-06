@@ -374,8 +374,7 @@ def vlt_pupil(dim, diameter, spiders=False, spiders_orientation=0, spiders_thick
     return pup
 
 
-def sphere_irdis_pupil(dim, dead_actuator_diameter=0.025, spiders=False,
-                       spiders_orientation=0):
+def sphere_irdis_pupil(dim=384, dead_actuator_diameter=0, spiders=True, spiders_orientation=0):
     '''SPHERE pupil with dead actuators mask and spiders. Measured from a
     real pupil image acquired with IRDIS. In this SPHERE pupil, the origin
     and angle of the spiders are tweaked to match exactly the pupil as 
@@ -385,11 +384,11 @@ def sphere_irdis_pupil(dim, dead_actuator_diameter=0.025, spiders=False,
     Parameters
     ----------
     dim : int
-        Size of the output array
+        Size of the output array. Default is 384
     
     dead_actuator_diameter : float
         Size of the dead actuators mask, in fraction of the pupil
-        diameter. Default is 0.025
+        diameter. Default is 0
 
     spiders : bool
         Draw spiders. Default is False
@@ -464,7 +463,7 @@ def sphere_irdis_pupil(dim, dead_actuator_diameter=0.025, spiders=False,
     pup = disc(dim, diameter, diameter=True, strict=False, cpix=True)
 
     # central obscuration and spiders
-    pup -= disc(dim, diameter*obs, center=(dim//2+1.5, dim//2), diameter=True, strict=False, cpix=True)
+    pup *= disc(dim, diameter*obs, center=(dim//2+1.5, dim//2), diameter=True, strict=False, cpix=True, invert=True)
     pup *= spider0
     
     # dead actuators
@@ -479,7 +478,7 @@ def sphere_irdis_pupil(dim, dead_actuator_diameter=0.025, spiders=False,
 
             pup *= dead
 
-    return pup
+    return (pup >= 0.5).astype(int)
 
 
 if __name__ == "__main__":
@@ -490,7 +489,7 @@ if __name__ == "__main__":
     obs  = 0.2
     
     d1 = disc_obstructed(dim, diam, obs, cpix=False, center=(), strict=True)
-    d2 = sphere_pupil(dim, dim, spiders=1)
+    d2 = sphere_irdis_pupil(500)
     
     r, t = coordinates(dim, diam, cpix=False, strict=False, center=(100, 111))
 
