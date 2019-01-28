@@ -80,7 +80,7 @@ def _shift_interp(array, shift_value, mode='constant', cval=0):
 
 
 def _shift_interp_builtin(array, shift_value, mode='constant', cval=0):
-    shifted = ndimage.shift(array, np.flip(shift_value, 0), order=3, mode=mode, cval=cval)
+    shifted = ndimage.shift(array, np.flipud(shift_value), order=3, mode=mode, cval=cval)
 
     return shifted
 
@@ -414,6 +414,8 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     '''
 
     method = method.lower()
+
+    array = array.copy()
     
     # array dimensions
     Ndim = array.ndim
@@ -742,7 +744,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
                           'Switching to method = \'interp\'.')
 
         method = 'interp_builtin'
-        scale_value = np.flip(new_dim, axis=0) / np.array(dims)
+        scale_value = np.flipud(new_dim) / np.array(dims)
 
     # FFT limitations
     if method == 'fft':
@@ -1218,6 +1220,34 @@ def profile(img, type='mean', step=1, mask=None, center=None, rmax=0, clip=True,
 
     return prof, rad
 
+
+####################################################################################
+#
+# FILTERING
+#
+####################################################################################
+
+def median(img, dim):
+    '''
+    Apply median filtering to an image 
+
+    Parameters
+    ----------
+    img : array
+        Image on which the profiles
+        
+    dim : int
+        Size of the median filter
+    
+    Returns
+    -------
+    img_filt : array
+        Median filtered image
+    '''
+    img_filt = img - ndimage.filters.median_filter(img, size=(dim, dim))
+    
+    return img_filt
+    
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
