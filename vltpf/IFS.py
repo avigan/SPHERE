@@ -1065,7 +1065,7 @@ class Reduction(object):
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
-            files_info.drop(time_delta[2:].index, inplace=True)
+            files_info.drop(time_delta[1:].index, inplace=True)
 
         # wavelength
         cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
@@ -1083,7 +1083,7 @@ class Reduction(object):
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
-            files_info.drop(time_delta[2:].index, inplace=True)
+            files_info.drop(time_delta[1:].index, inplace=True)
 
         # IFU flat
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
@@ -1101,7 +1101,7 @@ class Reduction(object):
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
-            files_info.drop(time_delta[2:].index, inplace=True)
+            files_info.drop(time_delta[1:].index, inplace=True)
 
         # calibs dark file
         cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
