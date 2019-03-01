@@ -646,9 +646,9 @@ class Reduction(object):
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
-            files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
-            files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
-            files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
+            files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
+            files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
+            files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
             
             # update recipe execution
             self._recipe_execution['sort_files'] = True
@@ -670,12 +670,12 @@ class Reduction(object):
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
-            frames_info['DATE-OBS'] = pd.to_datetime(frames_info['DATE-OBS'], utc=True)
-            frames_info['DATE'] = pd.to_datetime(frames_info['DATE'], utc=True)
-            frames_info['DET FRAM UTC'] = pd.to_datetime(frames_info['DET FRAM UTC'], utc=True)
-            frames_info['TIME START'] = pd.to_datetime(frames_info['TIME START'], utc=True)
-            frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=True)
-            frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=True)
+            frames_info['DATE-OBS'] = pd.to_datetime(frames_info['DATE-OBS'], utc=False)
+            frames_info['DATE'] = pd.to_datetime(frames_info['DATE'], utc=False)
+            frames_info['DET FRAM UTC'] = pd.to_datetime(frames_info['DET FRAM UTC'], utc=False)
+            frames_info['TIME START'] = pd.to_datetime(frames_info['TIME START'], utc=False)
+            frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=False)
+            frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
             # update recipe execution
             self._recipe_execution['sort_frames'] = True
@@ -687,12 +687,12 @@ class Reduction(object):
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
-            frames_info_preproc['DATE-OBS'] = pd.to_datetime(frames_info_preproc['DATE-OBS'], utc=True)
-            frames_info_preproc['DATE'] = pd.to_datetime(frames_info_preproc['DATE'], utc=True)
-            frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=True)
-            frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=True)
-            frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=True)
-            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=True)            
+            frames_info_preproc['DATE-OBS'] = pd.to_datetime(frames_info_preproc['DATE-OBS'], utc=False)
+            frames_info_preproc['DATE'] = pd.to_datetime(frames_info_preproc['DATE'], utc=False)
+            frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=False)
+            frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=False)
+            frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=False)
+            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=False)            
         else:
             frames_info_preproc = None
 
@@ -803,9 +803,9 @@ class Reduction(object):
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
 
         # convert times
-        files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=True)
-        files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=True)
-        files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=True)
+        files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
+        files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
+        files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
