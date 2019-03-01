@@ -462,7 +462,7 @@ def star_centers_from_PSF_cube(cube, wave, pixel, display=False, save_path=None)
             plt.clf()
             ax = fig.add_subplot(111)
             
-            ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), interpolation='none')
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
             ax.plot([cx_final], [cy_final], marker='D', color='red')
             ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
@@ -609,7 +609,7 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
             plt.clf()
             col = ['red', 'blue', 'magenta', 'purple']
             ax = fig.add_subplot(111)
-            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm(), interpolation='none')
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
             ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
             
         # satelitte spots
@@ -640,13 +640,13 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
                 ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
                 
                 axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
-                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='none')
+                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest')
                 axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
                 axs.set_xticks([])
                 axs.set_yticks([])
 
                 axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
-                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='none')
+                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest')
                 axs.set_xticks([])
                 axs.set_yticks([])
 
