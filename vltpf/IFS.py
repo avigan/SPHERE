@@ -1778,11 +1778,11 @@ class Reduction(object):
                     bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
 
                 # process files
-                for idx, (fname, finfo) in enumerate(sci_files.iterrows()):
+                for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
                     # frames_info extract
                     finfo = frames_info.loc[(fname, slice(None)), :]
 
-                    print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sci_files), fname, len(finfo)))
+                    print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sfiles), fname, len(finfo)))
 
                     # read data
                     print('   ==> read data')
