@@ -1031,22 +1031,23 @@ class Reduction(object):
 
         # 1550 nm flat (YJH mode only)
         if mode_short == 'YJH':
+            stop
             cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(cfiles) < 2:
                 error_flag += 1
                 print(' * Error: there should be 2 flat files for 1550 nm filter, found {0}'.format(len(cfiles)))
-        elif len(cfiles) > 2:
-            warning_flag += 1
-            print(' * Warning: there should be 2 flat files for 1550 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
+            elif len(cfiles) > 2:
+                warning_flag += 1
+                print(' * Warning: there should be 2 flat files for 1550 nm filter, found {0}. Using the closest from science.'.format(len(cfiles)))
 
-            # find the two closest to science files
-            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
-            time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
-            time_delta = np.abs(time_sci - time_flat).argsort()
+                # find the two closest to science files
+                sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+                time_sci   = sci_files['DATE-OBS'].min()
+                time_flat  = cfiles['DATE-OBS']            
+                time_delta = np.abs(time_sci - time_flat).argsort()
 
-            # drop the others
-            files_info.drop(time_delta[2:].index, inplace=True)
+                # drop the others
+                files_info.drop(time_delta[2:].index, inplace=True)
 
         # spectra position
         cfiles = calibs[(calibs['DPR TYPE'] == 'SPECPOS,LAMP') & (calibs['INS2 COMB IFS'] == mode)]
