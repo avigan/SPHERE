@@ -1031,7 +1031,6 @@ class Reduction(object):
 
         # 1550 nm flat (YJH mode only)
         if mode_short == 'YJH':
-            stop
             cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(cfiles) < 2:
                 error_flag += 1
