@@ -1050,6 +1050,10 @@ def fix_badpix(img, bpm, npix=8, weight=False):
         good_pix  = good_pix[ii]
         good_dist = good_dist[ii]
 
+        # make sure we have some data to work with
+        if len(good_dist) < npix:
+            continue
+        
         # get values of relevant pixels
         mm = np.where(good_dist <= good_dist[npix-1])
         good_pix  = good_pix[mm]
