@@ -1740,7 +1740,7 @@ class Reduction(object):
             bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
-
+        
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
@@ -1767,7 +1767,8 @@ class Reduction(object):
                     dfiles = []
                     for d in dark_types:
                         dfiles = files_info[(files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                                            (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+                                            (files_info['DPR TYPE'] == d) & 
+                                            (files_info['DET SEQ1 DIT'].round(2) == DIT)]
                         if len(dfiles) != 0:
                             break
                     print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
@@ -1855,8 +1856,9 @@ class Reduction(object):
                         for f in range(len(img)):
                             frame = img[f]
 
-                            frame = imutils.sigma_filter(frame, box=5, nsigma=3, iterate=True)
-                            frame = imutils.sigma_filter(frame, box=7, nsigma=3, iterate=True)
+                            # very aggressive sigma-filtering
+                            frame = imutils.sigma_filter(frame, box=5, nsigma=5, iterate=True)
+                            frame = imutils.sigma_filter(frame, box=7, nsigma=5, iterate=True)
                             frame = sph_ifs_fix_badpix(frame, bpm)
                             img[f] = frame
 
