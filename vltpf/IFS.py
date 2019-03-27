@@ -1742,7 +1742,7 @@ class Reduction(object):
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
         
         # final dataframe
-        index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], labels=[[], []])
+        index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
 
         # loop on the different type of science files
