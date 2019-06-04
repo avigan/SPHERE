@@ -173,13 +173,13 @@ def sort_files_from_xml(path, silent=True):
             os.makedirs(target_path)
 
         # copy files
-        for f in files:
-            fpath  = os.path.join(path, f+'.fits')
+        for filename in files:
+            fpath = os.path.join(path, filename+'.fits')
             
             # Mac OS X replaces : by _ in file names...
             if not os.path.exists(fpath):
-                tmp = f.replace(':', '_')
-                fpath  = os.path.join(path, tmp+'.fits')
+                filename = filename.replace(':', '_')
+                fpath  = os.path.join(path, filename+'.fits')
             
             # check if file actually exists
             if not os.path.exists(fpath):
@@ -187,7 +187,7 @@ def sort_files_from_xml(path, silent=True):
                 continue
             
             # copy if needed
-            nfpath = os.path.join(target_path, f+'.fits')
+            nfpath = os.path.join(target_path, filename+'.fits')
             if not os.path.exists(nfpath):
                 shutil.copy(fpath, nfpath)
 
