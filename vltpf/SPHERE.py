@@ -5,6 +5,7 @@ VLT/SPHERE primary module
 import os
 import glob
 import shutil
+import math
 import pandas as pd
 import xml.etree.ElementTree as etree
 
@@ -12,6 +13,7 @@ import vltpf.IRDIS as IRDIS
 import vltpf.IFS as IFS
 
 from astropy.io import fits
+from astropy.time import Time
 
 
 def process_mainFiles(mainFiles, files, silent=True):
@@ -129,12 +131,22 @@ def sort_files_from_xml(path, silent=True):
         # get target name from first mainFile element
         scifiles = root.find('mainFiles')
         filename = scifiles[0].attrib['name']
+        
+        # Mac OS X replaces : by _ in file names...
+        if not os.path.exists(path+filename+'.fits'):
+            filename = filename.replace(':', '_')
+        
+        if not os.path.exists(path+filename+'.fits'):
+            print(' ==> file {} does not exsist. Skipping'.format(filename))
+            continue
 
-        # target and arm
         hdr = fits.getheader(path+filename+'.fits')
-
+        
+        # target and arm
         target = hdr['HIERARCH ESO OBS NAME']
         obs_id = hdr['HIERARCH ESO OBS ID']
+        mjd    = Time(math.floor(float(hdr['MJD-OBS']+0.5))-0.5, format='mjd')
+        night  = mjd.isot[:10]
         if catg == 'SCIENCE_OBJECT_AO':
             instrument = 'SPARTA'
         else:
@@ -146,7 +158,7 @@ def sort_files_from_xml(path, silent=True):
                     instrument = 'IFS'                
                 else:
                     raise NameError('Unknown arm {0}'.format(arm))
-            except:
+            except NameError:
                 continue
 
         # get files
@@ -156,22 +168,28 @@ def sort_files_from_xml(path, silent=True):
         # target path
         directory = '{0}_id={1}'.format(target, obs_id)
         directory = '_'.join(directory.split())
-        target_path = os.path.join(path, directory, instrument, 'raw')
+        target_path = os.path.join(path, directory, night, instrument, 'raw')
         if not os.path.exists(target_path):
             os.makedirs(target_path)
 
         # copy files
-        for f in files:
-            file = os.path.join(path, f+'.fits')
-            nfile = os.path.join(target_path, f+'.fits')
-
+        for filename in files:
+            fpath = os.path.join(path, filename+'.fits')
+            
+            # Mac OS X replaces : by _ in file names...
+            if not os.path.exists(fpath):
+                filename = filename.replace(':', '_')
+                fpath  = os.path.join(path, filename+'.fits')
+            
             # check if file actually exists
-            if not os.path.exists(file):
+            if not os.path.exists(fpath):
+                print(' ==> file {} does not exist. Skipping.'.format(fpath))
                 continue
             
             # copy if needed
-            if not os.path.exists(nfile):
-                shutil.copy(file, nfile)
+            nfpath = os.path.join(target_path, filename+'.fits')
+            if not os.path.exists(nfpath):
+                shutil.copy(fpath, nfpath)
 
         # print status
         if not silent:
