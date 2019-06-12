@@ -153,8 +153,9 @@ def compute_angles(frames_info):
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-    ra = coord.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
-    frames_info['RA'] = ra
+    ra_hour = coord.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
+    ra_deg  = ra_hour*15
+    frames_info['RA'] = ra_deg
 
     dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float)
     sign = np.sign(dec_drot)
@@ -173,19 +174,19 @@ def compute_angles(frames_info):
     
     utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
-    ha  = lst - ra
+    ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG START'] = pa.value + pa_correction
     
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
-    ha  = lst - ra
+    ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG'] = pa.value + pa_correction
 
     utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
-    ha  = lst - ra
+    ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG END'] = pa.value + pa_correction
 
