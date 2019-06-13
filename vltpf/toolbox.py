@@ -177,18 +177,24 @@ def compute_angles(frames_info):
     ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG START'] = pa.value + pa_correction
+    frames_info['HOUR ANGLE START'] = ha
+    frames_info['LST START'] = lst
     
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG'] = pa.value + pa_correction
+    frames_info['HOUR ANGLE'] = ha
+    frames_info['LST'] = lst
 
     utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], geolat)    
     frames_info['PARANG END'] = pa.value + pa_correction
+    frames_info['HOUR ANGLE END'] = ha
+    frames_info['LST END'] = lst
 
     #
     # Derotation angles
