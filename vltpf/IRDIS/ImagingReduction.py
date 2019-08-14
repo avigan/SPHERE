@@ -627,7 +627,7 @@ class ImagingReduction(object):
             if len(cfiles) == 0:
                 warning_flag += 1
                 print(' * Warning: there is no dark/background for science files with DIT={0} sec. '.format(DIT) +
-                      'it is *highly recommended* to include one to obtain the best data reduction. ' +
+                      'It is *highly recommended* to include one to obtain the best data reduction. ' +
                       'A single dark/background file is sufficient, and it can easily be downloaded ' +
                       'from the ESO archive')
 
@@ -982,10 +982,15 @@ class ImagingReduction(object):
                             break
                     print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
 
-                    if len(dfiles) != 1:
+                    if len(dfiles) == 0:
+                        # issue a warning if absolutely no background is found
+                        print('Warning: no background has been found. Pre-processing will continue but data quality will likely be affected')
+                        bkg = np.zeros((1024, 2048))
+                    elif len(dfiles) == 1:
+                        bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
+                    elif len(dfiles) > 1:
+                        # FIXME: handle cases when multiple backgrounds are found?
                         raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
-
-                    bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
 
                 # process files
                 for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
