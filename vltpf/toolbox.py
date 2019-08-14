@@ -626,10 +626,19 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
 
             sub = img[cy-box:cy+box, cx-box:cx+box]
 
+            # bounds for fitting
+            gbounds = { 
+                'amplitude': (0.0, None),
+                'x_mean': (-2.0, box*2+2),
+                'y_mean': (-2.0, box*2+2),
+                'x_stddev': (1.0, 20.0),
+                'y_stddev': (1.0, 20.0)
+            }
+            
             # fit: Gaussian + constant
             imax = np.unravel_index(np.argmax(sub), sub.shape)
             g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
-                                       x_stddev=loD[idx], y_stddev=loD[idx]) + \
+                                       x_stddev=loD[idx], y_stddev=loD[idx], bounds=gbounds) + \
                                        models.Const2D(amplitude=sub.min())
             fitter = fitting.LevMarLSQFitter()
             par = fitter(g_init, xx, yy, sub)
