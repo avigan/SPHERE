@@ -4,7 +4,7 @@ VLTPF
 **Warning**
 -----------
 
-**This module is still under development at the moment. Processing of IRDIS imaging (DBI, CI) and IFS data should work properly, but if you find a bug or want to suggest improvements, please `create a ticket <https://github.com/avigan/VLTPF/issues>`_.**
+**This module is still under development at the moment. Processing of IRDIS imaging (DBI, CI) and IFS data should work properly, but if you find a bug or want to suggest improvements, please ** `**create a ticket** <https://github.com/avigan/VLTPF/issues>`_.
 
 Information
 -----------
