@@ -626,7 +626,7 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
 
             sub = img[cy-box:cy+box, cx-box:cx+box]
 
-            # bounds for fitting
+            # bounds for fitting: spots slightly outside of the box are allowed
             gbounds = { 
                 'amplitude': (0.0, None),
                 'x_mean': (-2.0, box*2+2),
