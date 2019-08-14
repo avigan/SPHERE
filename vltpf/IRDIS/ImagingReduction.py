@@ -488,6 +488,10 @@ class ImagingReduction(object):
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
 
+        # raise error when no science frames are present
+        if len(sci_files) == 0:
+            raise ValueError('This dataset contains no science frame. There should be at least one!')
+        
         # build indices
         files = []
         img   = []
@@ -590,12 +594,12 @@ class ImagingReduction(object):
         if len(filter_combs) != 1:
             raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
         filter_comb = filter_combs[0]
-        
+
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
         calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
                             ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
-
+        
         ###############################################
         # static calibrations not dependent on science
         ###############################################
