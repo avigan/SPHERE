@@ -36,4 +36,4 @@ We are grateful for your effort, and hope that these tools will contribute to yo
 Author
 ------
 
-Arthur Vigan, `arthur.vigan@lam.fr <mailto:arthur.vigan@lam.fr>`_, Laboratoire d'Astrophysique de Marseille / CNRS
+Arthur Vigan <`arthur.vigan@lam.fr <mailto:arthur.vigan@lam.fr>`_>, Laboratoire d'Astrophysique de Marseille / CNRS
