@@ -1544,6 +1544,88 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_wavelength_recalibration'] = True
 
 
+    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
+                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
+        '''Combine and save the science data into final cubes
+
+        All types of data are combined independently: PSFs
+        (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
+        coronagraphic images (OBJECT). 
+
+        Depending on the observing strategy, there can be several
+        position angle positions in the sequence. Images taken at
+        different position angles are kept together but a posang
+        vector is saved alongside the science cube.
+
+        For each type of data, the method saves 3 different files:
+        
+          - *_cube: the (x,y,time) cube
+        
+          - *_posang: the position angle vector.
+
+          - *_frames: a csv file with all the information for every
+                      frames. There is one line by time step in the
+                      data cube.
+        
+        Parameters
+        ----------
+        cpix : bool
+            If True the images are centered on the pixel at coordinate
+            dim//2 in the spatial dimension. If False the images are
+            centered between 2 pixels, at coordinates
+            (dim-1)/2. Default is True.
+
+        psf_dim : even int
+            Size of the PSF images along in the spatial
+            dimension. Default is 80x pixels
+
+        science_dim : even int    
+            Size of the science images (star centers and standard
+            coronagraphic images) in the spatial dimension. Default is
+            800 pixels
+
+        correct_mrs_chromatism : bool
+            Correct for the slight chromatism in the MRS mode. This
+            chromatism induces a slight shift of the PSF center with
+            wavelength. Default is True.
+
+        manual_center : array
+            User provided spatial center for the OBJECT,CENTER and
+            OBJECT frames. This should be an array of 2 values (cx for
+            the 2 IRDIS fields). If a manual center is provided, the
+            value of skip_center is ignored for the OBJECT,CENTER and
+            OBJECT frames. Default is None
+
+        skip_center : bool
+            Control if images are finely centered or not before being
+            combined. However the images are still roughly centered by
+            shifting them by an integer number of pixel to bring the
+            center of the data close to the center of the images. This
+            option is useful if fine centering must be done
+            afterwards.
+        
+        shift_method : str
+            Method to shifting the images: fft or interp.  Default is
+            fft
+
+        '''
+        
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements)
+        
+        print('Combine science data')
+
+        # parameters
+        path = self._path
+        nwave = self._nwave
+        frames_info = self._frames_info_preproc
+
+        # insert code here!
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_combine_data'] = True
+
+    
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
         '''
         Clean everything except for raw data and science products (by default)
