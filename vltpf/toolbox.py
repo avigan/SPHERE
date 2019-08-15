@@ -420,7 +420,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     
     Returns
     -------
-    img_center : array_like
+    img_centers : array_like
         The star center in each frame of the cube
     '''
     
@@ -437,7 +437,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
         pdf = PdfPages(save_path)
         
     # loop over images
-    img_center = np.zeros((nwave, 2))
+    img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
@@ -461,8 +461,8 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
         cx_final = cx - box + par[0].x_mean
         cy_final = cy - box + par[0].y_mean
 
-        img_center[idx, 0] = cx_final
-        img_center[idx, 1] = cy_final
+        img_centers[idx, 0] = cx_final
+        img_centers[idx, 1] = cy_final
         
         if save_path or display:
             fig = plt.figure(0, figsize=(8, 8))
@@ -489,7 +489,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     if save_path:
         pdf.close()
 
-    return img_center
+    return img_centers
 
 
 def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_path=None):
@@ -515,7 +515,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
     
     Returns
     -------
-    centers : array_like
+    psf_centers : array_like
         The star center in each frame and wavelength of the cube
     '''
     
@@ -634,13 +634,13 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     
     Returns
     -------
-    spot_center : array_like
+    spot_centers : array_like
         Centers of each individual spot in each frame of the cube
 
     spot_dist : array_like
         The 6 possible distances between the different spots
 
-    img_center : array_like
+    img_centers : array_like
         The star center in each frame of the cube
 
     '''
@@ -687,9 +687,9 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
                                  (486, 508)))
     
     # loop over images
-    spot_center = np.zeros((nwave, 4, 2))
-    spot_dist = np.zeros((nwave, 6))
-    img_center = np.zeros((nwave, 2))
+    spot_centers = np.zeros((nwave, 4, 2))
+    spot_dist    = np.zeros((nwave, 6))
+    img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
 
@@ -751,8 +751,8 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
             cx_final = cx - box + par[0].x_mean
             cy_final = cy - box + par[0].y_mean
 
-            spot_center[idx, s, 0] = cx_final
-            spot_center[idx, s, 1] = cy_final
+            spot_centers[idx, s, 0] = cx_final
+            spot_centers[idx, s, 1] = cy_final
 
             # plot sattelite spots and fit
             if save_path or display:
@@ -771,25 +771,25 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
                 axs.set_yticks([])
 
         # lines intersection
-        intersect = lines_intersect(spot_center[idx, 0, :], spot_center[idx, 2, :],
-                                    spot_center[idx, 1, :], spot_center[idx, 3, :])
-        img_center[idx] = intersect
+        intersect = lines_intersect(spot_centers[idx, 0, :], spot_centers[idx, 2, :],
+                                    spot_centers[idx, 1, :], spot_centers[idx, 3, :])
+        img_centers[idx] = intersect
         
         # scaling
-        spot_dist[idx, 0] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 1] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 2] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 1, :])**2))
-        spot_dist[idx, 3] = np.sqrt(np.sum((spot_center[idx, 0, :] - spot_center[idx, 3, :])**2))
-        spot_dist[idx, 4] = np.sqrt(np.sum((spot_center[idx, 1, :] - spot_center[idx, 2, :])**2))
-        spot_dist[idx, 5] = np.sqrt(np.sum((spot_center[idx, 2, :] - spot_center[idx, 3, :])**2))
+        spot_dist[idx, 0] = np.sqrt(np.sum((spot_centers[idx, 0, :] - spot_centers[idx, 2, :])**2))
+        spot_dist[idx, 1] = np.sqrt(np.sum((spot_centers[idx, 1, :] - spot_centers[idx, 3, :])**2))
+        spot_dist[idx, 2] = np.sqrt(np.sum((spot_centers[idx, 0, :] - spot_centers[idx, 1, :])**2))
+        spot_dist[idx, 3] = np.sqrt(np.sum((spot_centers[idx, 0, :] - spot_centers[idx, 3, :])**2))
+        spot_dist[idx, 4] = np.sqrt(np.sum((spot_centers[idx, 1, :] - spot_centers[idx, 2, :])**2))
+        spot_dist[idx, 5] = np.sqrt(np.sum((spot_centers[idx, 2, :] - spot_centers[idx, 3, :])**2))
 
         # finalize plot
         if save_path or display:
-            ax.plot([spot_center[idx, 0, 0], spot_center[idx, 2, 0]],
-                    [spot_center[idx, 0, 1], spot_center[idx, 2, 1]],
+            ax.plot([spot_centers[idx, 0, 0], spot_centers[idx, 2, 0]],
+                    [spot_centers[idx, 0, 1], spot_centers[idx, 2, 1]],
                     color='w', linestyle='dashed')
-            ax.plot([spot_center[idx, 1, 0], spot_center[idx, 3, 0]],
-                    [spot_center[idx, 1, 1], spot_center[idx, 3, 1]],
+            ax.plot([spot_centers[idx, 1, 0], spot_centers[idx, 3, 0]],
+                    [spot_centers[idx, 1, 1], spot_centers[idx, 3, 1]],
                     color='w', linestyle='dashed')
 
             ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
@@ -809,7 +809,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     if save_path:
         pdf.close()
 
-    return spot_center, spot_dist, img_center
+    return spot_centers, spot_dist, img_centers
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pixel, high_pass=False,
