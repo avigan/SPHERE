@@ -1,8 +1,6 @@
-# IPython log file
+import vltpf.IRDIS as IRDIS
 
-import vltpf.IRDIS as ird
-
-reduction = ird.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/')
+reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/')
 
 # reduction.config['combine_psf_dim']          = 200
 # reduction.config['combine_science_dim']      = 200
