@@ -1173,7 +1173,7 @@ class ImagingReduction(object):
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_cube(cube, wave, pixel, display=display, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
@@ -1204,7 +1204,7 @@ class ImagingReduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_cube(cube, wave, 'IRDIS', waffle_orientation,
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, 'IRDIS', waffle_orientation,
                                                             high_pass=high_pass, center_offset=offset,
                                                             coro=coro, display=display, save_path=save_path)
 

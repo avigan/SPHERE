@@ -43,7 +43,8 @@ class SpectroReduction(object):
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
         'sph_ird_wave_calib': ['sort_files', 'sph_ird_cal_detector_flat'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat']
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
+        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
     }
     
     ##################################################
@@ -251,7 +252,8 @@ class SpectroReduction(object):
         
         config = self._config
         
-        pass
+        self.sph_ird_star_center(display=config['center_display'],
+                                 save=config['center_save'])
     
     
     def clean(self):
@@ -1217,3 +1219,78 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._recipe_execution['sph_ird_preprocess_science'] = True
+
+
+    def sph_ird_star_center(self, display=False, save=True):
+        '''Determines the star center for all frames where a center can be
+        determined (OBJECT,CENTER and OBJECT,FLUX)
+
+        Parameters
+        ----------
+        display : bool
+            Display the fit of the satelitte spots
+
+        save : bool
+            Save the fit of the sattelite spot for quality check. Default is True,
+            although it is a bit slow.
+
+        '''
+
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements)
+        
+        print('Star centers determination')
+
+        # parameters
+        path = self._path
+        pixel = self._pixel
+        files_info  = self._files_info
+        frames_info = self._frames_info_preproc
+
+        # filter combination
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        # FIXME: centers should be stored in .ini files and passed to
+        # function when needed (ticket #60)
+        if filter_comb == 'S_LR':
+            center = np.array(((484, 496), 
+                               (488, 486)))
+        elif filter_comb == 'S_MR':
+            center = np.array(((474, 519), 
+                               (479, 509)))
+        
+        # wavelength map
+        wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
+        wave = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
+
+        wave_map = np.zeros((2, 1024, 1024))
+        wave_map[0] = wave[:, 0:1024]
+        wave_map[1] = wave[:, 1024:]
+        wave_map[wave_map == 0] = np.nan
+
+        wave_ext = 10
+        wave_lin = np.zeros((2, 1024))
+        
+        wave_lin[0] = np.mean(wave_map[0, :, center[0, 0]-wave_ext:center[0, 0]+wave_ext], axis=1)
+        wave_lin[1] = np.mean(wave_map[1, :, center[1, 0]-wave_ext:center[1, 0]+wave_ext], axis=1)
+
+        # start with OBJECT,FLUX
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
+        if len(flux_files) != 0:
+            for file, idx in flux_files.index:
+                print('  ==> OBJECT,FLUX: {0}'.format(file))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                cube, hdr = fits.getdata(files[0], header=True)
+
+                # centers
+                if save:
+                    save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
+                else:
+                    save_path = None
+                img_center = toolbox.star_centers_from_PSF_cube(cube, wave, pixel, display=display, save_path=save_path)
+
+                # save
+                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
+                print()
