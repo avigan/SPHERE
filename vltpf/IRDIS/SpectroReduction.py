@@ -229,7 +229,13 @@ class SpectroReduction(object):
         keys = [key for key in dico if key.startswith('center')]
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
-        
+
+        # wave
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('wave')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+            
         # combining
         print('-'*35)
         keys = [key for key in dico if key.startswith('combine')]
@@ -307,7 +313,9 @@ class SpectroReduction(object):
         
         config = self._config
 
-        pass
+        if config['clean']:
+            self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
+                               delete_products=config['clean_delete_products'])
     
         
     def full_reduction(self):
@@ -1534,4 +1542,46 @@ class SpectroReduction(object):
     
         # update recipe execution
         self._recipe_execution['sph_ird_wavelength_recalibration'] = True
-            
+
+
+    def sph_ird_clean(self, delete_raw=False, delete_products=False):
+        '''
+        Clean everything except for raw data and science products (by default)
+
+        Parameters
+        ----------
+        delete_raw : bool
+            Delete raw data. Default is False
+
+        delete_products : bool
+            Delete science products. Default is False
+        '''
+
+        # parameters
+        path = self._path
+                
+        # tmp
+        if os.path.exists(path.tmp):
+            shutil.rmtree(path.tmp, ignore_errors=True)
+
+        # sof
+        if os.path.exists(path.sof):
+            shutil.rmtree(path.sof, ignore_errors=True)
+
+        # calib
+        if os.path.exists(path.calib):
+            shutil.rmtree(path.calib, ignore_errors=True)
+
+        # preproc
+        if os.path.exists(path.preproc):
+            shutil.rmtree(path.preproc, ignore_errors=True)
+
+        # raw
+        if delete_raw:
+            if os.path.exists(path.raw):
+                shutil.rmtree(path.raw, ignore_errors=True)
+
+        # products
+        if delete_products:
+            if os.path.exists(path.products):
+                shutil.rmtree(path.products, ignore_errors=True)
