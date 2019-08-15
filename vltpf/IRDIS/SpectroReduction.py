@@ -25,6 +25,44 @@ import vltpf.ReductionPath as ReductionPath
 import vltpf.toolbox as toolbox
 
 
+def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
+    '''
+    Return the linear wavelength calibration for each IRDIS field
+
+    Parameters
+    ----------
+    wave_calib : array
+        Wavelength calibration data computed by esorex recipe
+
+    centers : tuple
+        Center of each field
+
+    wave_min : float
+        Minimal usable wavelength
+
+    wave_max : float
+        Maximal usable wavelength
+
+    Returns
+    -------
+    wave_lin : array
+        Array with the linear calibration for each field, as a function 
+        of pixel coordinate
+    '''
+    wave_map = np.zeros((2, 1024, 1024))
+    wave_map[0] = wave_calib[:, 0:1024]
+    wave_map[1] = wave_calib[:, 1024:]
+    wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
+    
+    wave_ext = 10
+    wave_lin = np.zeros((2, 1024))
+    
+    wave_lin[0] = np.mean(wave_map[0, :, centers[0, 0]-wave_ext:centers[0, 0]+wave_ext], axis=1)
+    wave_lin[1] = np.mean(wave_map[1, :, centers[1, 0]-wave_ext:centers[1, 0]+wave_ext], axis=1)
+    
+    return wave_lin
+
+
 class SpectroReduction(object):
     '''
     SPHERE/IRDIS long-slit spectroscopy reduction class. It handles
@@ -43,8 +81,11 @@ class SpectroReduction(object):
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
         'sph_ird_wave_calib': ['sort_files', 'sph_ird_cal_detector_flat'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 
+                                       'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
+        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib',
+                                             'sph_ird_star_center'], 
     }
     
     ##################################################
@@ -252,10 +293,11 @@ class SpectroReduction(object):
         
         config = self._config
         
-        self.sph_ird_star_center(high_pass=config['high_pass'],
+        self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  display=config['center_display'],
                                  save=config['center_save'])
-    
+        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'])
+        
     
     def clean(self):
         '''
@@ -1268,20 +1310,10 @@ class SpectroReduction(object):
             wave_max = 1820
         
         # wavelength map
-        wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
-        wave = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
-
-        wave_map = np.zeros((2, 1024, 1024))
-        wave_map[0] = wave[:, 0:1024]
-        wave_map[1] = wave[:, 1024:]
-        wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
-
-        wave_ext = 10
-        wave_lin = np.zeros((2, 1024))
+        wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
+        wave_calib = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
+        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
         
-        wave_lin[0] = np.mean(wave_map[0, :, centers[0, 0]-wave_ext:centers[0, 0]+wave_ext], axis=1)
-        wave_lin[1] = np.mean(wave_map[1, :, centers[1, 0]-wave_ext:centers[1, 0]+wave_ext], axis=1)
-
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
         if len(flux_files) != 0:
@@ -1337,8 +1369,169 @@ class SpectroReduction(object):
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_centers, overwrite=True)
+                fits.writeto(os.path.join(path.preproc, fname+'_spot_distance.fits'), spot_dist, overwrite=True)
                 print()
 
         # update recipe execution
         self._recipe_execution['sph_ird_star_center'] = True
 
+
+    def sph_ird_wavelength_recalibration(self, fit_scaling=True, display=False, save=True):
+        '''Performs a recalibration of the wavelength, if star center frames
+        are available.
+
+        It follows a similar process to that used for the IFS
+        data. The method for the IFS is described in Vigan et
+        al. (2015, MNRAS, 454, 129):
+
+        https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+
+        Parameters
+        ----------
+        fit_scaling : bool
+            Perform a polynomial fitting of the wavelength scaling
+            law. It helps removing high-frequency noise that can
+            result from the waffle fitting. Default is True
+
+        display : bool
+            Display the result of the recalibration. Default is False.
+
+        save : bool
+            Save the fit of the sattelite spot for quality check. Default is True,
+            although it is a bit slow.
+
+        '''
+        
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wavelength_recalibration', self.recipe_requirements)
+        
+        print('Wavelength recalibration')
+
+        # parameters
+        path = self._path
+        pixel = self._pixel
+        lasers = self._wave_cal_lasers
+        files_info  = self._files_info
+        frames_info = self._frames_info_preproc
+
+        # filter combination
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        # FIXME: centers should be stored in .ini files and passed to
+        # function when needed (ticket #60)
+        if filter_comb == 'S_LR':
+            centers = np.array(((484, 496), 
+                                (488, 486)))
+            wave_min = 920
+            wave_max = 2330
+        elif filter_comb == 'S_MR':
+            centers = np.array(((474, 519), 
+                                (479, 509)))
+            wave_min = 940
+            wave_max = 1820
+        
+        # wavelength map
+        wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
+        wave_calib = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
+        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+
+        # reference wavelength
+        idx_ref = 3
+        wave_ref = lasers[idx_ref]
+        
+        # get spot distance from the first OBJECT,CENTER in the sequence
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        if len(starcen_files) == 0:
+            print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
+                  'The standard wavelength calibrated by the ESO pripeline will be used.')
+            fits.writeto(os.path.join(path.preproc, 'wavelength.fits'), wave_lin, overwrite=True)
+            return
+
+        fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+        spot_dist = fits.getdata(os.path.join(path.preproc, fname+'.fits'))
+        
+        if save:
+            pdf = PdfPages(os.path.join(path.products, 'wavelength_recalibration.pdf'))        
+        
+        pix = np.arange(1024)
+        wave_final = np.zeros((1024, 2))
+        for fidx in range(2):
+            print('  field {0:2d}/{1:2d}'.format(fidx+1, 2))
+            
+            wave = wave_lin[fidx]
+            dist = spot_dist[:, fidx]
+
+            imin = np.nanargmin(np.abs(wave-wave_ref))
+            
+            # scaling factor
+            scaling_raw = dist / dist[imin]
+            
+            if filter_comb == 'S_LR':
+                # FIXME: implement smoothing of the scaling factor for
+                # LRS mode
+                raise ValueError('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
+            elif filter_comb == 'S_MR':
+                # linear fit with a 5-degree polynomial
+                good = np.where(np.isfinite(wave))
+                p = np.polyfit(pix[good], scaling_raw[good], 5)
+                
+                scaling_fit = np.polyval(p, pix)
+            
+            wave_final_raw = wave[imin] * scaling_raw
+            wave_final_fit = wave[imin] * scaling_fit
+
+            bad = np.where(np.logical_not(np.isfinite(wave)))
+            wave_final_raw[bad] = np.nan
+            wave_final_fit[bad] = np.nan
+            
+            wave_diff = np.abs(wave_final_fit - wave)
+            print('   ==> difference with calibrated wavelength: ' +
+                  'min={0:.1f} nm, max={1:.1f} nm'.format(np.nanmin(wave_diff), np.nanmax(wave_diff)))
+
+            if fit_scaling:
+                wave_final[:, fidx] = wave_final_fit
+                use_r = ''
+                use_f = ' <=='
+            else:
+                wave_final[:, fidx] = wave_final_raw
+                use_r = ' <=='
+                use_f = ''
+            
+            # plot
+            if save or display:
+                plt.figure(0, figsize=(10, 10))
+                plt.clf()
+                plt.subplot(211)
+                plt.axvline(imin, color='k', linestyle='--')
+                plt.plot(pix, wave, label='DRH', color='r', lw=3)
+                plt.plot(pix, wave_final_raw, label='Recalibrated [raw]'+use_r)
+                plt.plot(pix, wave_final_fit, label='Recalibrated [fit]'+use_f)
+                plt.legend(loc='upper left')
+                plt.ylabel('Wavelength r[nm]')
+                plt.title('Field #{}'.format(fidx))
+                plt.xlim(1024, 0)
+                plt.subplot(212)
+                plt.axvline(imin, color='k', linestyle='--')
+                plt.plot(pix, wave-wave_final_raw)
+                plt.plot(pix, wave-wave_final_fit)
+                plt.ylabel('Residuals r[nm]')
+                plt.xlabel('Detector coordinate [pix]')
+                plt.xlim(1024, 0)
+                plt.tight_layout()
+            
+            if save:                
+                pdf.savefig()
+
+            if display:
+                plt.pause(1e-3)
+
+        if save:
+            pdf.close()
+
+        # save
+        print(' * saving')
+        fits.writeto(os.path.join(path.preproc, 'wavelength.fits'), wave_final, overwrite=True)
+
+    
+        # update recipe execution
+        self._recipe_execution['sph_ird_wavelength_recalibration'] = True
+            
