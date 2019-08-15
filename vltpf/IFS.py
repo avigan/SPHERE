@@ -2173,6 +2173,7 @@ class Reduction(object):
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
             fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave_drh, overwrite=True)
+            return
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
         fname = '{0}_DIT{1:03d}_preproc_'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
