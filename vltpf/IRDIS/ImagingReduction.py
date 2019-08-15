@@ -1265,7 +1265,7 @@ class ImagingReduction(object):
 
         manual_center : array 
             User provided centers for the OBJECT,CENTER and OBJECT
-            fra@mes. This should be an array of 2x2 values (cx,cy for
+            frames. This should be an array of 2x2 values (cx,cy for
             the 2 wavelengths). If a manual center is provided, the
             value of skip_center is ignored for the OBJECT,CENTER and
             OBJECT frames. Default is None
