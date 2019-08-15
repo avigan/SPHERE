@@ -2723,7 +2723,9 @@ class Reduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
-            # get first DIT of first OBJECT,CENTER in the sequence. See issue #12.
+            # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
+            # in the sequence, but it would be better to be able to
+            # select which CENTER to use
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
             if len(starcen_files) == 0 or (manual_center is not None):
                 print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
