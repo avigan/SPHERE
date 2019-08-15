@@ -2193,9 +2193,9 @@ class Reduction(object):
         else:
             save_path = None
         spot_center, spot_dist, img_center \
-            = toolbox.star_centers_from_waffle_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                    high_pass=high_pass, center_offset=offset,
-                                                    coro=coro, display=display, save_path=save_path)
+            = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
+                                                        high_pass=high_pass, center_offset=offset,
+                                                        coro=coro, display=display, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2381,7 +2381,7 @@ class Reduction(object):
                     save_path = os.path.join(path.products, fname+'PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_cube(cube, wave_drh, pixel, display=display, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
@@ -2410,9 +2410,9 @@ class Reduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                            high_pass=high_pass, center_offset=offset,
-                                                            display=display, save_path=save_path)
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
+                                                                high_pass=high_pass, center_offset=offset,
+                                                                display=display, save_path=save_path)
                 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
