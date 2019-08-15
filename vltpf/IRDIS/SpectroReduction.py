@@ -554,11 +554,106 @@ class SpectroReduction(object):
         interupted in case of error.
         '''
 
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
+
+        print('Performing file association for calibrations')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
         
+        # instrument arm
+        arm = files_info['SEQ ARM'].unique()
+        if len(arm) != 1:
+            raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
         
-        # drop wave calibration that are too far from science
+        # IRDIS obs mode and filter combination
+        modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
+        if len(modes) != 1:
+            raise ValueError('Sequence is mixing different types of observations: {0}'.format(modes))
         
+        filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
+        if len(filter_combs) != 1:
+            raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+        filter_comb = filter_combs[0]
+        if filter_comb == 'S_LR':
+            mode_short = 'LRS'
+        elif filter_comb == 'S_MR':
+            mode_short = 'MRS'
+        else:
+            raise ValueError('Unknown IRDIS-LSS mode {0}'.format(filter_comb))
+
+        # specific data frame for calibrations
+        # keep static calibrations and sky backgrounds
+        calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
+                            ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
         
+        ###############################################
+        # static calibrations not dependent on DIT
+        ###############################################
+        error_flag = 0
+        warning_flag = 0
+
+        # flat
+        cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS COMB IFLT'] == filter_comb)]
+        if len(cfiles) <= 1:
+            error_flag += 1
+            print(' * Error: there should be more than 1 flat in filter combination {0}'.format(filter_comb))
+        
+        # wave
+        cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS COMB IFLT'] == filter_comb)]
+        if len(cfiles) == 0:
+            error_flag += 1
+            print(' * Error: there should be 1 wavelength calibration file, found none.')
+        elif len(cfiles) > 1:
+            warning_flag += 1
+            print(' * Warning: there should be 1 wavelength calibration file, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']            
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[1:].index, inplace=True)
+        
+        ##################################################
+        # static calibrations that depend on science DIT
+        ##################################################
+        
+        obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
+        DITs = files_info.loc[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT'), 'DET SEQ1 DIT'].unique().round(2)
+        
+        # handle darks in a slightly different way because there might be several different DITs
+        for DIT in DITs:
+            # instrumental backgrounds
+            cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
+                            (calibs['DET SEQ1 DIT'].round(2) == DIT)]
+            if len(cfiles) == 0:
+                warning_flag += 1
+                print(' * Warning: there is no dark/background for science files with DIT={0} sec. '.format(DIT) +
+                      'It is *highly recommended* to include one to obtain the best data reduction. ' +
+                      'A single dark/background file is sufficient, and it can easily be downloaded ' +
+                      'from the ESO archive')
+
+            # sky backgrounds
+            cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+            if len(cfiles) == 0:
+                warning_flag += 1
+                print(' * Warning: there is no sky background for science files with DIT={0} sec. '.format(DIT) +
+                      'Using a sky background instead of an internal instrumental background can ' +
+                      'usually provide a cleaner data reduction')
+
+        # error reporting
+        print('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
+        if error_flag:
+            raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        self._files_info = files_info
 
     
     def sph_ird_cal_dark(self, silent=True):
