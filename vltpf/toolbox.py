@@ -547,6 +547,8 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
     '''
 
     # instrument
+    # FIXME: pixel size should be stored in .ini files and passed to
+    # function when needed (ticket #60)
     if instrument == 'IFS':
         pixel = 7.46
         offset = 102
@@ -577,10 +579,13 @@ def star_centers_from_waffle_cube(cube, wave, instrument, waffle_orientation,
         pdf = PdfPages(save_path)
 
     # center guess
+    # FIXME: centers should be stored in .ini files and passed to
+    # function when needed (ticket #60)
     if instrument == 'IFS':
         center_guess = np.full((nwave, 2), ((dim // 2)+3, (dim // 2)-1))
     elif instrument == 'IRDIS':
-        center_guess = np.array(((485, 520), (486, 508)))
+        center_guess = np.array(((485, 520), 
+                                 (486, 508)))
     
     # loop over images
     spot_center = np.zeros((nwave, 4, 2))
