@@ -2289,37 +2289,42 @@ class Reduction(object):
         #
         # summary plot
         #
-        fig = plt.figure(1, figsize=(17, 5.5))
-        plt.clf()
-        ax = fig.add_subplot(131)
-        ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
-        ax.set_xlabel('x center [pix]')
-        ax.set_ylabel('y center [pix]')
-        ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
-        ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
-        ax.set_title('Frames centers')
+        if save or display
+            fig = plt.figure(1, figsize=(17, 5.5))
+            plt.clf()
+            ax = fig.add_subplot(131)
+            ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
+            ax.set_xlabel('x center [pix]')
+            ax.set_ylabel('y center [pix]')
+            ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
+            ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
+            ax.set_title('Frames centers')
 
-        ax = fig.add_subplot(132)
-        ax.plot(wave_scales, linestyle='dotted')
-        ax.plot(wave_scale, color='k', label='Mean')
-        ax.set_xlabel('Spectral channel index')
-        ax.set_ylabel('Scaling factor')
-        ax.set_title('Spectral scaling')
-        ax.legend(loc='upper left')
+            ax = fig.add_subplot(132)
+            ax.plot(wave_scales, linestyle='dotted')
+            ax.plot(wave_scale, color='k', label='Mean')
+            ax.set_xlabel('Spectral channel index')
+            ax.set_ylabel('Scaling factor')
+            ax.set_title('Spectral scaling')
+            ax.legend(loc='upper left')
 
-        ax = fig.add_subplot(133)
-        ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
-        ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
-        for w in self._wave_cal_lasers:
-            ax.axvline(x=w, linestyle='dashed', color='purple')
-        ax.set_xlabel(r'Wavelength [$\mu$m]')
-        ax.set_ylabel('Flux')
-        ax.legend(loc='upper right')
-        ax.set_title('Wavelength calibration')
-        plt.tight_layout()
+            ax = fig.add_subplot(133)
+            ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
+            ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
+            for w in self._wave_cal_lasers:
+                ax.axvline(x=w, linestyle='dashed', color='purple')
+            ax.set_xlabel(r'Wavelength [$\mu$m]')
+            ax.set_ylabel('Flux')
+            ax.legend(loc='upper right')
+            ax.set_title('Wavelength calibration')
+            plt.tight_layout()
 
-        plt.savefig(os.path.join(path.products, 'wavelength_recalibration.pdf'))
+        if display:
+            plt.pause(1e-3)
 
+        if save:
+            plt.savefig(os.path.join(path.products, 'wavelength_recalibration.pdf'))
+            
         # update recipe execution
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
 
