@@ -404,7 +404,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     Parameters
     ----------
     cube : array_like
-        PSF IFS cube
+        IRDIFS PSF cube
 
     wave : array_like
         Wavelength values, in nanometers
@@ -490,6 +490,109 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
         pdf.close()
 
     return img_center
+
+
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_path=None):
+    '''
+    Compute star center from PSF LSS spectra (IRDIS LSS)
+
+    Parameters
+    ----------
+    cube : array_like
+        LSS PSF cube
+
+    wave_cube : array_like
+        Wavelength values for each field, in nanometers
+
+    pixel : float
+        Pixel scale, in mas/pixel
+    
+    display : bool
+        Display the fit of the satelitte spots
+
+    save_path : str
+        Path where to save the fit images
+    
+    Returns
+    -------
+    centers : array_like
+        The star center in each frame and wavelength of the cube
+    '''
+    
+    # standard parameters
+    box = 20
+    
+    # multi-page PDF to save result
+    if save_path is not None:
+        pdf = PdfPages(save_path)
+    
+    # loop over fiels and wavelengths
+    nimg = len(cube)
+    centers = np.full((nimg, 1024), np.nan)
+    for fidx, img in enumerate(cube):
+        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        
+        # remove any NaN
+        img = np.nan_to_num(cube[fidx])
+        
+        # sub-image
+        prof = np.sum(img, axis=0)
+        cx_int = np.int(np.argmax(prof))
+        
+        # sub-image
+        sub = img[:, cx_int-box:cx_int+box]
+        xx  = np.arange(2*box)
+        
+        # wavelengths for this field
+        wave = wave_cube[fidx]
+
+        good = np.where(np.isfinite(wave))[0]
+        for gidx in good:
+            # lambda/D
+            loD = wave[gidx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
+            
+            # current profile
+            prof = sub[gidx, :]
+            
+            # gaussian fit
+            imax = np.argmax(prof)
+            
+            g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
+                models.Const1D(amplitude=0)
+            
+            fit_g = fitting.LevMarLSQFitter()
+            par = fit_g(g_init, xx, prof)
+    
+            cx = par[0].mean.value - box + cx_int
+            
+            centers[fidx, gidx] = cx
+            
+        if save_path or display:
+            fig = plt.figure(0, figsize=(3, 12))
+            plt.clf()
+            ax = fig.add_subplot(111)
+            
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
+            ax.plot(centers[fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=0.5)
+            
+            ax.set_title(r'Image #{0}'.format(fidx+1))
+
+            ext = 1000 / pixel
+            ax.set_xlim(cx_int-ext, cx_int+ext)
+            ax.set_ylim(0, 1024)
+                        
+            plt.tight_layout()
+
+            if save_path:
+                pdf.savefig()
+
+            if display:
+                plt.pause(1e-3)
+
+    if save_path:
+        pdf.close()
+
+    return centers
 
 
 def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation,

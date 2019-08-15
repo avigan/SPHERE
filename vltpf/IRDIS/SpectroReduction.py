@@ -1254,9 +1254,13 @@ class SpectroReduction(object):
         if filter_comb == 'S_LR':
             center = np.array(((484, 496), 
                                (488, 486)))
+            wave_min = 920
+            wave_max = 2330
         elif filter_comb == 'S_MR':
             center = np.array(((474, 519), 
                                (479, 509)))
+            wave_min = 940
+            wave_max = 1840
         
         # wavelength map
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
@@ -1265,7 +1269,7 @@ class SpectroReduction(object):
         wave_map = np.zeros((2, 1024, 1024))
         wave_map[0] = wave[:, 0:1024]
         wave_map[1] = wave[:, 1024:]
-        wave_map[wave_map == 0] = np.nan
+        wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
 
         wave_ext = 10
         wave_lin = np.zeros((2, 1024))
@@ -1289,7 +1293,7 @@ class SpectroReduction(object):
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_cube(cube, wave, pixel, display=display, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, display=display, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
