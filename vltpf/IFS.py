@@ -2109,7 +2109,7 @@ class Reduction(object):
 
 
     def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), display=False, save=True):
-        '''Performs a recalibration of the wavelength, is star center frames
+        '''Performs a recalibration of the wavelength, if star center frames
         are available
 
         See Vigan et al. (2015, MNRAS, 454, 129) for details of the
