@@ -399,7 +399,7 @@ def lines_intersect(a1, a2, b1, b2):
 
 def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=None):
     '''
-    Compute star center from PSF images
+    Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
     Parameters
     ----------
@@ -496,7 +496,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
                                       high_pass=False, center_offset=(0, 0), smooth=0,
                                       coro=True, display=False, save_path=None):
     '''
-    Compute star center from waffle images
+    Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
     Parameters
     ----------
