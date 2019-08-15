@@ -898,74 +898,96 @@ class SpectroReduction(object):
         if len(dark_file) == 0:
             raise ValueError('There should at least 1 dark file for wavelength calibration. Found none.')
 
+        mode = wave_file['INS COMB IFLT'][0]
+        flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
+        if len(flat_file) == 0:
+            raise ValueError('There should at least 1 flat file for wavelength calibration. Found none.')
         
-        filter_combs = calibs['INS COMB IFLT'].unique()
+        bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
+        if len(flat_file) == 0:
+            raise ValueError('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
         
-        for cfilt in filter_combs:
-            cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
-            files = cfiles.index
-
-            print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
-            
-            # create sof
-            sof = os.path.join(path.sof, 'flat_filt={0}.sof'.format(cfilt))
+        # products
+        wav_file = 'wave_calib'
+        
+        # esorex parameters
+        if mode == 'S_LR':
+            # create standard sof in LRS
+            sof = os.path.join(path.sof, 'wave.sof')
             file = open(sof, 'w')
-            for f in files:
-                file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+            file.write('{0}{1}.fits     {2}\n'.format(path.raw, wave_file, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
-
-            # products
-            flat_file = 'flat_filt={0}'.format(cfilt)
-            bpm_file  = 'flat_bpm_filt={0}'.format(cfilt)
             
-            # esorex parameters    
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
-                    'sph_ird_instrument_flat',
-                    '--ird.instrument_flat.save_addprod=TRUE',
-                    '--ird.instrument_flat.outfilename={0}{1}.fits'.format(path.calib, flat_file),
-                    '--ird.instrument_flat.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                    'sph_ird_wave_calib',
+                    '--ird.wave_calib.column_width=200',
+                    '--ird.wave_calib.grism_mode=FALSE',
+                    '--ird.wave_calib.threshold=2000',
+                    '--ird.wave_calib.number_lines=6',
+                    '--ird.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
+                    sof]
+        elif mode == 'S_MR':            
+            # masking of second order spectrum in MRS
+            wave_fname = wave_file.index[0]
+            wave_data, hdr = fits.getdata(os.path.join(path.raw, wave_fname+'.fits'), header=True)
+            wave_data = wave_data.squeeze()
+            wave_data[:60, :] = 0
+            fits.writeto(os.path.join(path.preproc, wave_fname+'_masked.fits'), wave_data, hdr, overwrite=True, 
+                         output_verify='silentfix')
+            
+            # create sof using the masked file
+            sof = os.path.join(path.sof, 'wave.sof')
+            file = open(sof, 'w')
+            file.write('{0}{1}_masked.fits {2}\n'.format(path.preproc, wave_fname, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}{1}.fits        {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}{1}.fits        {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
+            file.close()
+
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ird_wave_calib',
+                    '--ird.wave_calib.column_width=200',
+                    '--ird.wave_calib.grism_mode=TRUE',
+                    '--ird.wave_calib.threshold=1000',
+                    '--ird.wave_calib.number_lines=5',
+                    '--ird.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
                     sof]
 
-            # check esorex
-            if shutil.which('esorex') is None:
-                raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
-                                'that the ESO pipeline is properly installed before running VLTPF.')
+        # check esorex
+        if shutil.which('esorex') is None:
+            raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                            'that the ESO pipeline is properly installed before running VLTPF.')
+        
+        # execute esorex
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
 
-            # execute esorex
-            if silent:
-                proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
-            else:
-                proc = subprocess.run(args, cwd=path.tmp)
+        if proc.returncode != 0:
+            raise ValueError('esorex process was not successful')
 
-            if proc.returncode != 0:
-                raise ValueError('esorex process was not successful')
-
-            # store products
-            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[flat_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
-            files_info.loc[flat_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
-            files_info.loc[flat_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
-            files_info.loc[flat_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
-            files_info.loc[flat_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
-            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
-            files_info.loc[flat_file, 'PROCESSED'] = True
-            files_info.loc[flat_file, 'PRO CATG'] = 'IRD_FLAT_FIELD'
-
-            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[bpm_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
-            files_info.loc[bpm_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
-            files_info.loc[bpm_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
-            files_info.loc[bpm_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
-            files_info.loc[bpm_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
-            files_info.loc[bpm_file, 'PROCESSED'] = True
-            files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
+        # store products
+        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
+        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
+        files_info.loc[wav_file, 'INS COMB IFLT'] = wave_file['INS COMB IFLT'][0]
+        files_info.loc[wav_file, 'INS4 FILT2 NAME'] = wave_file['INS4 FILT2 NAME'][0]
+        files_info.loc[wav_file, 'INS1 MODE'] = wave_file['INS1 MODE'][0]
+        files_info.loc[wav_file, 'INS1 FILT NAME'] = wave_file['INS1 FILT NAME'][0]
+        files_info.loc[wav_file, 'INS1 OPTI2 NAME'] = wave_file['INS1 OPTI2 NAME'][0]
+        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
+        files_info.loc[wav_file, 'PROCESSED'] = True
+        files_info.loc[wav_file, 'PRO CATG'] = 'IRD_WAVECALIB'
         
         # save
         files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
 
         # update recipe execution
-        self._recipe_execution['sph_ird_cal_detector_flat'] = True
+        self._recipe_execution['sph_ird_wave_calib'] = True
