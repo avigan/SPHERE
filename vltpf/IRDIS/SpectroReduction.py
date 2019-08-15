@@ -252,7 +252,8 @@ class SpectroReduction(object):
         
         config = self._config
         
-        self.sph_ird_star_center(display=config['center_display'],
+        self.sph_ird_star_center(high_pass=config['high_pass'],
+                                 display=config['center_display'],
                                  save=config['center_save'])
     
     
@@ -1221,12 +1222,16 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
-    def sph_ird_star_center(self, display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, display=False, save=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
+        high_pass : bool
+            Apply high-pass filter to the image before searching for the satelitte spots.
+            Default is False
+
         display : bool
             Display the fit of the satelitte spots
 
@@ -1252,15 +1257,15 @@ class SpectroReduction(object):
         # FIXME: centers should be stored in .ini files and passed to
         # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            center = np.array(((484, 496), 
-                               (488, 486)))
+            centers = np.array(((484, 496), 
+                                (488, 486)))
             wave_min = 920
             wave_max = 2330
         elif filter_comb == 'S_MR':
-            center = np.array(((474, 519), 
-                               (479, 509)))
+            centers = np.array(((474, 519), 
+                                (479, 509)))
             wave_min = 940
-            wave_max = 1840
+            wave_max = 1820
         
         # wavelength map
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
@@ -1274,8 +1279,8 @@ class SpectroReduction(object):
         wave_ext = 10
         wave_lin = np.zeros((2, 1024))
         
-        wave_lin[0] = np.mean(wave_map[0, :, center[0, 0]-wave_ext:center[0, 0]+wave_ext], axis=1)
-        wave_lin[1] = np.mean(wave_map[1, :, center[1, 0]-wave_ext:center[1, 0]+wave_ext], axis=1)
+        wave_lin[0] = np.mean(wave_map[0, :, centers[0, 0]-wave_ext:centers[0, 0]+wave_ext], axis=1)
+        wave_lin[1] = np.mean(wave_map[1, :, centers[1, 0]-wave_ext:centers[1, 0]+wave_ext], axis=1)
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
@@ -1293,8 +1298,47 @@ class SpectroReduction(object):
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, display=display, save_path=save_path)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, display=display, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
+                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), psf_center, overwrite=True)
                 print()
+
+        # then OBJECT,CENTER (if any)
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        DIT = starcen_files['DET SEQ1 DIT'].round(2)[0]
+        starsci_files = frames_info[(frames_info['DPR TYPE'] == 'OBJECT') & (frames_info['DET SEQ1 DIT'].round(2) == DIT)]
+        if len(starcen_files) != 0:
+            for file, idx in starcen_files.index:
+                print('  ==> OBJECT,CENTER: {0}'.format(file))
+
+                # read center data
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                cube_cen, hdr = fits.getdata(files[0], header=True)
+
+                # read science data
+                if len(starsci_files) != 0:
+                    fname2 = '{0}_DIT{1:03d}_preproc'.format(starsci_files.index[0][0], idx)
+                    files2 = glob.glob(os.path.join(path.preproc, fname2+'.fits'))
+                    cube_sci, hdr = fits.getdata(files2[0], header=True)                    
+                else:
+                    cube_sci = None
+                
+                # centers
+                if save:
+                    save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
+                else:
+                    save_path = None
+                spot_centers, spot_dist, img_centers \
+                    = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel, 
+                                                                high_pass=high_pass, display=display, 
+                                                                save_path=save_path)
+
+                # save
+                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_centers, overwrite=True)
+                print()
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_star_center'] = True
+

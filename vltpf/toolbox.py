@@ -521,21 +521,22 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
     
     # standard parameters
     box = 20
-    
-    # multi-page PDF to save result
-    if save_path is not None:
-        pdf = PdfPages(save_path)
+
+    # prepare plot
+    if save_path or display:
+        fig = plt.figure(0, figsize=(7, 12))
+        plt.clf()
     
     # loop over fiels and wavelengths
     nimg = len(cube)
-    centers = np.full((nimg, 1024), np.nan)
+    psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
         print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
         
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
         
-        # sub-image
+        # approximate center
         prof = np.sum(img, axis=0)
         cx_int = np.int(np.argmax(prof))
         
@@ -547,12 +548,12 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
         wave = wave_cube[fidx]
 
         good = np.where(np.isfinite(wave))[0]
-        for gidx in good:
+        for widx in good:
             # lambda/D
-            loD = wave[gidx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
+            loD = wave[widx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
             
             # current profile
-            prof = sub[gidx, :]
+            prof = sub[widx, :]
             
             # gaussian fit
             imax = np.argmax(prof)
@@ -565,34 +566,29 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
     
             cx = par[0].mean.value - box + cx_int
             
-            centers[fidx, gidx] = cx
+            psf_centers[widx, fidx] = cx
             
         if save_path or display:
-            fig = plt.figure(0, figsize=(3, 12))
-            plt.clf()
-            ax = fig.add_subplot(111)
-            
+            ax = fig.add_subplot(1, 2, fidx+1)
+
             ax.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
-            ax.plot(centers[fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=0.5)
+            ax.plot(psf_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=0.5)
             
-            ax.set_title(r'Image #{0}'.format(fidx+1))
+            ax.set_title(r'Field #{0}'.format(fidx+1))
 
             ext = 1000 / pixel
             ax.set_xlim(cx_int-ext, cx_int+ext)
             ax.set_ylim(0, 1024)
-                        
-            plt.tight_layout()
 
-            if save_path:
-                pdf.savefig()
-
-            if display:
-                plt.pause(1e-3)
+    if display:
+        plt.tight_layout()
+        plt.pause(1e-3)
 
     if save_path:
-        pdf.close()
+        plt.tight_layout()
+        plt.savefig(save_path)
 
-    return centers
+    return psf_centers
 
 
 def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation,
@@ -604,7 +600,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     Parameters
     ----------
     cube : array_like
-        Waffle IRDIS cube
+        IRDIFS waffle cube
 
     wave : array_like
         Wavelength values, in nanometers
@@ -617,7 +613,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
     high_pass : bool    
         Apply high-pass filter to the image before searching for the
-        satelitte spots
+        satelitte spots. Default is False
 
     smooth : int    
         Apply a gaussian smoothing to the images to reduce noise. The
@@ -648,7 +644,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
         The star center in each frame of the cube
 
     '''
-
+    
     # instrument
     # FIXME: pixel size should be stored in .ini files and passed to
     # function when needed (ticket #60)
@@ -814,3 +810,140 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
         pdf.close()
 
     return spot_center, spot_dist, img_center
+
+
+def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pixel, high_pass=False,
+                                      display=False, save_path=None):
+    '''
+    Compute star center from waffle LSS spectra (IRDIS LSS)
+
+    Parameters
+    ----------
+    cube_cen : array_like
+        LSS waffle cube
+
+    cube_sci : array_like
+        Science cube with same DIT as the waffle cube. Can be None
+
+    wave_cube : array_like
+        Wavelength values for each field, in nanometers
+
+    centers : tupple
+        Approximate center of the two fields
+
+    pixel : float
+        Pixel scale, in mas/pixel
+    
+    high_pass : bool    
+        Apply high-pass filter to the image before searching for the
+        satelitte spots. Default is False
+
+    display : bool
+        Display the fit of the satelitte spots
+
+    save_path : str
+        Path where to save the fit images
+    
+    Returns
+    -------
+    spot_centers : array_like
+        Centers of spots in each frame and each wavelength of the cube
+
+    spot_dist : array_like
+        Distance between the spots in each frame and wavelength of the cube
+
+    img_centers : array_like
+        The star center in each frame and wavelength of the cube
+    '''
+
+    # standard parameters
+    box = 120
+    
+    # loop over fiels and wavelengths
+    nimg = len(cube_cen)
+
+    # prepare plot
+    if save_path or display:
+        fig = plt.figure(0, figsize=(7, 12))
+        plt.clf()
+    
+    # subtract science cube if provided
+    if cube_sci is not None:
+        print(' ==> subtract science cube')
+        cube_cen -= cube_sci
+    
+    spot_centers = np.full((1024, 2, 2), np.nan)
+    spot_dist    = np.full((1024, nimg), np.nan)
+    img_centers  = np.full((1024, nimg), np.nan)
+    for fidx, img in enumerate(cube_cen):
+        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        
+        # remove any NaN
+        img = np.nan_to_num(cube_cen[fidx])
+        
+        if high_pass:
+            img = img - ndimage.median_filter(img, 15, mode='mirror')
+        
+        # sub-image
+        cx_int = centers[fidx, 0]
+        sub = img[:, cx_int-box:cx_int+box]
+        xx  = np.arange(2*box)
+        
+        # wavelengths for this field
+        wave = wave_cube[fidx]
+
+        good = np.where(np.isfinite(wave))[0]
+        for widx in good:
+            # lambda/D
+            loD = wave[widx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
+            
+            # first waffle
+            prof = sub[widx] * (xx < box).astype(np.int)
+            imax = np.argmax(prof)
+            g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
+                models.Const1D(amplitude=0)            
+            fit_g = fitting.LevMarLSQFitter()
+            par = fit_g(g_init, xx, prof)
+    
+            c0 = par[0].mean.value - box + cx_int
+            
+            # second waffle
+            prof = sub[widx] * (xx > box).astype(np.int)
+            imax = np.argmax(prof)
+            g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
+                models.Const1D(amplitude=0)            
+            fit_g = fitting.LevMarLSQFitter()
+            par = fit_g(g_init, xx, prof)
+    
+            c1 = par[0].mean.value - box + cx_int
+
+            spot_centers[widx, fidx, 0] = c0
+            spot_centers[widx, fidx, 1] = c1
+            
+            spot_dist[widx, fidx] = np.abs(c1-c0)
+            
+            img_centers[widx, fidx] = (c0 + c1) / 2
+            
+        if save_path or display:
+            ax = fig.add_subplot(1, 2, fidx+1)
+            ax.imshow(img/img.max(), aspect='equal', vmin=-1e-2, vmax=1e-2, interpolation='nearest')
+            ax.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
+            ax.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
+            ax.plot(img_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
+            
+            ax.set_title(r'Field #{0}'.format(fidx+1))
+
+            ext = 1000 / pixel
+            ax.set_xlim(cx_int-ext, cx_int+ext)
+            ax.set_ylim(0, 1024)
+
+    if display:
+        plt.tight_layout()
+        plt.pause(1e-3)
+
+    if save_path:
+        plt.tight_layout()
+        plt.savefig(save_path)
+
+    return spot_centers, spot_dist, img_centers
+    
