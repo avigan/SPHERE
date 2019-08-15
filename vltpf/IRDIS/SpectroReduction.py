@@ -761,3 +761,4 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
+
