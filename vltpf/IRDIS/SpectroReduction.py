@@ -602,7 +602,7 @@ class SpectroReduction(object):
             print(' * Error: there should be more than 1 flat in filter combination {0}'.format(filter_comb))
         
         # wave
-        cfiles = calibs[(calibs['DPR TYPE'] == 'WAVE,LAMP') & (calibs['INS COMB IFLT'] == filter_comb)]
+        cfiles = calibs[(calibs['DPR TYPE'] == 'LAMP,WAVE') & (calibs['INS COMB IFLT'] == filter_comb)]
         if len(cfiles) == 0:
             error_flag += 1
             print(' * Error: there should be 1 wavelength calibration file, found none.')
