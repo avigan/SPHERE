@@ -40,7 +40,9 @@ class SpectroReduction(object):
         'sort_files': [],
         'sort_frames': ['sort_files'],
         'check_files_association': ['sort_files'],
-        'sph_ird_cal_dark': ['sort_files']
+        'sph_ird_cal_dark': ['sort_files'],
+        'sph_ird_cal_detector_flat': ['sort_files'],
+        'sph_ird_wave_calib': ['sort_files']
     }
     
     ##################################################
@@ -96,7 +98,10 @@ class SpectroReduction(object):
         self._recipe_execution = {
             'sort_files': False,
             'sort_frames': False,
-            'check_files_association': False
+            'check_files_association': False,
+            'sph_ifs_cal_dark': False,
+            'sph_ifs_cal_detector_flat': False,
+            'sph_ird_wave_calib': False
         }
         
         # reload any existing data frames
@@ -218,7 +223,9 @@ class SpectroReduction(object):
 
         config = self._config
         
-        pass
+        self.sph_ird_cal_dark(silent=config['silent'])
+        self.sph_ird_cal_detector_flat(silent=config['silent'])
+        self.sph_ird_wave_calib(silent=config['silent'])
 
     
     def preprocess_science(self):
@@ -547,7 +554,11 @@ class SpectroReduction(object):
         interupted in case of error.
         '''
 
-        print('check_files_association() not implemented yet')
+        
+        
+        # drop wave calibration that are too far from science
+        
+        
 
     
     def sph_ird_cal_dark(self, silent=True):
@@ -689,8 +700,7 @@ class SpectroReduction(object):
         
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
-                            ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
-                             (files_info['DPR TECH'] == 'IMAGE'))]
+                            (files_info['DPR TYPE'] == 'FLAT,LAMP')]
         filter_combs = calibs['INS COMB IFLT'].unique()
         
         for cfilt in filter_combs:
@@ -762,3 +772,105 @@ class SpectroReduction(object):
         # update recipe execution
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
 
+    
+    def sph_ird_wave_calib(self, silent=True):
+        '''
+        Create the wavelength calibration
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Default is True
+        '''
+
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wave_calib', self.recipe_requirements)
+        
+        print('Creating wavelength calibration')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        
+        # get list of files
+        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
+        if len(wave_file) != 1:
+            raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+        
+        DIT = wave_file['DET SEQ1 DIT'][0]
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_MASTER_DARK') & 
+                               (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+        if len(dark_file) == 0:
+            raise ValueError('There should at least 1 dark file for wavelength calibration. Found none.')
+
+        
+        filter_combs = calibs['INS COMB IFLT'].unique()
+        
+        for cfilt in filter_combs:
+            cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
+            files = cfiles.index
+
+            print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
+            
+            # create sof
+            sof = os.path.join(path.sof, 'flat_filt={0}.sof'.format(cfilt))
+            file = open(sof, 'w')
+            for f in files:
+                file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+            file.close()
+
+            # products
+            flat_file = 'flat_filt={0}'.format(cfilt)
+            bpm_file  = 'flat_bpm_filt={0}'.format(cfilt)
+            
+            # esorex parameters    
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ird_instrument_flat',
+                    '--ird.instrument_flat.save_addprod=TRUE',
+                    '--ird.instrument_flat.outfilename={0}{1}.fits'.format(path.calib, flat_file),
+                    '--ird.instrument_flat.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                    sof]
+
+            # check esorex
+            if shutil.which('esorex') is None:
+                raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
+                                'that the ESO pipeline is properly installed before running VLTPF.')
+
+            # execute esorex
+            if silent:
+                proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+            else:
+                proc = subprocess.run(args, cwd=path.tmp)
+
+            if proc.returncode != 0:
+                raise ValueError('esorex process was not successful')
+
+            # store products
+            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[flat_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+            files_info.loc[flat_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+            files_info.loc[flat_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+            files_info.loc[flat_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+            files_info.loc[flat_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+            files_info.loc[flat_file, 'PROCESSED'] = True
+            files_info.loc[flat_file, 'PRO CATG'] = 'IRD_FLAT_FIELD'
+
+            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
+            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
+            files_info.loc[bpm_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
+            files_info.loc[bpm_file, 'INS4 FILT2 NAME'] = cfiles['INS4 FILT2 NAME'][0]
+            files_info.loc[bpm_file, 'INS1 MODE'] = cfiles['INS1 MODE'][0]
+            files_info.loc[bpm_file, 'INS1 FILT NAME'] = cfiles['INS1 FILT NAME'][0]
+            files_info.loc[bpm_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
+            files_info.loc[bpm_file, 'PROCESSED'] = True
+            files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
+        
+        # save
+        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_cal_detector_flat'] = True
