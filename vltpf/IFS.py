@@ -2316,7 +2316,7 @@ class Reduction(object):
         ax.set_title('Wavelength calibration')
         plt.tight_layout()
 
-        plt.savefig(os.path.join(path.products, 'wavelegnth_recalibration.pdf'))
+        plt.savefig(os.path.join(path.products, 'wavelength_recalibration.pdf'))
 
         # update recipe execution
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
