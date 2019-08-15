@@ -42,7 +42,8 @@ class SpectroReduction(object):
         'check_files_association': ['sort_files'],
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_wave_calib': ['sort_files']
+        'sph_ird_wave_calib': ['sort_files', 'sph_ird_cal_detector_flat'],
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat']
     }
     
     ##################################################
@@ -235,7 +236,11 @@ class SpectroReduction(object):
         
         config = self._config
         
-        pass
+        self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
+                                        fix_badpix=config['preproc_fix_badpix'],
+                                        collapse_science=config['preproc_collapse_science'],
+                                        collapse_psf=config['preproc_collapse_psf'],
+                                        collapse_center=config['preproc_collapse_center'])
     
 
     def process_science(self):
@@ -305,10 +310,12 @@ class SpectroReduction(object):
             
             # update recipe execution
             self._recipe_execution['sort_files'] = True
-            # if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
-            #     self._recipe_execution['sph_ird_cal_dark'] = True
-            # if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
-            #     self._recipe_execution['sph_ird_cal_detector_flat'] = True
+            if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
+                self._recipe_execution['sph_ird_cal_dark'] = True
+            if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
+                self._recipe_execution['sph_ird_cal_detector_flat'] = True
+            if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
+                self._recipe_execution['sph_ird_wave_calib'] = True
         else:
             files_info = None
 
@@ -349,23 +356,23 @@ class SpectroReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # additional checks to update recipe execution
-        # if frames_info_preproc is not None:
-        #     done = True
-        #     files = frames_info_preproc.index
-        #     for file, idx in files:
-        #         fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-        #         file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-        #         done = done and (len(file) == 1)
-        #     self._recipe_execution['sph_ird_preprocess_science'] = done
+        if frames_info_preproc is not None:
+            done = True
+            files = frames_info_preproc.index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ird_preprocess_science'] = done
 
-        #     done = True
-        #     files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
-        #                                 (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
-        #     for file, idx in files:
-        #         fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
-        #         file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-        #         done = done and (len(file) == 1)
-        #     self._recipe_execution['sph_ird_star_center'] = done
+            done = True
+            files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
+                                        (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
+            for file, idx in files:
+                fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
+                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                done = done and (len(file) == 1)
+            self._recipe_execution['sph_ird_star_center'] = done
 
         
     def sort_files(self):
@@ -577,12 +584,8 @@ class SpectroReduction(object):
         if len(filter_combs) != 1:
             raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
         filter_comb = filter_combs[0]
-        if filter_comb == 'S_LR':
-            mode_short = 'LRS'
-        elif filter_comb == 'S_MR':
-            mode_short = 'MRS'
-        else:
-            raise ValueError('Unknown IRDIS-LSS mode {0}'.format(filter_comb))
+        if (filter_comb != 'S_LR') or (filter_comb == 'S_MR'):
+            raise ValueError('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
 
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
@@ -898,7 +901,7 @@ class SpectroReduction(object):
         if len(dark_file) == 0:
             raise ValueError('There should at least 1 dark file for wavelength calibration. Found none.')
 
-        mode = wave_file['INS COMB IFLT'][0]
+        filter_comb = wave_file['INS COMB IFLT'][0]
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
         if len(flat_file) == 0:
             raise ValueError('There should at least 1 flat file for wavelength calibration. Found none.')
@@ -911,7 +914,7 @@ class SpectroReduction(object):
         wav_file = 'wave_calib'
         
         # esorex parameters
-        if mode == 'S_LR':
+        if filter_comb == 'S_LR':
             # create standard sof in LRS
             sof = os.path.join(path.sof, 'wave.sof')
             file = open(sof, 'w')
@@ -931,7 +934,7 @@ class SpectroReduction(object):
                     '--ird.wave_calib.number_lines=6',
                     '--ird.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
                     sof]
-        elif mode == 'S_MR':            
+        elif filter_comb == 'S_MR':            
             # masking of second order spectrum in MRS
             wave_fname = wave_file.index[0]
             wave_data, hdr = fits.getdata(os.path.join(path.raw, wave_fname+'.fits'), header=True)
@@ -991,3 +994,226 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._recipe_execution['sph_ird_wave_calib'] = True
+
+
+    def sph_ird_preprocess_science(self,
+                                   subtract_background=True, fix_badpix=True,
+                                   collapse_science=False, collapse_psf=True, collapse_center=True):
+        '''Pre-processes the science frames.
+
+        This function can perform multiple steps:
+          - collapse of the frames
+          - subtract the background
+          - correct bad pixels
+          - reformat IRDIS data in (x,y,lambda) cubes
+
+        For the science, PSFs or star center frames, the full cubes
+        are mean-combined into a single frame.
+
+        The pre-processed frames are saved in the preproc
+        sub-directory and will be combined later.
+        
+        Parameters
+        ----------
+        subtract_background : bool
+            Performs background subtraction. Default is True
+
+        fix_badpix : bool
+            Performs correction of bad pixels. Default is True
+
+        collapse_science :  bool
+            Collapse data for OBJECT cubes. Default is False
+
+        collapse_psf :  bool
+            Collapse data for OBJECT,FLUX cubes. Default is True. Note
+            that the collapse type is mean and cannot be changed.
+
+        collapse_center :  bool
+            Collapse data for OBJECT,CENTER cubes. Default is True. Note
+            that the collapse type is mean and cannot be changed.
+
+        '''
+
+        # check if recipe can be executed
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements)
+        
+        print('Pre-processing science files')
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+        frames_info = self._frames_info
+        
+        # clean before we start
+        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc.fits'))
+        for file in files:
+            os.remove(file)
+
+        # filter combination
+        filter_comb = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()[0]
+
+        # bpm
+        if fix_badpix:
+            bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
+                                   (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
+            bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
+
+            bpm = toolbox.compute_bad_pixel_map(bpm_files)
+
+            # mask dead regions
+            bpm[:15, :]      = 0
+            bpm[1013:, :]    = 0
+            bpm[:, :50]      = 0
+            bpm[:, 941:1078] = 0
+            bpm[:, 1966:]    = 0
+            
+        # flat        
+        flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
+                               (files_info['INS COMB IFLT'] == filter_comb)]
+        if len(flat_file) != 1:
+            raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+        flat = fits.getdata(os.path.join(path.calib, flat_file.index[0]+'.fits'))
+            
+        # final dataframe
+        index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
+        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
+
+        # loop on the different type of science files
+        sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
+        dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
+        for typ in sci_types:
+            # science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
+            sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
+
+            if len(sci_files) == 0:
+                continue        
+
+            for DIT in sci_DITs:
+                sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
+
+                print('{0} files of type {1} with DIT={2} sec'.format(len(sfiles), typ, DIT))
+
+                if subtract_background:
+                    # look for sky, then background, then darks
+                    # normally there should be only one with the proper DIT
+                    dfiles = []
+                    for d in dark_types:
+                        dfiles = files_info[(files_info['PRO CATG'] == 'IRD_MASTER_DARK') &
+                                            (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+                        if len(dfiles) != 0:
+                            break
+                    print('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
+
+                    if len(dfiles) == 0:
+                        # issue a warning if absolutely no background is found
+                        print('Warning: no background has been found. Pre-processing will continue but data quality will likely be affected')
+                        bkg = np.zeros((1024, 2048))
+                    elif len(dfiles) == 1:
+                        bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
+                    elif len(dfiles) > 1:
+                        # FIXME: handle cases when multiple backgrounds are found?
+                        raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
+
+                # process files
+                for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
+                    # frames_info extract
+                    finfo = frames_info.loc[(fname, slice(None)), :]
+
+                    print(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sfiles), fname, len(finfo)))
+
+                    # read data
+                    print('   ==> read data')
+                    img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
+                    
+                    # add extra dimension to single images to make cubes
+                    if img.ndim == 2:
+                        img = img[np.newaxis, ...]
+
+                    # mask dead regions
+                    img[:, :15, :]      = np.nan
+                    img[:, 1013:, :]    = np.nan
+                    img[:, :, :50]      = np.nan
+                    img[:, :, 941:1078] = np.nan
+                    img[:, :, 1966:]    = np.nan
+                    
+                    # collapse
+                    if (typ == 'OBJECT,CENTER'):
+                        if collapse_center:
+                            print('   ==> collapse: mean')
+                            img = np.mean(img, axis=0, keepdims=True)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                        else:
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+                    elif (typ == 'OBJECT,FLUX'):
+                        if collapse_psf:
+                            print('   ==> collapse: mean')
+                            img = np.mean(img, axis=0, keepdims=True)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                        else:
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+                    elif (typ == 'OBJECT'):
+                        if collapse_science:
+                            print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
+                            img = np.mean(img, axis=0, keepdims=True)
+
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                        else:
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+
+                    frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+                    
+                    # background subtraction
+                    if subtract_background:
+                        print('   ==> subtract background')
+                        for f in range(len(img)):
+                            img[f] -= bkg
+
+                    # divide flat
+                    if subtract_background:
+                        print('   ==> divide by flat field')
+                        for f in range(len(img)):
+                            img[f] /= flat
+                        
+                    # bad pixels correction
+                    if fix_badpix:
+                        print('   ==> correct bad pixels')
+                        for f in range(len(img)):                            
+                            frame = img[f]
+                            frame = imutils.fix_badpix(frame, bpm, npix=12, weight=True)
+
+                            # additional sigma clipping to remove transitory bad pixels
+                            # not done for OBJECT,FLUX because PSF peak can be clipped
+                            if (typ != 'OBJECT,FLUX'):
+                                frame = imutils.sigma_filter(frame, box=7, nsigma=4, iterate=False)
+
+                            img[f] = frame
+
+                    # reshape data
+                    print('   ==> reshape data')
+                    NDIT = img.shape[0]
+                    nimg = np.zeros((NDIT, 2, 1024, 1024))
+                    for f in range(len(img)):
+                        nimg[f, 0] = img[f, :, 0:1024]
+                        nimg[f, 1] = img[f, :, 1024:]
+                    img = nimg
+                        
+                    # save DITs individually
+                    for f in range(len(img)):
+                        frame = nimg[f, ...].squeeze()                    
+                        hdr['HIERARCH ESO DET NDIT'] = 1
+                        fits.writeto(os.path.join(path.preproc, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
+                                     overwrite=True, output_verify='silentfix')
+
+                    print()
+
+            print()
+
+        # sort and save final dataframe
+        frames_info_preproc.sort_values(by='TIME', inplace=True)
+        frames_info_preproc.to_csv(os.path.join(path.preproc, 'frames_preproc.csv'))
+
+        self._frames_info_preproc = frames_info_preproc
+
+        # update recipe execution
+        self._recipe_execution['sph_ird_preprocess_science'] = True
