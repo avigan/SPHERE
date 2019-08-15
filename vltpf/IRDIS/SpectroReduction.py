@@ -85,7 +85,9 @@ class SpectroReduction(object):
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib',
-                                             'sph_ird_star_center'], 
+                                             'sph_ird_star_center'],
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science',
+                                 'sph_ird_star_center', 'sph_ird_wavelength_recalibration']
     }
     
     ##################################################
@@ -410,6 +412,9 @@ class SpectroReduction(object):
 
         # additional checks to update recipe execution
         if frames_info_preproc is not None:
+            self._recipe_execution['sph_ird_wavelength_recalibration'] \
+                = os.path.exists(os.path.join(path.preproc, 'wavelength_final.fits'))
+            
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
@@ -1451,7 +1456,7 @@ class SpectroReduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(os.path.join(path.preproc, 'wavelength.fits'), wave_lin, overwrite=True)
+            fits.writeto(os.path.join(path.preproc, 'wavelength_final.fits'), wave_lin, overwrite=True)
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
@@ -1537,7 +1542,7 @@ class SpectroReduction(object):
 
         # save
         print(' * saving')
-        fits.writeto(os.path.join(path.preproc, 'wavelength.fits'), wave_final, overwrite=True)
+        fits.writeto(os.path.join(path.preproc, 'wavelength_final.fits'), wave_final, overwrite=True)
 
     
         # update recipe execution
@@ -1545,7 +1550,7 @@ class SpectroReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
-                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, skip_center=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1566,6 +1571,8 @@ class SpectroReduction(object):
           - *_frames: a csv file with all the information for every
                       frames. There is one line by time step in the
                       data cube.
+
+        Data are save separately for each field.
         
         Parameters
         ----------
@@ -1620,7 +1627,293 @@ class SpectroReduction(object):
         nwave = self._nwave
         frames_info = self._frames_info_preproc
 
-        # insert code here!
+        # filter combination
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        # FIXME: centers should be stored in .ini files and passed to
+        # function when needed (ticket #60)
+        if filter_comb == 'S_LR':
+            centers = np.array(((484, 496), 
+                                (488, 486)))
+            wave_min = 920
+            wave_max = 2330
+        elif filter_comb == 'S_MR':
+            centers = np.array(((474, 519), 
+                                (479, 509)))
+            wave_min = 940
+            wave_max = 1820
+        
+        # wavelength solution: make sure we have the same number of
+        # wave points in each field
+        wave   = fits.getdata(os.path.join(path.preproc, 'wavelength_final.fits'))
+        mask   = ((wave_min <= wave) & (wave <= wave_max))
+        iwave0 = np.where(mask[:, 0])[0]
+        iwave1 = np.where(mask[:, 1])[0]
+        nwave  = np.min([iwave0.size, iwave1.size])
+        
+        iwave = np.empty((nwave, 2), dtype=np.int)        
+        iwave[:, 0] = iwave0[:nwave]
+        iwave[:, 1] = iwave1[:nwave]
+
+        final_wave = np.empty((nwave, 2))
+        final_wave[:, 0] = wave[iwave[:, 0], 0]
+        final_wave[:, 1] = wave[iwave[:, 1], 1]
+        
+        fits.writeto(os.path.join(path.products, 'wavelength_field=0.fits'), final_wave[:, 0].squeeze(), overwrite=True)
+        fits.writeto(os.path.join(path.products, 'wavelength_field=1.fits'), final_wave[:, 1].squeeze(), overwrite=True)
+        
+        # max images size
+        if psf_dim > 1024:
+            print('Warning: psf_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
+            psf_dim = 1024
+
+        if science_dim > 1024:
+            print('Warning: science_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
+            science_dim = 1024
+
+        # centering
+        centers_default = centers[:, 0]
+        if skip_center:
+            print('Warning: images will not be centered. They will just be combined.')
+            shift_method = 'roll'
+
+        if manual_center is not None:
+            manual_center = np.array(manual_center)
+            if manual_center.shape != (2,):
+                raise ValueError('manual_center does not have the right number of dimensions.')
+            
+            print('Warning: images will be centered at the user-provided values.')
+
+        #
+        # OBJECT,FLUX
+        #
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
+        nfiles = len(flux_files)
+        if nfiles != 0:
+            print(' * OBJECT,FLUX data')
+
+            # final arrays
+            psf_cube   = np.zeros((2, nfiles, nwave, psf_dim))
+            psf_posang = np.zeros(nfiles)
+
+            # final center
+            if cpix:
+                cc = psf_dim // 2
+            else:
+                cc = (psf_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(flux_files.index):
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(flux_files), file, idx))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                cube = fits.getdata(files[0])
+                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
+
+                # neutral density
+                # FIXME: handle neutral density
+                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
+                
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                psf_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
+
+                # center 
+                for field_idx, img in enumerate(cube):                    
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
+
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: implement correction of chromatism in MRS
+                        print('Warning: chromatism correction in MRS not implemented yet!!')
+                        pass
+                    else:
+                        if skip_center:
+                            cx = centers_default[field_idx]
+                        else:
+                            cx = centers[ciwave, field_idx].mean()
+                    
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        # FIXME: handle neutral density attenuation
+                        nimg = nimg / DIT  # / attenuation[wave_idx]
+
+                        psf_cube[field_idx, file_idx] = nimg[ciwave, :psf_dim]
+            
+            # save metadata
+            flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'.format(field_idx)))
+            fits.writeto(os.path.join(path.products, 'psf_posang.fits'.format(field_idx)), psf_posang, overwrite=True)
+
+            # save final cubes, split field
+            fits.writeto(os.path.join(path.products, 'psf_field=0_cube.fits'), psf_cube[0], overwrite=True)
+            fits.writeto(os.path.join(path.products, 'psf_field=1_cube.fits'), psf_cube[1], overwrite=True)
+
+            # delete big cubes
+            del psf_cube
+
+            print()        
+
+        #
+        # OBJECT,CENTER
+        #
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        nfiles = len(starcen_files)
+        if nfiles != 0:
+            print(' * OBJECT,CENTER data')
+
+            # final arrays
+            cen_cube   = np.zeros((2, nfiles, nwave, science_dim))
+            cen_posang = np.zeros(nfiles)
+
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(starcen_files.index):
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(starcen_files), file, idx))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                cube = fits.getdata(files[0])
+                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
+
+                # neutral density
+                # FIXME: handle neutral density
+                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
+                
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                cen_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
+
+                # center 
+                for field_idx, img in enumerate(cube):                    
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
+
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: implement correction of chromatism in MRS
+                        print('Warning: chromatism correction in MRS not implemented yet!!')
+                        pass
+                    else:
+                        if skip_center:
+                            cx = centers_default[field_idx]
+                        else:
+                            cx = centers[ciwave, field_idx].mean()
+                    
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        # FIXME: handle neutral density attenuation
+                        nimg = nimg / DIT  # / attenuation[wave_idx]
+
+                        cen_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
+            
+            # save metadata
+            starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'.format(field_idx)))
+            fits.writeto(os.path.join(path.products, 'starcenter_posang.fits'.format(field_idx)), cen_posang, overwrite=True)
+
+            # save final cubes, split field
+            fits.writeto(os.path.join(path.products, 'starcenter_field=0_cube.fits'), cen_cube[0], overwrite=True)
+            fits.writeto(os.path.join(path.products, 'starcenter_field=1_cube.fits'), cen_cube[1], overwrite=True)
+
+            # delete big cubes
+            del cen_cube
+
+            print()        
+
+        #
+        # OBJECT
+        #
+        object_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
+        nfiles = len(object_files)
+        if nfiles != 0:
+            print(' * OBJECT data')
+
+            # final arrays
+            sci_cube   = np.zeros((2, nfiles, nwave, science_dim))
+            sci_posang = np.zeros(nfiles)
+
+            # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
+            # in the sequence, but it would be better to be able to
+            # select which CENTER to use
+            starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+            if (len(starcen_files) == 0) or skip_center or (manual_center is not None):
+                print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
+                      'They will just be combined.')
+
+                # choose between manual center or default centers
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    centers = centers_default
+            else:
+                fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                centers = fits.getdata(os.path.join(path.preproc, fname))
+            
+            # final center
+            if cpix:
+                cc = science_dim // 2
+            else:
+                cc = (science_dim - 1) / 2
+
+            # read and combine files
+            for file_idx, (file, idx) in enumerate(object_files.index):
+                print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(object_files), file, idx))
+
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
+                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                cube = fits.getdata(files[0])
+
+                # neutral density
+                # FIXME: handle neutral density
+                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
+                
+                # DIT, angles, etc
+                DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
+                sci_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
+
+                # center 
+                for field_idx, img in enumerate(cube):                    
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
+
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: implement correction of chromatism in MRS
+                        print('Warning: chromatism correction in MRS not implemented yet!!')
+                        pass
+                    else:
+                        if skip_center:
+                            cx = centers_default[field_idx]
+                        else:
+                            cx = centers[ciwave, field_idx].mean()
+                    
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        # FIXME: handle neutral density attenuation
+                        nimg = nimg / DIT  # / attenuation[wave_idx]
+
+                        sci_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
+            
+            # save metadata
+            object_files.to_csv(os.path.join(path.products, 'science_frames.csv'.format(field_idx)))
+            fits.writeto(os.path.join(path.products, 'science_posang.fits'.format(field_idx)), sci_posang, overwrite=True)
+
+            # save final cubes, split field
+            fits.writeto(os.path.join(path.products, 'science_field=0_cube.fits'), sci_cube[0], overwrite=True)
+            fits.writeto(os.path.join(path.products, 'science_field=1_cube.fits'), sci_cube[1], overwrite=True)
+
+            # delete big cubes
+            del sci_cube
+
+            print()        
 
         # update recipe execution
         self._recipe_execution['sph_ird_combine_data'] = True
