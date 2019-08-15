@@ -601,7 +601,7 @@ class ImagingReduction(object):
                             ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
         
         ###############################################
-        # static calibrations not dependent on science
+        # static calibrations not dependent on DIT
         ###############################################
         error_flag = 0
         warning_flag = 0
@@ -613,7 +613,7 @@ class ImagingReduction(object):
             print(' * Error: there should be more than 1 flat in filter combination {0}'.format(filter_comb))
 
         ##################################################
-        # static calibrations that depend on science (DIT)
+        # static calibrations that depend on science DIT
         ##################################################
 
         obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
