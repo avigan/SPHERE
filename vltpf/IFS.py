@@ -2120,7 +2120,8 @@ class Reduction(object):
         Parameters
         ----------
         high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots
+            Apply high-pass filter to the image before searching for the satelitte spots.
+            Default is False
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
