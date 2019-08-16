@@ -2009,7 +2009,7 @@ class Reduction(object):
             raise ValueError('Unknown IFS mode {0}'.format(mode))
 
         # get list of science files
-        sci_files = glob.glob(path.preproc+'*_preproc.fits')
+        sci_files = sorted(glob.glob(path.preproc+'*_preproc.fits'))
         print(' * found {0} pre-processed files'.format(len(sci_files)))
 
         # get list of calibration files
@@ -2316,7 +2316,7 @@ class Reduction(object):
         ax.set_title('Wavelength calibration')
         plt.tight_layout()
 
-        plt.savefig(os.path.join(path.products, 'wavelegnth_recalibration.pdf'))
+        plt.savefig(os.path.join(path.products, 'wavelength_recalibration.pdf'))
 
         # update recipe execution
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
