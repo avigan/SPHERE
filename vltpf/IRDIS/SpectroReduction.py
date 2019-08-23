@@ -642,7 +642,7 @@ class SpectroReduction(object):
         if len(filter_combs) != 1:
             raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
         filter_comb = filter_combs[0]
-        if (filter_comb != 'S_LR') or (filter_comb == 'S_MR'):
+        if (filter_comb != 'S_LR') and (filter_comb != 'S_MR'):
             raise ValueError('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
 
         # specific data frame for calibrations
@@ -1134,8 +1134,8 @@ class SpectroReduction(object):
             
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
-        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
-
+        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns, dtype='float')
+        
         # loop on the different type of science files
         sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
         dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
