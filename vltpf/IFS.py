@@ -567,6 +567,7 @@ class Reduction(object):
                                         collapse_psf=config['preproc_collapse_psf'],
                                         collapse_center=config['preproc_collapse_center'])
         self.sph_ifs_preprocess_wave()
+        self.sph_ifs_science_cubes(silent=config['silent'])
 
 
     def process_science(self):
@@ -577,7 +578,6 @@ class Reduction(object):
 
         config = self._config
         
-        self.sph_ifs_science_cubes(silent=config['silent'])
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
                                               offset=config['center_offset'],
                                               display=config['center_display'],
