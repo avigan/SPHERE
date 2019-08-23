@@ -2009,7 +2009,7 @@ class Reduction(object):
             raise ValueError('Unknown IFS mode {0}'.format(mode))
 
         # get list of science files
-        sci_files = glob.glob(path.preproc+'*_preproc.fits')
+        sci_files = sorted(glob.glob(path.preproc+'*_preproc.fits'))
         print(' * found {0} pre-processed files'.format(len(sci_files)))
 
         # get list of calibration files
