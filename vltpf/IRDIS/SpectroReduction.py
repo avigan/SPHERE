@@ -1608,8 +1608,7 @@ class SpectroReduction(object):
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
-            option is useful if fine centering must be done
-            afterwards.
+            option is useful if fine centering must be done afterwards.
         
         shift_method : str
             Method to shifting the images: fft or interp.  Default is
@@ -1673,7 +1672,7 @@ class SpectroReduction(object):
         # centering
         centers_default = centers[:, 0]
         if skip_center:
-            print('Warning: images will not be centered. They will just be combined.')
+            print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
         if manual_center is not None:
@@ -1683,6 +1682,9 @@ class SpectroReduction(object):
             
             print('Warning: images will be centered at the user-provided values.')
 
+        if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+            print('Warning: fine centering will be done anyway to correct for MRS chromatism')
+            
         #
         # OBJECT,FLUX
         #
@@ -1726,9 +1728,16 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
-                        # FIXME: implement correction of chromatism in MRS
-                        print('Warning: chromatism correction in MRS not implemented yet!!')
-                        pass
+                        img = img.astype(np.float)
+                        for idx, wave_idx in enumerate(ciwave):
+                            cx = centers[wave_idx, field_idx]
+                            
+                            line = img[wave_idx, :]
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            # FIXME: handle neutral density attenuation
+                            nimg = nimg / DIT
+                            
+                            psf_cube[field_idx, file_idx, idx] = nimg[:psf_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
@@ -1753,7 +1762,7 @@ class SpectroReduction(object):
             # delete big cubes
             del psf_cube
 
-            print()        
+            print()
 
         #
         # OBJECT,CENTER
@@ -1798,9 +1807,16 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
-                        # FIXME: implement correction of chromatism in MRS
-                        print('Warning: chromatism correction in MRS not implemented yet!!')
-                        pass
+                        img = img.astype(np.float)
+                        for idx, wave_idx in enumerate(ciwave):
+                            cx = centers[wave_idx, field_idx]
+                            
+                            line = img[wave_idx, :]
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            # FIXME: handle neutral density attenuation
+                            nimg = nimg / DIT
+                            
+                            cen_cube[field_idx, file_idx, idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
@@ -1886,9 +1902,16 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
-                        # FIXME: implement correction of chromatism in MRS
-                        print('Warning: chromatism correction in MRS not implemented yet!!')
-                        pass
+                        img = img.astype(np.float)
+                        for idx, wave_idx in enumerate(ciwave):
+                            cx = centers[wave_idx, field_idx]
+                            
+                            line = img[wave_idx, :]
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            # FIXME: handle neutral density attenuation
+                            nimg = nimg / DIT
+                            
+                            sci_cube[field_idx, file_idx, idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
