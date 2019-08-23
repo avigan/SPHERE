@@ -1275,8 +1275,7 @@ class ImagingReduction(object):
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
-            option is useful if fine centering must be done
-            afterwards.
+            option is useful if fine centering must be done afterwards.
         
         shift_method : str
             Method to scaling and shifting the images: fft or interp.
@@ -1317,7 +1316,7 @@ class ImagingReduction(object):
         # centering
         centers_default = np.array([[484, 517], [486, 508]])
         if skip_center:
-            print('Warning: images will not be centered. They will just be combined.')
+            print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
         if manual_center is not None:

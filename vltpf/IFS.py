@@ -2535,7 +2535,7 @@ class Reduction(object):
         # centering
         centers_default = np.full((nwave, 2), 290//2)
         if skip_center:
-            print('Warning: images will not be centered. They will just be combined.')
+            print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
         if manual_center is not None:
