@@ -1712,12 +1712,7 @@ class SpectroReduction(object):
                 files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
-
-                # neutral density
-                # FIXME: handle neutral density
-                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
-                
+                                
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 psf_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
@@ -1729,15 +1724,14 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         img = img.astype(np.float)
-                        for idx, wave_idx in enumerate(ciwave):
-                            cx = centers[wave_idx, field_idx]
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
                             
-                            line = img[wave_idx, :]
+                            line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
-                            # FIXME: handle neutral density attenuation
                             nimg = nimg / DIT
                             
-                            psf_cube[field_idx, file_idx, idx] = nimg[:psf_dim]
+                            psf_cube[field_idx, file_idx, wave_idx] = nimg[:psf_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
@@ -1746,11 +1740,16 @@ class SpectroReduction(object):
                     
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
-                        # FIXME: handle neutral density attenuation
-                        nimg = nimg / DIT  # / attenuation[wave_idx]
+                        nimg = nimg / DIT
 
                         psf_cube[field_idx, file_idx] = nimg[ciwave, :psf_dim]
-            
+                
+                    # neutral density
+                    cwave  = final_wave[:, field_idx] 
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    psf_cube[field_idx, file_idx] = (psf_cube[field_idx, file_idx].T / attenuation).T
+
             # save metadata
             flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'.format(field_idx)))
             fits.writeto(os.path.join(path.products, 'psf_posang.fits'.format(field_idx)), psf_posang, overwrite=True)
@@ -1792,11 +1791,6 @@ class SpectroReduction(object):
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
 
-                # neutral density
-                # FIXME: handle neutral density
-                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
-                
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 cen_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
@@ -1808,15 +1802,14 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         img = img.astype(np.float)
-                        for idx, wave_idx in enumerate(ciwave):
-                            cx = centers[wave_idx, field_idx]
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
                             
-                            line = img[wave_idx, :]
+                            line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
-                            # FIXME: handle neutral density attenuation
                             nimg = nimg / DIT
                             
-                            cen_cube[field_idx, file_idx, idx] = nimg[:science_dim]
+                            cen_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
@@ -1825,11 +1818,16 @@ class SpectroReduction(object):
                     
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
-                        # FIXME: handle neutral density attenuation
-                        nimg = nimg / DIT  # / attenuation[wave_idx]
+                        nimg = nimg / DIT
 
                         cen_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
             
+                    # neutral density
+                    cwave  = final_wave[:, field_idx] 
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    cen_cube[field_idx, file_idx] = (cen_cube[field_idx, file_idx].T / attenuation).T
+                    
             # save metadata
             starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'.format(field_idx)))
             fits.writeto(os.path.join(path.products, 'starcenter_posang.fits'.format(field_idx)), cen_posang, overwrite=True)
@@ -1887,11 +1885,6 @@ class SpectroReduction(object):
                 files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
                 cube = fits.getdata(files[0])
 
-                # neutral density
-                # FIXME: handle neutral density
-                # ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                # w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
-                
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 sci_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
@@ -1903,15 +1896,14 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         img = img.astype(np.float)
-                        for idx, wave_idx in enumerate(ciwave):
-                            cx = centers[wave_idx, field_idx]
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
                             
-                            line = img[wave_idx, :]
+                            line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
-                            # FIXME: handle neutral density attenuation
                             nimg = nimg / DIT
                             
-                            sci_cube[field_idx, file_idx, idx] = nimg[:science_dim]
+                            sci_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
@@ -1920,11 +1912,16 @@ class SpectroReduction(object):
                     
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
-                        # FIXME: handle neutral density attenuation
-                        nimg = nimg / DIT  # / attenuation[wave_idx]
+                        nimg = nimg / DIT
 
                         sci_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
             
+                    # neutral density
+                    cwave  = final_wave[:, field_idx] 
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    sci_cube[field_idx, file_idx] = (sci_cube[field_idx, file_idx].T / attenuation).T
+                    
             # save metadata
             object_files.to_csv(os.path.join(path.products, 'science_frames.csv'.format(field_idx)))
             fits.writeto(os.path.join(path.products, 'science_posang.fits'.format(field_idx)), sci_posang, overwrite=True)
