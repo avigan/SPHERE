@@ -1518,8 +1518,9 @@ class SpectroReduction(object):
             
             # plot
             if save or display:
-                plt.figure(0, figsize=(10, 10))
+                plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
+                
                 plt.subplot(211)
                 plt.axvline(imin, color='k', linestyle='--')
                 plt.plot(pix, wave, label='DRH', color='r', lw=3)
@@ -1529,6 +1530,7 @@ class SpectroReduction(object):
                 plt.ylabel('Wavelength r[nm]')
                 plt.title('Field #{}'.format(fidx))
                 plt.xlim(1024, 0)
+                
                 plt.subplot(212)
                 plt.axvline(imin, color='k', linestyle='--')
                 plt.plot(pix, wave-wave_final_raw)
@@ -1536,6 +1538,7 @@ class SpectroReduction(object):
                 plt.ylabel('Residuals r[nm]')
                 plt.xlabel('Detector coordinate [pix]')
                 plt.xlim(1024, 0)
+                
                 plt.tight_layout()
             
             if save:                

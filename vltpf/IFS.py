@@ -315,6 +315,7 @@ def fit_peak(x, y, display=False):
     fit = fitter(g_init, x, y)
 
     if display:
+        plt.figure('Gaussian fit')
         plt.clf()
         plt.plot(x, y, color='k')
         plt.plot(x, fit(x), color='r')
@@ -2291,33 +2292,35 @@ class Reduction(object):
         # summary plot
         #
         if save or display:
-            fig = plt.figure(1, figsize=(17, 5.5))
+            plt.figure('Wavelength recalibration', figsize=(17, 5.5))
             plt.clf()
-            ax = fig.add_subplot(131)
-            ax.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
-            ax.set_xlabel('x center [pix]')
-            ax.set_ylabel('y center [pix]')
-            ax.set_xlim(img_center[:, 0].mean()+np.array([-3, 3]))
-            ax.set_ylim(img_center[:, 1].mean()+np.array([-3, 3]))
-            ax.set_title('Frames centers')
+            
+            plt.subplot(131)
+            plt.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
+            plt.xlabel('x center [pix]')
+            plt.ylabel('y center [pix]')
+            plt.xlim(img_center[:, 0].mean()+np.array([-3, 3]))
+            plt.ylim(img_center[:, 1].mean()+np.array([-3, 3]))
+            plt.title('Frames centers')
 
-            ax = fig.add_subplot(132)
-            ax.plot(wave_scales, linestyle='dotted')
-            ax.plot(wave_scale, color='k', label='Mean')
-            ax.set_xlabel('Spectral channel index')
-            ax.set_ylabel('Scaling factor')
-            ax.set_title('Spectral scaling')
-            ax.legend(loc='upper left')
+            plt.subplot(132)
+            plt.plot(wave_scales, linestyle='dotted')
+            plt.plot(wave_scale, color='k', label='Mean')
+            plt.xlabel('Spectral channel index')
+            plt.ylabel('Scaling factor')
+            plt.title('Spectral scaling')
+            plt.legend(loc='upper left')
 
-            ax = fig.add_subplot(133)
-            ax.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
-            ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
+            plt.subplot(133)
+            plt.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
+            plt.plot(wave_final, wave_flux, color='r', label='Recalibrated')
             for w in self._wave_cal_lasers:
-                ax.axvline(x=w, linestyle='dashed', color='purple')
-            ax.set_xlabel(r'Wavelength [nm]')
-            ax.set_ylabel('Flux')
-            ax.legend(loc='upper right')
-            ax.set_title('Wavelength calibration')
+                plt.axvline(x=w, linestyle='dashed', color='purple')
+            plt.xlabel(r'Wavelength [nm]')
+            plt.ylabel('Flux')
+            plt.legend(loc='upper right')
+            plt.title('Wavelength calibration')
+            
             plt.tight_layout()
 
         if display:
