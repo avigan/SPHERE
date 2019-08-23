@@ -2,15 +2,15 @@ from setuptools import setup
 
 setup(
     name='VLTPF',
-    version='0.1',
+    version='1.0',
 
-    description='Reduction and analysis code for SPHERE, the VLT planet finder',
+    description='Reduction and analysis code for SPHERE, the Very Large Telescope planet finder instrument',
     url='https://github.com/avigan/VLTPF',
     author='Arthur Vigan',
     author_email='arthur.vigan@lam.fr',
     license='MIT',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Professional Astronomers',
         'Topic :: High-contrast Imaging and Spectroscopy',
         'Programming Language :: Python :: 3',
