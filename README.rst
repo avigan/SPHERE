@@ -1,17 +1,12 @@
 VLTPF
 =====
 
-**Warning**
------------
-
-**This module is still under development.**
-
-Processing of IRDIS imaging (DBI, CI) and IFS data should work properly, but if you find a bug or want to suggest improvements, please `create a ticket <https://github.com/avigan/VLTPF/issues>`_.
-
 Information
 -----------
 
-This repository provides tools for the reduction of VLT/SPHERE data. SPHERE is the planet finder instrument of the Very Large Telescope.
+This repository provides tools for the reduction of VLT/SPHERE data. SPHERE is the planet finder instrument of the Very Large Telescope. The pipeline current provides support for processing IRDIS dual-band imaging (DBI), IRDIS classical imaging (CI), IRDIS long-slit spectroscopy (LSS) and IFS data.
+
+If you find a bug or want to suggest improvements, please `create a ticket <https://github.com/avigan/VLTPF/issues>`_.
 
 Credits
 -------
