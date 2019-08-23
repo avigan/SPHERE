@@ -426,7 +426,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     
     # standard parameters
     nwave = wave.size
-    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
+    loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
     box = 30
     
     # spot fitting
@@ -439,7 +439,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     # loop over images
     img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
+        print('  wave {0:2d}/{1:2d} ({2:.1f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -472,7 +472,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
             ax.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
             ax.plot([cx_final], [cy_final], marker='D', color='red')
             ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
-            ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+            ax.set_title(r'Image #{0} - {1:.1f} nm'.format(idx+1, wave))
 
             ext = 1000 / pixel
             ax.set_xlim(cx_final-ext, cx_final+ext)
@@ -660,7 +660,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     # standard parameters
     dim = cube.shape[-1]
     nwave = wave.size
-    loD = wave*1e-6/8 * 180/np.pi * 3600*1000/pixel
+    loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
     
     # waffle parameters
     freq = 10 * np.sqrt(2) * 0.97
@@ -691,7 +691,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.3f} micron)'.format(idx+1, nwave, wave))
+        print('  wave {0:2d}/{1:2d} ({2:.1f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -721,7 +721,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
             col = ['red', 'blue', 'magenta', 'purple']
             ax = fig.add_subplot(111)
             ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
-            ax.set_title(r'Image #{0} - {1:.3f} $\mu$m'.format(idx+1, wave))
+            ax.set_title(r'Image #{0} - {1:.1f} nm'.format(idx+1, wave))
             
         # satelitte spots
         for s in range(4):
