@@ -2158,8 +2158,8 @@ class Reduction(object):
         files = glob.glob(os.path.join(path.preproc, fname+'*[0-9].fits'))
         hdr = fits.getheader(files[0])
 
-        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
+        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
         wave_drh = np.linspace(wave_min, wave_max, nwave)
 
         #
@@ -2313,7 +2313,7 @@ class Reduction(object):
             ax.plot(wave_final, wave_flux, color='r', label='Recalibrated')
             for w in self._wave_cal_lasers:
                 ax.axvline(x=w, linestyle='dashed', color='purple')
-            ax.set_xlabel(r'Wavelength [$\mu$m]')
+            ax.set_xlabel(r'Wavelength [nm]')
             ax.set_ylabel('Flux')
             ax.legend(loc='upper right')
             ax.set_title('Wavelength calibration')
@@ -2379,8 +2379,8 @@ class Reduction(object):
                 cube[:, :, 250:] = 0
                 
                 # wavelength
-                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
+                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
 
                 # centers
@@ -2406,8 +2406,8 @@ class Reduction(object):
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # wavelength
-                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']
-                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']
+                wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
+                wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
 
                 # centers
@@ -2584,7 +2584,7 @@ class Reduction(object):
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -2666,7 +2666,7 @@ class Reduction(object):
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -2767,7 +2767,7 @@ class Reduction(object):
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']

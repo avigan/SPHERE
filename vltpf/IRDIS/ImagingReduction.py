@@ -1156,7 +1156,7 @@ class ImagingReduction(object):
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)                
-        wave = np.array(wave) / 1000.
+        wave = np.array(wave)
         
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
@@ -1300,7 +1300,7 @@ class ImagingReduction(object):
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)                
-        wave = np.array(wave) / 1000.        
+        wave = np.array(wave)
 
         fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave, overwrite=True)
 
@@ -1359,7 +1359,7 @@ class ImagingReduction(object):
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)                
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
                 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1438,7 +1438,7 @@ class ImagingReduction(object):
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1545,7 +1545,7 @@ class ImagingReduction(object):
 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave*1000)
+                w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
