@@ -2289,7 +2289,7 @@ class Reduction(object):
         #
         # summary plot
         #
-        if save or display
+        if save or display:
             fig = plt.figure(1, figsize=(17, 5.5))
             plt.clf()
             ax = fig.add_subplot(131)
