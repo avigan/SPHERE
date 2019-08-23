@@ -297,13 +297,13 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
     '''
     
     print('   ==> collapse frames information')
-
+    
     nfinfo = None
     if collapse_type == 'none':
         nfinfo = finfo
     elif collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
 
         # get min/max indices
         imin = finfo.index.get_level_values(1).min()
@@ -327,7 +327,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         NDIT_new = NDIT // coadd_value
 
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
 
         for f in range(NDIT_new):
             # get min/max indices
@@ -348,7 +348,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         compute_angles(nfinfo)
     else:
         raise ValueError('Unknown collapse type {0}'.format(collapse_type))        
-
+    
     return nfinfo
     
 
