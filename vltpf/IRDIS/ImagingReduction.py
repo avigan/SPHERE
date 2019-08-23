@@ -1132,7 +1132,8 @@ class ImagingReduction(object):
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
-            Default is no offset
+            The offset will move the search box of the waffle spots by the amount of 
+            specified pixels in each direction. Default is no offset
         
         display : bool
             Display the fit of the satelitte spots

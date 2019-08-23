@@ -621,8 +621,10 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
         smoothing
     
     center_offset : tuple
-        Apply an (x,y) offset to the default center position. Default is no offset
-    
+        Apply an (x,y) offset to the default center position. The offset 
+        will move the search box of the waffle spots by the amount of 
+        specified pixels in each direction. Default is no offset
+
     coro : bool
         Observation was performed with a coronagraph. Default is True
 
