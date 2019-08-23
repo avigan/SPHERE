@@ -1550,7 +1550,7 @@ class SpectroReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
-                             shift_method='fft', manual_center=None, skip_center=False):
+                             split_posang=True, shift_method='fft', manual_center=None, skip_center=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1559,8 +1559,9 @@ class SpectroReduction(object):
 
         Depending on the observing strategy, there can be several
         position angle positions in the sequence. Images taken at
-        different position angles are kept together but a posang
-        vector is saved alongside the science cube.
+        different position angles can be either kept together or 
+        split into different cubes. In either case a posang vector 
+        is saved alongside the science cube(s).
 
         For each type of data, the method saves 3 different files:
         
@@ -1595,6 +1596,10 @@ class SpectroReduction(object):
             Correct for the slight chromatism in the MRS mode. This
             chromatism induces a slight shift of the PSF center with
             wavelength. Default is True.
+
+        split_posang : bool
+            Save data taken at different position angles in separate 
+            science files. Default is True
 
         manual_center : array
             User provided spatial center for the OBJECT,CENTER and
@@ -1718,7 +1723,7 @@ class SpectroReduction(object):
                 psf_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
                 # center 
-                for field_idx, img in enumerate(cube):                    
+                for field_idx, img in enumerate(cube):
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
 
@@ -1750,13 +1755,26 @@ class SpectroReduction(object):
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     psf_cube[field_idx, file_idx] = (psf_cube[field_idx, file_idx].T / attenuation).T
 
-            # save metadata
-            flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'.format(field_idx)))
-            fits.writeto(os.path.join(path.products, 'psf_posang.fits'.format(field_idx)), psf_posang, overwrite=True)
+            if split_posang:
+                pas = np.unique(psf_posang)
+                for pa in pas:
+                    ii = np.where(psf_posang == pa)
+                    
+                    # save metadata
+                    flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'psf_posang={:06.2f}_frames.csv'.format(pa)))
+                    fits.writeto(os.path.join(path.products, 'psf_posang={:06.2f}_posang.fits'.format(pa)), psf_posang[ii], overwrite=True)
 
-            # save final cubes, split field
-            fits.writeto(os.path.join(path.products, 'psf_field=0_cube.fits'), psf_cube[0], overwrite=True)
-            fits.writeto(os.path.join(path.products, 'psf_field=1_cube.fits'), psf_cube[1], overwrite=True)
+                    # save final cubes, split field
+                    fits.writeto(os.path.join(path.products, 'psf_field=0_posang={:06.2f}_cube.fits'.format(pa)), psf_cube[0, ii], overwrite=True)
+                    fits.writeto(os.path.join(path.products, 'psf_field=1_posang={:06.2f}_cube.fits'.format(pa)), psf_cube[1, ii], overwrite=True)
+            else:
+                # save metadata
+                flux_files.to_csv(os.path.join(path.products, 'psf_posang=all_frames.csv'))
+                fits.writeto(os.path.join(path.products, 'psf_posang=all_posang.fits'), psf_posang, overwrite=True)
+
+                # save final cubes, split field
+                fits.writeto(os.path.join(path.products, 'psf_field=0_posang=all_cube.fits'), psf_cube[0], overwrite=True)
+                fits.writeto(os.path.join(path.products, 'psf_field=1_posang=all_cube.fits'), psf_cube[1], overwrite=True)
 
             # delete big cubes
             del psf_cube
@@ -1828,18 +1846,31 @@ class SpectroReduction(object):
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     cen_cube[field_idx, file_idx] = (cen_cube[field_idx, file_idx].T / attenuation).T
                     
-            # save metadata
-            starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'.format(field_idx)))
-            fits.writeto(os.path.join(path.products, 'starcenter_posang.fits'.format(field_idx)), cen_posang, overwrite=True)
+            if split_posang:
+                pas = np.unique(cen_posang)
+                for pa in pas:
+                    ii = np.where(cen_posang == pa)
+                    
+                    # save metadata
+                    starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'starcenter_posang={:06.2f}_frames.csv'.format(pa)))
+                    fits.writeto(os.path.join(path.products, 'starcenter_posang={:06.2f}_posang.fits'.format(pa)), cen_posang[ii], overwrite=True)
 
-            # save final cubes, split field
-            fits.writeto(os.path.join(path.products, 'starcenter_field=0_cube.fits'), cen_cube[0], overwrite=True)
-            fits.writeto(os.path.join(path.products, 'starcenter_field=1_cube.fits'), cen_cube[1], overwrite=True)
+                    # save final cubes, split field
+                    fits.writeto(os.path.join(path.products, 'starcenter_field=0_posang={:06.2f}_cube.fits'.format(pa)), cen_cube[0, ii], overwrite=True)
+                    fits.writeto(os.path.join(path.products, 'starcenter_field=1_posang={:06.2f}_cube.fits'.format(pa)), cen_cube[1, ii], overwrite=True)
+            else:
+                # save metadata
+                starcen_files.to_csv(os.path.join(path.products, 'starcenter_posang=all_frames.csv'))
+                fits.writeto(os.path.join(path.products, 'starcenter_posang=all_posang.fits'), cen_posang, overwrite=True)
+
+                # save final cubes, split field
+                fits.writeto(os.path.join(path.products, 'starcenter_field=0_posang=all_cube.fits'), cen_cube[0], overwrite=True)
+                fits.writeto(os.path.join(path.products, 'starcenter_field=1_posang=all_cube.fits'), cen_cube[1], overwrite=True)
 
             # delete big cubes
             del cen_cube
 
-            print()        
+            print()
 
         #
         # OBJECT
@@ -1922,13 +1953,26 @@ class SpectroReduction(object):
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     sci_cube[field_idx, file_idx] = (sci_cube[field_idx, file_idx].T / attenuation).T
                     
-            # save metadata
-            object_files.to_csv(os.path.join(path.products, 'science_frames.csv'.format(field_idx)))
-            fits.writeto(os.path.join(path.products, 'science_posang.fits'.format(field_idx)), sci_posang, overwrite=True)
+            if split_posang:
+                pas = np.unique(sci_posang)
+                for pa in pas:
+                    ii = np.where(sci_posang == pa)
+                    
+                    # save metadata
+                    object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'science_posang={:06.2f}_frames.csv'.format(pa)))
+                    fits.writeto(os.path.join(path.products, 'science_posang={:06.2f}_posang.fits'.format(pa)), sci_posang[ii], overwrite=True)
 
-            # save final cubes, split field
-            fits.writeto(os.path.join(path.products, 'science_field=0_cube.fits'), sci_cube[0], overwrite=True)
-            fits.writeto(os.path.join(path.products, 'science_field=1_cube.fits'), sci_cube[1], overwrite=True)
+                    # save final cubes, split field
+                    fits.writeto(os.path.join(path.products, 'science_field=0_posang={:06.2f}_cube.fits'.format(pa)), sci_cube[0, ii], overwrite=True)
+                    fits.writeto(os.path.join(path.products, 'science_field=1_posang={:06.2f}_cube.fits'.format(pa)), sci_cube[1, ii], overwrite=True)
+            else:
+                # save metadata
+                object_files.to_csv(os.path.join(path.products, 'science_posang=all_frames.csv'))
+                fits.writeto(os.path.join(path.products, 'science_posang=all_posang.fits'), sci_posang, overwrite=True)
+
+                # save final cubes, split field
+                fits.writeto(os.path.join(path.products, 'science_field=0_posang=all_cube.fits'), sci_cube[0], overwrite=True)
+                fits.writeto(os.path.join(path.products, 'science_field=1_posang=all_cube.fits'), sci_cube[1], overwrite=True)
 
             # delete big cubes
             del sci_cube
