@@ -19,5 +19,6 @@ reduction.sort_frames()
 #                                      collapse_psf=True, collapse_center=True)
 # reduction.sph_ird_star_center(high_pass=False, offset=(0,0), display=False, save=True)
 # reduction.sph_ird_combine_data(cpix=True, psf_dim=200, science_dim=200, correct_anamorphism=True,
-#                                shift_method='interp', nocenter=True, save_scaled=False)
+#                                shift_method='interp', manual_center=None, skip_center=False,
+#                                save_scaled=False)
 # reduction.sph_ird_clean(delete_raw=False, delete_products=False)
