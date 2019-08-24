@@ -528,10 +528,16 @@ class Dataset:
                     try:
                         arm = hdr['HIERARCH ESO SEQ ARM']
                         if arm == 'IRDIS':
-                            # FIXME: ticket #72. Make sure that we make a difference 
-                            # between imaging and spectro reductions 
+                            mode = classify_irdis_dataset(reduction_path)
+                            
                             instrument = 'IRDIS'
-                            reduction  = IRDIS.ImagingReduction(reduction_path)
+                            if mode == 'imaging':
+                                reduction  = IRDIS.ImagingReduction(reduction_path)
+                            elif mode == 'polar':
+                                print('Warning: IRDIS DPI not supported yet')
+                            elif mode == 'spectro':
+                                reduction  = IRDIS.SpectroReduction(reduction_path)
+                                
                             self._IRDIS_reductions.append(reduction)
                         elif arm == 'IFS':
                             instrument = 'IFS'
