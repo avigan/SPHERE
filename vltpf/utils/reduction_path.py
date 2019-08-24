@@ -1,5 +1,3 @@
-import os
-
 from pathlib import Path
 
 
@@ -89,20 +87,20 @@ class ReductionPath(object):
     def create_subdirectories(self):
         # create sub-directories if needed
         if not self._raw.exists():
-            os.makedirs(self._raw)
+            self._raw.mkdir(exist_ok=True)
 
         if not self._calib.exists():
-            os.makedirs(self._calib)
+            self._calib.mkdir(exist_ok=True)
 
         if not self._sof.exists():
-            os.makedirs(self._sof)
+            self._sof.mkdir(exist_ok=True)
 
         if not self._tmp.exists():
-            os.makedirs(self._tmp)
+            self._tmp.mkdir(exist_ok=True)
 
         if not self._preproc.exists():
-            os.makedirs(self._preproc)
+            self._preproc.mkdir(exist_ok=True)
 
         if not self._products.exists():
-            os.makedirs(self._products)
+            self._products.mkdir(exist_ok=True)
 
