@@ -572,9 +572,9 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.ylim(0, 1024)
 
-            plt.tight_layout()
 
     if save_path:
+        plt.tight_layout()
         plt.savefig(save_path)
 
     return psf_centers
@@ -922,9 +922,8 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.ylim(0, 1024)
 
-            plt.tight_layout()
-
     if save_path:
+        plt.tight_layout()
         plt.savefig(save_path)
 
     return spot_centers, spot_dist, img_centers
