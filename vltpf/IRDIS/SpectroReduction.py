@@ -125,17 +125,22 @@ class SpectroReduction(object):
 
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = int(config.get('instrument', 'nwave'))
+            self._nwave = -1
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._config = dict(config.items('reduction-spectro'))
-            for key, value in self._config.items():
-                try:
-                    val = eval(value)
-                except NameError:
-                    val = value                    
-                self._config[key] = val
+            self._config = {}
+            for group in ['reduction', 'reduction-spectro']:
+                items = dict(config.items(group))
+                self._config.update(items)
+                for key, value in items.items():
+                    try:
+                        val = eval(value)
+                    except NameError:
+                        val = value                    
+                    self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -148,7 +153,7 @@ class SpectroReduction(object):
             'sph_ifs_cal_detector_flat': False,
             'sph_ird_wave_calib': False
         }
-        
+
         # reload any existing data frames
         self.read_info()
     
@@ -214,11 +219,13 @@ class SpectroReduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
+        print()
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -274,9 +281,9 @@ class SpectroReduction(object):
 
         config = self._config
         
-        self.sph_ird_cal_dark(silent=config['silent'])
-        self.sph_ird_cal_detector_flat(silent=config['silent'])
-        self.sph_ird_wave_calib(silent=config['silent'])
+        self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
+        self.sph_ird_wave_calib(silent=config['misc_silent_esorex'])
 
     
     def preprocess_science(self):
@@ -302,9 +309,9 @@ class SpectroReduction(object):
         config = self._config
         
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
-                                 display=config['center_display'],
-                                 save=config['center_save'])
-        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'])
+                                 plot=config['misc_plot'])
+        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'],
+                                              plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
@@ -1284,7 +1291,7 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
-    def sph_ird_star_center(self, high_pass=False, display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1294,12 +1301,8 @@ class SpectroReduction(object):
             Apply high-pass filter to the image before searching for the satelitte spots.
             Default is False
 
-        display : bool
-            Display the fit of the satelitte spots
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
 
@@ -1346,11 +1349,11 @@ class SpectroReduction(object):
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, display=display, save_path=save_path)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), psf_center, overwrite=True)
@@ -1378,14 +1381,13 @@ class SpectroReduction(object):
                     cube_sci = None
                 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
                 else:
                     save_path = None
                 spot_centers, spot_dist, img_centers \
                     = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel, 
-                                                                high_pass=high_pass, display=display, 
-                                                                save_path=save_path)
+                                                                high_pass=high_pass, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_centers, overwrite=True)
@@ -1396,7 +1398,7 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_star_center'] = True
 
 
-    def sph_ird_wavelength_recalibration(self, fit_scaling=True, display=False, save=True):
+    def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
         are available.
 
@@ -1413,12 +1415,8 @@ class SpectroReduction(object):
             law. It helps removing high-frequency noise that can
             result from the waffle fitting. Default is True
 
-        display : bool
-            Display the result of the recalibration. Default is False.
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
         
@@ -1429,7 +1427,6 @@ class SpectroReduction(object):
 
         # parameters
         path = self._path
-        pixel = self._pixel
         lasers = self._wave_cal_lasers
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
@@ -1469,7 +1466,7 @@ class SpectroReduction(object):
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
         spot_dist = fits.getdata(os.path.join(path.preproc, fname+'.fits'))
         
-        if save:
+        if plot:
             pdf = PdfPages(os.path.join(path.products, 'wavelength_recalibration.pdf'))        
         
         pix = np.arange(1024)
@@ -1517,7 +1514,7 @@ class SpectroReduction(object):
                 use_f = ''
             
             # plot
-            if save or display:
+            if plot:
                 plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
                 
@@ -1541,13 +1538,9 @@ class SpectroReduction(object):
                 
                 plt.tight_layout()
             
-            if save:                
                 pdf.savefig()
 
-            if display:
-                plt.pause(1e-3)
-
-        if save:
+        if plot:
             pdf.close()
 
         # save

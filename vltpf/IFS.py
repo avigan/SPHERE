@@ -394,6 +394,8 @@ class Reduction(object):
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
             self._nwave = int(config.get('instrument', 'nwave'))
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
@@ -490,11 +492,13 @@ class Reduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
+        print()
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -544,11 +548,11 @@ class Reduction(object):
         
         config = self._config
         
-        self.sph_ifs_cal_dark(silent=config['silent'])
-        self.sph_ifs_cal_detector_flat(silent=config['silent'])
-        self.sph_ifs_cal_specpos(silent=config['silent'])
-        self.sph_ifs_cal_wave(silent=config['silent'])
-        self.sph_ifs_cal_ifu_flat(silent=config['silent'])
+        self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_detector_flat(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_specpos(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_wave(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_ifu_flat(silent=config['misc_silent_esorex'])
         
 
     def preprocess_science(self):
@@ -567,7 +571,7 @@ class Reduction(object):
                                         collapse_psf=config['preproc_collapse_psf'],
                                         collapse_center=config['preproc_collapse_center'])
         self.sph_ifs_preprocess_wave()
-        self.sph_ifs_science_cubes(silent=config['silent'])
+        self.sph_ifs_science_cubes(silent=config['misc_silent_esorex'])
 
 
     def process_science(self):
@@ -580,12 +584,10 @@ class Reduction(object):
         
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
                                               offset=config['center_offset'],
-                                              display=config['center_display'],
-                                              save=config['center_save'])
+                                              plot=config['misc_plot'])
         self.sph_ifs_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
-                                 display=config['center_display'],
-                                 save=config['center_save'])
+                                 plot=config['misc_plot'])
         self.sph_ifs_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
@@ -2109,7 +2111,7 @@ class Reduction(object):
         self._recipe_execution['sph_ifs_science_cubes'] = True
 
 
-    def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), display=False, save=True):
+    def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
         are available
 
@@ -2129,12 +2131,8 @@ class Reduction(object):
             The offset will move the search box of the waffle spots by the amount of 
             specified pixels in each direction. Default is no offset
         
-        display : bool
-            Display the fit of the satelitte spots. Default is False.
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
 
@@ -2192,14 +2190,14 @@ class Reduction(object):
         
         # compute centers from waffle spots
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-        if save:
+        if plot:
             save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
         else:
             save_path = None
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
                                                         high_pass=high_pass, center_offset=offset,
-                                                        coro=coro, display=display, save_path=save_path)
+                                                        coro=coro, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2291,7 +2289,7 @@ class Reduction(object):
         #
         # summary plot
         #
-        if save or display:
+        if plot:
             plt.figure('Wavelength recalibration', figsize=(17, 5.5))
             plt.clf()
             
@@ -2323,17 +2321,13 @@ class Reduction(object):
             
             plt.tight_layout()
 
-        if display:
-            plt.pause(1e-3)
-
-        if save:
             plt.savefig(os.path.join(path.products, 'wavelength_recalibration.pdf'))
             
         # update recipe execution
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
 
 
-    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), display=False, save=True):
+    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -2347,12 +2341,8 @@ class Reduction(object):
             The offset will move the search box of the waffle spots by the amount of 
             specified pixels in each direction. Default is no offset
         
-        display : bool
-            Display the fit of the satelitte spots
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
 
@@ -2389,11 +2379,11 @@ class Reduction(object):
                 wave_drh = np.linspace(wave_min, wave_max, nwave)
 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, display=display, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)
@@ -2417,14 +2407,14 @@ class Reduction(object):
 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'spots_fitting.pdf')
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
                                                                 high_pass=high_pass, center_offset=offset,
-                                                                display=display, save_path=save_path)
+                                                                save_path=save_path)
                 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'centers.fits'), img_center, overwrite=True)

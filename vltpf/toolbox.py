@@ -397,7 +397,7 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=None):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -412,11 +412,9 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     pixel : float
         Pixel scale, in mas/pixel
     
-    display : bool
-        Display the fit of the satelitte spots
-
     save_path : str
-        Path where to save the fit images
+        Path where to save the fit images. Default is None, which means
+        that the plot is not produced
     
     Returns
     -------
@@ -464,7 +462,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
         img_centers[idx, 0] = cx_final
         img_centers[idx, 1] = cy_final
         
-        if save_path or display:
+        if save_path:
             plt.figure('PSF center - imaging', figsize=(8, 8))
             plt.clf()
             
@@ -480,11 +478,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
                         
             plt.tight_layout()
 
-            if save_path:
-                pdf.savefig()
-
-            if display:
-                plt.pause(1e-3)
+            pdf.savefig()
 
     if save_path:
         pdf.close()
@@ -492,7 +486,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, display=False, save_path=N
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_path=None):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -507,12 +501,10 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
     pixel : float
         Pixel scale, in mas/pixel
     
-    display : bool
-        Display the fit of the satelitte spots
-
     save_path : str
-        Path where to save the fit images
-    
+        Path where to save the fit images. Default is None, which means
+        that the plot is not produced
+
     Returns
     -------
     psf_centers : array_like
@@ -523,7 +515,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
     box = 20
 
     # prepare plot
-    if save_path or display:
+    if save_path:
         plt.figure('PSF center - spectro', figsize=(7, 12))
         plt.clf()
     
@@ -568,7 +560,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
             
             psf_centers[widx, fidx] = cx
             
-        if save_path or display:
+        if save_path:
             plt.subplot(1, 2, fidx+1)
 
             plt.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
@@ -580,9 +572,6 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.ylim(0, 1024)
 
-    if display:
-        plt.tight_layout()
-        plt.pause(1e-3)
 
     if save_path:
         plt.tight_layout()
@@ -593,7 +582,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, display=False, save_p
 
 def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation,
                                       high_pass=False, center_offset=(0, 0), smooth=0,
-                                      coro=True, display=False, save_path=None):
+                                      coro=True, save_path=None):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -628,12 +617,10 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     coro : bool
         Observation was performed with a coronagraph. Default is True
 
-    display : bool
-        Display the fit of the satelitte spots
-
     save_path : str
-        Path where to save the fit images
-    
+        Path where to save the fit images. Default is None, which means
+        that the plot is not produced
+
     Returns
     -------
     spot_centers : array_like
@@ -717,7 +704,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
             img *= mask
             
         # create plot if needed
-        if save_path or display:
+        if save_path:
             fig = plt.figure('Waffle center - imaging', figsize=(8, 8))
             plt.clf()
             
@@ -758,7 +745,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
             spot_centers[idx, s, 1] = cy_final
 
             # plot sattelite spots and fit
-            if save_path or display:
+            if save_path:
                 ax.plot([cx_final], [cy_final], marker='D', color=col[s])
                 ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
                 
@@ -787,7 +774,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
         spot_dist[idx, 5] = np.sqrt(np.sum((spot_centers[idx, 2, :] - spot_centers[idx, 3, :])**2))
 
         # finalize plot
-        if save_path or display:
+        if save_path:
             ax.plot([spot_centers[idx, 0, 0], spot_centers[idx, 2, 0]],
                     [spot_centers[idx, 0, 1], spot_centers[idx, 2, 1]],
                     color='w', linestyle='dashed')
@@ -806,9 +793,6 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
             if save_path:
                 pdf.savefig()
 
-            if display:
-                plt.pause(1e-3)
-
     if save_path:
         pdf.close()
 
@@ -816,7 +800,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pixel, high_pass=False,
-                                      display=False, save_path=None):
+                                      save_path=None):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
 
@@ -841,11 +825,9 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
         Apply high-pass filter to the image before searching for the
         satelitte spots. Default is False
 
-    display : bool
-        Display the fit of the satelitte spots
-
     save_path : str
-        Path where to save the fit images
+        Path where to save the fit images. Default is None, which means
+        that the plot is not produced
     
     Returns
     -------
@@ -866,7 +848,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
     nimg = len(cube_cen)
 
     # prepare plot
-    if save_path or display:
+    if save_path:
         plt.figure('Waffle centering - spectro', figsize=(7, 12))
         plt.clf()
     
@@ -927,7 +909,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
             
             img_centers[widx, fidx] = (c0 + c1) / 2
             
-        if save_path or display:
+        if save_path:
             plt.subplot(1, 2, fidx+1)
             plt.imshow(img/img.max(), aspect='equal', vmin=-1e-2, vmax=1e-2, interpolation='nearest')
             plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
@@ -939,10 +921,6 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
             ext = 1000 / pixel
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.ylim(0, 1024)
-
-    if display:
-        plt.tight_layout()
-        plt.pause(1e-3)
 
     if save_path:
         plt.tight_layout()

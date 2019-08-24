@@ -83,17 +83,22 @@ class ImagingReduction(object):
 
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = int(config.get('instrument', 'nwave'))
+            self._nwave = 2
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._config = dict(config.items('reduction-imaging'))
-            for key, value in self._config.items():
-                try:
-                    val = eval(value)
-                except NameError:
-                    val = value                    
-                self._config[key] = val
+            self._config = {}
+            for group in ['reduction', 'reduction-imaging']:
+                items = dict(config.items(group))
+                self._config.update(items)
+                for key, value in items.items():
+                    try:
+                        val = eval(value)
+                    except NameError:
+                        val = value                    
+                    self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -169,11 +174,13 @@ class ImagingReduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
+        print()
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -223,8 +230,8 @@ class ImagingReduction(object):
 
         config = self._config
         
-        self.sph_ird_cal_dark(silent=config['silent'])
-        self.sph_ird_cal_detector_flat(silent=config['silent'])
+        self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
 
     
     def preprocess_science(self):
@@ -253,8 +260,7 @@ class ImagingReduction(object):
         
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
-                                 display=config['center_display'],
-                                 save=config['center_save'])
+                                 plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
@@ -1120,7 +1126,7 @@ class ImagingReduction(object):
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
-    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1135,12 +1141,8 @@ class ImagingReduction(object):
             The offset will move the search box of the waffle spots by the amount of 
             specified pixels in each direction. Default is no offset
         
-        display : bool
-            Display the fit of the satelitte spots
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
 
@@ -1171,11 +1173,11 @@ class ImagingReduction(object):
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, display=display, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
@@ -1201,14 +1203,14 @@ class ImagingReduction(object):
                 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave, 'IRDIS', waffle_orientation,
                                                             high_pass=high_pass, center_offset=offset,
-                                                            coro=coro, display=display, save_path=save_path)
+                                                            coro=coro, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
