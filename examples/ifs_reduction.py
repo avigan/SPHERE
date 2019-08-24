@@ -36,8 +36,8 @@ reduction.sph_ifs_preprocess_wave()
 reduction.sph_ifs_science_cubes(silent=True)
 
 #%% high-level science processing
-reduction.sph_ifs_wavelength_recalibration(high_pass=True, offset=(-5, 0), display=False, save=True)
-reduction.sph_ifs_star_center(high_pass=True, offset=(-5, 0), display=False, save=True)
+reduction.sph_ifs_wavelength_recalibration(high_pass=True, offset=(-5, 0), plot=True)
+reduction.sph_ifs_star_center(high_pass=True, offset=(-5, 0), plot=True)
 reduction.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_anamorphism=True,
                                shift_method='interp', manual_center=None, skip_center=False,
                                save_scaled=False)

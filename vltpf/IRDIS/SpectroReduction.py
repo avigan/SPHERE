@@ -308,9 +308,9 @@ class SpectroReduction(object):
         config = self._config
         
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
-                                 display=config['center_display'],
-                                 save=config['center_save'])
-        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'])
+                                 plot=config['misc_plot'])
+        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'],
+                                              plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
@@ -1290,7 +1290,7 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
-    def sph_ird_star_center(self, high_pass=False, display=False, save=True):
+    def sph_ird_star_center(self, high_pass=False, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1300,12 +1300,8 @@ class SpectroReduction(object):
             Apply high-pass filter to the image before searching for the satelitte spots.
             Default is False
 
-        display : bool
-            Display the fit of the satelitte spots
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
 
@@ -1352,11 +1348,11 @@ class SpectroReduction(object):
                 cube, hdr = fits.getdata(files[0], header=True)
 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
                 else:
                     save_path = None
-                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, display=display, save_path=save_path)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), psf_center, overwrite=True)
@@ -1384,14 +1380,13 @@ class SpectroReduction(object):
                     cube_sci = None
                 
                 # centers
-                if save:
+                if plot:
                     save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
                 else:
                     save_path = None
                 spot_centers, spot_dist, img_centers \
                     = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel, 
-                                                                high_pass=high_pass, display=display, 
-                                                                save_path=save_path)
+                                                                high_pass=high_pass, save_path=save_path)
 
                 # save
                 fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_centers, overwrite=True)
@@ -1402,7 +1397,7 @@ class SpectroReduction(object):
         self._recipe_execution['sph_ird_star_center'] = True
 
 
-    def sph_ird_wavelength_recalibration(self, fit_scaling=True, display=False, save=True):
+    def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
         are available.
 
@@ -1419,12 +1414,8 @@ class SpectroReduction(object):
             law. It helps removing high-frequency noise that can
             result from the waffle fitting. Default is True
 
-        display : bool
-            Display the result of the recalibration. Default is False.
-
-        save : bool
-            Save the fit of the sattelite spot for quality check. Default is True,
-            although it is a bit slow.
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
 
         '''
         
@@ -1435,7 +1426,6 @@ class SpectroReduction(object):
 
         # parameters
         path = self._path
-        pixel = self._pixel
         lasers = self._wave_cal_lasers
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
@@ -1475,7 +1465,7 @@ class SpectroReduction(object):
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
         spot_dist = fits.getdata(os.path.join(path.preproc, fname+'.fits'))
         
-        if save:
+        if plot:
             pdf = PdfPages(os.path.join(path.products, 'wavelength_recalibration.pdf'))        
         
         pix = np.arange(1024)
@@ -1523,7 +1513,7 @@ class SpectroReduction(object):
                 use_f = ''
             
             # plot
-            if save or display:
+            if plot:
                 plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
                 
@@ -1547,13 +1537,9 @@ class SpectroReduction(object):
                 
                 plt.tight_layout()
             
-            if save:                
                 pdf.savefig()
 
-            if display:
-                plt.pause(1e-3)
-
-        if save:
+        if plot:
             pdf.close()
 
         # save
