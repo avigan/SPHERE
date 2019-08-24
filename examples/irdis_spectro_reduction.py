@@ -23,9 +23,9 @@ reduction.sort_frames()
 reduction.check_files_association()
 
 #%% static calibrations
-reduction.sph_ird_cal_dark()
-reduction.sph_ird_cal_detector_flat()
-reduction.sph_ird_wave_calib()
+reduction.sph_ird_cal_dark(silent=True)
+reduction.sph_ird_cal_detector_flat(silent=True)
+reduction.sph_ird_wave_calib(silent=True)
 
 #%% science pre-processing
 reduction.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True, 

@@ -83,17 +83,22 @@ class ImagingReduction(object):
 
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = int(config.get('instrument', 'nwave'))
+            self._nwave = 2
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._config = dict(config.items('reduction-imaging'))
-            for key, value in self._config.items():
-                try:
-                    val = eval(value)
-                except NameError:
-                    val = value                    
-                self._config[key] = val
+            self._config = {}
+            for group in ['reduction', 'reduction-spectro']:
+                items = dict(config.items(group))
+                self._config.update(items)
+                for key, value in items.items():
+                    try:
+                        val = eval(value)
+                    except NameError:
+                        val = value                    
+                    self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -169,11 +174,12 @@ class ImagingReduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -223,8 +229,8 @@ class ImagingReduction(object):
 
         config = self._config
         
-        self.sph_ird_cal_dark(silent=config['silent'])
-        self.sph_ird_cal_detector_flat(silent=config['silent'])
+        self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
 
     
     def preprocess_science(self):

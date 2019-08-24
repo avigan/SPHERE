@@ -125,17 +125,22 @@ class SpectroReduction(object):
 
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = int(config.get('instrument', 'nwave'))
+            self._nwave = -1
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
-            self._config = dict(config.items('reduction-spectro'))
-            for key, value in self._config.items():
-                try:
-                    val = eval(value)
-                except NameError:
-                    val = value                    
-                self._config[key] = val
+            self._config = {}
+            for group in ['reduction', 'reduction-spectro']:
+                items = dict(config.items(group))
+                self._config.update(items)
+                for key, value in items.items():
+                    try:
+                        val = eval(value)
+                    except NameError:
+                        val = value                    
+                    self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
         
@@ -148,7 +153,7 @@ class SpectroReduction(object):
             'sph_ifs_cal_detector_flat': False,
             'sph_ird_wave_calib': False
         }
-        
+
         # reload any existing data frames
         self.read_info()
     
@@ -214,11 +219,12 @@ class SpectroReduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -274,9 +280,9 @@ class SpectroReduction(object):
 
         config = self._config
         
-        self.sph_ird_cal_dark(silent=config['silent'])
-        self.sph_ird_cal_detector_flat(silent=config['silent'])
-        self.sph_ird_wave_calib(silent=config['silent'])
+        self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
+        self.sph_ird_wave_calib(silent=config['misc_silent_esorex'])
 
     
     def preprocess_science(self):

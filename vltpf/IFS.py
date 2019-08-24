@@ -394,6 +394,8 @@ class Reduction(object):
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
             self._nwave = int(config.get('instrument', 'nwave'))
+            
+            # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
             # reduction
@@ -490,11 +492,12 @@ class Reduction(object):
         # dictionary
         dico = self._config
 
-        # silent parameter
+        # misc parameters
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
-        key = 'silent'
-        print('{0:<30s}{1}'.format(key, dico[key]))
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
 
         # pre-processing
         print('-'*35)
@@ -544,11 +547,11 @@ class Reduction(object):
         
         config = self._config
         
-        self.sph_ifs_cal_dark(silent=config['silent'])
-        self.sph_ifs_cal_detector_flat(silent=config['silent'])
-        self.sph_ifs_cal_specpos(silent=config['silent'])
-        self.sph_ifs_cal_wave(silent=config['silent'])
-        self.sph_ifs_cal_ifu_flat(silent=config['silent'])
+        self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_detector_flat(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_specpos(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_wave(silent=config['misc_silent_esorex'])
+        self.sph_ifs_cal_ifu_flat(silent=config['misc_silent_esorex'])
         
 
     def preprocess_science(self):
@@ -567,7 +570,7 @@ class Reduction(object):
                                         collapse_psf=config['preproc_collapse_psf'],
                                         collapse_center=config['preproc_collapse_center'])
         self.sph_ifs_preprocess_wave()
-        self.sph_ifs_science_cubes(silent=config['silent'])
+        self.sph_ifs_science_cubes(silent=config['misc_silent_esorex'])
 
 
     def process_science(self):
