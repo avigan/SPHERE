@@ -1,10 +1,11 @@
 import vltpf.IRDIS as IRDIS
 
-reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/')
-
 ####################################################@
 # full reduction
 #
+
+#%% init reduction
+reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/')
 
 #%% configuration
 reduction.config['combine_psf_dim']          = 80
@@ -20,6 +21,9 @@ reduction.full_reduction()
 ####################################################@
 # manual reduction
 #
+
+#%% init reduction
+reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/')
 
 #%% sorting
 reduction.sort_files()
