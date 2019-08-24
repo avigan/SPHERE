@@ -9,8 +9,9 @@ reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS
 #%% configuration
 # reduction.config['combine_science_dim'] = 300
 # reduction.config['clean'] = True
+# reduction.show_config()
 
-#%% full reduction
+#%% reduction
 # reduction.full_reduction()
 
 #

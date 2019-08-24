@@ -12,8 +12,9 @@ reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI
 # reduction.config['combine_shift_method']     = 'fft'
 # reduction.config['preproc_collapse_science'] = True
 # reduction.config['preproc_collapse_type']    = 'mean'
+# reduction.show_config()
 
-#%% full reduction
+#%% reduction
 # reduction.full_reduction()
 
 #
