@@ -58,7 +58,7 @@ class ImagingReduction(object):
         Parameters
         ----------
         path : str
-            Path to the directory containing the raw data
+            Path to the directory containing the dataset
 
         '''
 
@@ -74,6 +74,9 @@ class ImagingReduction(object):
         self._path = ReductionPath.Path(path)
         self._instrument = 'IRDIS'
         
+        # instrument mode
+        self._mode = 'Unknown'
+
         # configuration
         package_directory = os.path.dirname(os.path.abspath(vltpf.__file__))
         configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
@@ -117,7 +120,7 @@ class ImagingReduction(object):
     ##################################################
     
     def __repr__(self):
-        return '<ImagingReduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+        return '<ImagingReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
     
     def __format__(self):
         return self.__repr__()
@@ -161,6 +164,10 @@ class ImagingReduction(object):
     @property
     def config(self):
         return self._config    
+
+    @property
+    def mode(self):
+        return self._mode
 
     ##################################################
     # Generic class methods
@@ -333,6 +340,9 @@ class ImagingReduction(object):
                 self._recipe_execution['sph_ird_cal_dark'] = True
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
                 self._recipe_execution['sph_ird_cal_detector_flat'] = True
+
+            # update instrument mode
+            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
         else:
             files_info = None
 
@@ -462,6 +472,9 @@ class ImagingReduction(object):
         files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
         
+        # update instrument mode
+        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
+
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
 

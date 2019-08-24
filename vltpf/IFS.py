@@ -369,7 +369,7 @@ class Reduction(object):
         Parameters
         ----------
         path : str
-            Path to the directory containing the raw data
+            Path to the directory containing the dataset
         '''
 
         # expand path
@@ -383,6 +383,9 @@ class Reduction(object):
         # init path and name
         self._path = ReductionPath.Path(path)
         self._instrument = 'IFS'
+        
+        # instrument mode
+        self._mode = 'Unknown'
         
         # configuration
         package_directory = os.path.dirname(os.path.abspath(__file__))
@@ -435,7 +438,7 @@ class Reduction(object):
     ##################################################
     
     def __repr__(self):
-        return '<Reduction, instrument={0}, path={1}>'.format(self._instrument, self._path)
+        return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
 
     def __format__(self):
         return self.__repr__()
@@ -479,6 +482,10 @@ class Reduction(object):
     @property
     def config(self):
         return self._config    
+
+    @property
+    def mode(self):
+        return self._mode
 
     ##################################################
     # Generic class methods
@@ -665,6 +672,9 @@ class Reduction(object):
                 self._recipe_execution['sph_ifs_cal_wave'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD'):
                 self._recipe_execution['sph_ifs_cal_ifu_flat'] = True
+
+            # update instrument mode
+            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
         else:
             files_info = None
 
@@ -810,6 +820,9 @@ class Reduction(object):
         files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
+        # update instrument mode
+        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+        
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
         
