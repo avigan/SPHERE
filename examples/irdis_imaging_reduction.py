@@ -2,22 +2,22 @@ import vltpf.IRDIS as IRDIS
 
 reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/')
 
-#
+####################################################@
 # full reduction
 #
 
 #%% configuration
-# reduction.config['combine_psf_dim']          = 80
-# reduction.config['combine_science_dim']      = 400
-# reduction.config['combine_shift_method']     = 'fft'
-# reduction.config['preproc_collapse_science'] = True
-# reduction.config['preproc_collapse_type']    = 'mean'
-# reduction.show_config()
+reduction.config['combine_psf_dim']          = 80
+reduction.config['combine_science_dim']      = 400
+reduction.config['combine_shift_method']     = 'fft'
+reduction.config['preproc_collapse_science'] = True
+reduction.config['preproc_collapse_type']    = 'mean'
+reduction.show_config()
 
 #%% reduction
-# reduction.full_reduction()
+reduction.full_reduction()
 
-#
+####################################################@
 # manual reduction
 #
 
