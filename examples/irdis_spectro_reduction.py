@@ -33,14 +33,14 @@ reduction.sph_ird_cal_detector_flat(silent=True)
 reduction.sph_ird_wave_calib(silent=True)
 
 #%% science pre-processing
-reduction.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True, 
+reduction.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
                                      collapse_science=True, collapse_psf=True,
                                      collapse_center=True)
 
 #%% high-level science processing
 reduction.sph_ird_star_center(high_pass=False, plot=True)
 reduction.sph_ird_wavelength_recalibration(fit_scaling=True, plot=True)
-reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300, 
+reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300,
                                correct_mrs_chromatism=True, split_posang=True,
                                shift_method='fft', manual_center=None, skip_center=False)
 

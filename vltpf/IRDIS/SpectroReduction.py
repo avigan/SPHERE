@@ -1,5 +1,3 @@
-import os
-import glob
 import pandas as pd
 import subprocess
 import numpy as np
@@ -13,15 +11,16 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import configparser
 
+from pathlib import Path
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
 import vltpf
+import vltpf.utils as utils
 import vltpf.utils.imutils as imutils
 import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
-import vltpf.ReductionPath as ReductionPath
 import vltpf.toolbox as toolbox
 
 
@@ -105,23 +104,22 @@ class SpectroReduction(object):
         '''
 
         # expand path
-        path = os.path.expanduser(os.path.join(path, ''))
+        path = Path(path).expanduser().resolve()
         
         # zeroth-order reduction validation
-        raw = os.path.join(path, 'raw')
-        if not os.path.exists(raw):
+        raw = path / 'raw'
+        if not raw.exists():
             raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
         
         # init path and name
-        self._path = ReductionPath.Path(path)
+        self._path = utils.ReductionPath(path)
         self._instrument = 'IRDIS'
         
         # instrument mode
         self._mode = 'Unknown'
         
         # configuration
-        package_directory = os.path.dirname(os.path.abspath(vltpf.__file__))
-        configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
+        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
         try:
             config.read(configfile)
@@ -375,8 +373,8 @@ class SpectroReduction(object):
         path = self._path
         
         # files info
-        fname = os.path.join(path.preproc, 'files.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'files.csv'
+        if fname.exists():
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -398,8 +396,8 @@ class SpectroReduction(object):
         else:
             files_info = None
 
-        fname = os.path.join(path.preproc, 'frames.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'frames.csv'
+        if fname.exists():
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -415,8 +413,8 @@ class SpectroReduction(object):
         else:
             frames_info = None
 
-        fname = os.path.join(path.preproc, 'frames_preproc.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'frames_preproc.csv'
+        if fname.exists():
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -437,13 +435,13 @@ class SpectroReduction(object):
         # additional checks to update recipe execution
         if frames_info_preproc is not None:
             self._recipe_execution['sph_ird_wavelength_recalibration'] \
-                = os.path.exists(os.path.join(path.preproc, 'wavelength_final.fits'))
+                = (path.preproc / 'wavelength_final.fits').exists()
             
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_preprocess_science'] = done
 
@@ -452,7 +450,7 @@ class SpectroReduction(object):
                                         (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
             for file, idx in files:
                 fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
-                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_star_center'] = done
 
@@ -471,8 +469,8 @@ class SpectroReduction(object):
         path = self._path
         
         # list files
-        files = glob.glob(os.path.join(path.raw, '*.fits'))
-        files = [os.path.splitext(os.path.basename(f))[0] for f in files]
+        files = path.raw.glob('*.fits')
+        files = [f.stem for f in files]
 
         if len(files) == 0:
             raise ValueError('No raw FITS files in reduction path')
@@ -480,9 +478,8 @@ class SpectroReduction(object):
         print(' * found {0} FITS files in {1}'.format(len(files), path.raw))
 
         # read list of keywords
-        package_directory = os.path.dirname(os.path.abspath(vltpf.__file__))
         keywords = []
-        file = open(os.path.join(package_directory, 'instruments', 'keywords.dat'), 'r')
+        file = open(Path(vltpf.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -501,7 +498,7 @@ class SpectroReduction(object):
         files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
         for f in files:
-            hdu = fits.open(os.path.join(path.raw, f+'.fits'))
+            hdu = fits.open(path.raw / '{}.fits'.format(f))
             hdr = hdu[0].header
 
             for k, sk in zip(keywords, keywords_short):
@@ -534,7 +531,7 @@ class SpectroReduction(object):
         files_info.sort_values(by='DATE-OBS', inplace=True)
         
         # save files_info
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))    
+        files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
         # update recipe execution
@@ -588,7 +585,7 @@ class SpectroReduction(object):
         toolbox.compute_angles(frames_info)
 
         # save
-        frames_info.to_csv(os.path.join(path.preproc, 'frames.csv'))
+        frames_info.to_csv(path.preproc / 'frames.csv')
         self._frames_info = frames_info
 
         # update recipe execution
@@ -740,7 +737,7 @@ class SpectroReduction(object):
             raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
 
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
     
@@ -788,10 +785,10 @@ class SpectroReduction(object):
                     print(' * {0} in filter {1} with DIT={2:.2f} sec ({3} files)'.format(ctype, cfilt, DIT, len(cfiles)))
 
                     # create sof
-                    sof = os.path.join(path.sof, 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT))
+                    sof = path.sof / 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT)
                     file = open(sof, 'w')
                     for f in files:
-                        file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
+                        file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
                     file.close()
 
                     # products
@@ -815,8 +812,8 @@ class SpectroReduction(object):
                             '--ird.master_dark.sigma_clip=5.0',
                             '--ird.master_dark.save_addprod=TRUE',
                             '--ird.master_dark.max_acceptable={0}'.format(max_level),
-                            '--ird.master_dark.outfilename={0}{1}.fits'.format(path.calib, dark_file),
-                            '--ird.master_dark.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                            '--ird.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
+                            '--ird.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
                             sof]
 
                     # check esorex
@@ -856,7 +853,7 @@ class SpectroReduction(object):
                     files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_STATIC_BADPIXELMAP'
 
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_dark'] = True
@@ -893,10 +890,10 @@ class SpectroReduction(object):
             print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
             
             # create sof
-            sof = os.path.join(path.sof, 'flat_filt={0}.sof'.format(cfilt))
+            sof = path.sof / 'flat_filt={0}.sof'.format(cfilt)
             file = open(sof, 'w')
             for f in files:
-                file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+                file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
             file.close()
 
             # products
@@ -909,8 +906,8 @@ class SpectroReduction(object):
                     '--no-datamd5=TRUE',
                     'sph_ird_instrument_flat',
                     '--ird.instrument_flat.save_addprod=TRUE',
-                    '--ird.instrument_flat.outfilename={0}{1}.fits'.format(path.calib, flat_file),
-                    '--ird.instrument_flat.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                    '--ird.instrument_flat.outfilename={0}/{1}.fits'.format(path.calib, flat_file),
+                    '--ird.instrument_flat.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
                     sof]
 
             # check esorex
@@ -950,7 +947,7 @@ class SpectroReduction(object):
             files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
         
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
@@ -1001,12 +998,12 @@ class SpectroReduction(object):
         # esorex parameters
         if filter_comb == 'S_LR':
             # create standard sof in LRS
-            sof = os.path.join(path.sof, 'wave.sof')
+            sof = path.sof / 'wave.sof'
             file = open(sof, 'w')
-            file.write('{0}{1}.fits     {2}\n'.format(path.raw, wave_file, 'IRD_WAVECALIB_RAW'))
-            file.write('{0}{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
-            file.write('{0}{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
-            file.write('{0}{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.raw, wave_file, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
             
             args = ['esorex',
@@ -1017,24 +1014,24 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=FALSE',
                     '--ird.wave_calib.threshold=2000',
                     '--ird.wave_calib.number_lines=6',
-                    '--ird.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
+                    '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
         elif filter_comb == 'S_MR':            
             # masking of second order spectrum in MRS
             wave_fname = wave_file.index[0]
-            wave_data, hdr = fits.getdata(os.path.join(path.raw, wave_fname+'.fits'), header=True)
+            wave_data, hdr = fits.getdata(path.raw / '{}.fits'.format(wave_fname), header=True)
             wave_data = wave_data.squeeze()
             wave_data[:60, :] = 0
-            fits.writeto(os.path.join(path.preproc, wave_fname+'_masked.fits'), wave_data, hdr, overwrite=True, 
+            fits.writeto(path.preproc / '{}_masked.fits'.format(wave_fname), wave_data, hdr, overwrite=True, 
                          output_verify='silentfix')
             
             # create sof using the masked file
-            sof = os.path.join(path.sof, 'wave.sof')
+            sof = path.sof / 'wave.sof'
             file = open(sof, 'w')
-            file.write('{0}{1}_masked.fits {2}\n'.format(path.preproc, wave_fname, 'IRD_WAVECALIB_RAW'))
-            file.write('{0}{1}.fits        {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
-            file.write('{0}{1}.fits        {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
-            file.write('{0}{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
+            file.write('{0}/{1}_masked.fits {2}\n'.format(path.preproc, wave_fname, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
 
             args = ['esorex',
@@ -1045,7 +1042,7 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=TRUE',
                     '--ird.wave_calib.threshold=1000',
                     '--ird.wave_calib.number_lines=5',
-                    '--ird.wave_calib.outfilename={0}{1}.fits'.format(path.calib, wav_file),
+                    '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
 
         # check esorex
@@ -1075,7 +1072,7 @@ class SpectroReduction(object):
         files_info.loc[wav_file, 'PRO CATG'] = 'IRD_WAVECALIB'
         
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_wave_calib'] = True
@@ -1130,9 +1127,9 @@ class SpectroReduction(object):
         frames_info = self._frames_info
         
         # clean before we start
-        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc.fits'))
+        files = path.preproc.glob('*_DIT???_preproc.fits')
         for file in files:
-            os.remove(file)
+            file.unlink()
 
         # filter combination
         filter_comb = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()[0]
@@ -1141,7 +1138,7 @@ class SpectroReduction(object):
         if fix_badpix:
             bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
                                    (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
-            bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
+            bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
 
@@ -1157,7 +1154,7 @@ class SpectroReduction(object):
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
             raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
-        flat = fits.getdata(os.path.join(path.calib, flat_file.index[0]+'.fits'))
+        flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
             
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
@@ -1195,7 +1192,7 @@ class SpectroReduction(object):
                         print('Warning: no background has been found. Pre-processing will continue but data quality will likely be affected')
                         bkg = np.zeros((1024, 2048))
                     elif len(dfiles) == 1:
-                        bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
+                        bkg = fits.getdata(path.calib / '{}.fits'.format(dfiles.index[0]))
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
                         raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
@@ -1209,7 +1206,7 @@ class SpectroReduction(object):
 
                     # read data
                     print('   ==> read data')
-                    img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
+                    img, hdr = fits.getdata(path.raw / '{}.fits'.format(fname), header=True)
                     
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
@@ -1287,7 +1284,7 @@ class SpectroReduction(object):
                     for f in range(len(img)):
                         frame = nimg[f, ...].squeeze()                    
                         hdr['HIERARCH ESO DET NDIT'] = 1
-                        fits.writeto(os.path.join(path.preproc, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
+                        fits.writeto(path.preproc / '{}_DIT{:03d}_preproc.fits'.format(fname, f), frame, hdr,
                                      overwrite=True, output_verify='silentfix')
 
                     print()
@@ -1296,7 +1293,7 @@ class SpectroReduction(object):
 
         # sort and save final dataframe
         frames_info_preproc.sort_values(by='TIME', inplace=True)
-        frames_info_preproc.to_csv(os.path.join(path.preproc, 'frames_preproc.csv'))
+        frames_info_preproc.to_csv(path.preproc / 'frames_preproc.csv')
 
         self._frames_info_preproc = frames_info_preproc
 
@@ -1347,7 +1344,7 @@ class SpectroReduction(object):
         
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
-        wave_calib = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
         wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
         
         # start with OBJECT,FLUX
@@ -1358,18 +1355,17 @@ class SpectroReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube, hdr = fits.getdata(files[0], header=True)
+                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
                 # centers
                 if plot:
-                    save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
+                    save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), psf_center, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), psf_center, overwrite=True)
                 print()
 
         # then OBJECT,CENTER (if any)
@@ -1382,20 +1378,18 @@ class SpectroReduction(object):
 
                 # read center data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube_cen, hdr = fits.getdata(files[0], header=True)
+                cube_cen, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
                 # read science data
                 if len(starsci_files) != 0:
                     fname2 = '{0}_DIT{1:03d}_preproc'.format(starsci_files.index[0][0], idx)
-                    files2 = glob.glob(os.path.join(path.preproc, fname2+'.fits'))
-                    cube_sci, hdr = fits.getdata(files2[0], header=True)                    
+                    cube_sci, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname2), header=True)
                 else:
                     cube_sci = None
                 
                 # centers
                 if plot:
-                    save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
+                    save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_centers, spot_dist, img_centers \
@@ -1403,8 +1397,8 @@ class SpectroReduction(object):
                                                                 high_pass=high_pass, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_centers, overwrite=True)
-                fits.writeto(os.path.join(path.preproc, fname+'_spot_distance.fits'), spot_dist, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_centers, overwrite=True)
+                fits.writeto(path.preproc / '{}_spot_distance.fits'.format(fname), spot_dist, overwrite=True)
                 print()
 
         # update recipe execution
@@ -1461,7 +1455,7 @@ class SpectroReduction(object):
         
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
-        wave_calib = fits.getdata(os.path.join(path.calib, wave_file.index[0]+'.fits'))
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
         wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # reference wavelength
@@ -1473,14 +1467,14 @@ class SpectroReduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(os.path.join(path.preproc, 'wavelength_final.fits'), wave_lin, overwrite=True)
+            fits.writeto(path.preproc / 'wavelength_final.fits', wave_lin, overwrite=True)
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-        spot_dist = fits.getdata(os.path.join(path.preproc, fname+'.fits'))
+        spot_dist = fits.getdata(path.preproc / '{}.fits'.format(fname))
         
         if plot:
-            pdf = PdfPages(os.path.join(path.products, 'wavelength_recalibration.pdf'))        
+            pdf = PdfPages(path.products / 'wavelength_recalibration.pdf')
         
         pix = np.arange(1024)
         wave_final = np.zeros((1024, 2))
@@ -1558,7 +1552,7 @@ class SpectroReduction(object):
 
         # save
         print(' * saving')
-        fits.writeto(os.path.join(path.preproc, 'wavelength_final.fits'), wave_final, overwrite=True)
+        fits.writeto(path.preproc / 'wavelength_final.fits', wave_final, overwrite=True)
 
     
         # update recipe execution
@@ -1664,7 +1658,7 @@ class SpectroReduction(object):
         
         # wavelength solution: make sure we have the same number of
         # wave points in each field
-        wave   = fits.getdata(os.path.join(path.preproc, 'wavelength_final.fits'))
+        wave   = fits.getdata(path.preproc / 'wavelength_final.fits')
         mask   = ((wave_min <= wave) & (wave <= wave_max))
         iwave0 = np.where(mask[:, 0])[0]
         iwave1 = np.where(mask[:, 1])[0]
@@ -1678,7 +1672,7 @@ class SpectroReduction(object):
         final_wave[:, 0] = wave[iwave[:, 0], 0]
         final_wave[:, 1] = wave[iwave[:, 1], 1]
         
-        fits.writeto(os.path.join(path.products, 'wavelength.fits'), final_wave.squeeze().T, overwrite=True)
+        fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
         
         # max images size
         if psf_dim > 1024:
@@ -1729,9 +1723,8 @@ class SpectroReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
                                 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1776,18 +1769,18 @@ class SpectroReduction(object):
                     ii = np.where(psf_posang == pa)[0]
                     
                     # save metadata
-                    flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'psf_posang={:06.2f}_frames.csv'.format(pa)))
-                    fits.writeto(os.path.join(path.products, 'psf_posang={:06.2f}_posang.fits'.format(pa)), psf_posang[ii], overwrite=True)
+                    flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'psf_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'psf_posang={:06.2f}_posang.fits'.format(pa), psf_posang[ii], overwrite=True)
 
                     # save final cubes
-                    fits.writeto(os.path.join(path.products, 'psf_posang={:06.2f}_cube.fits'.format(pa)), psf_cube[:, ii], overwrite=True)
+                    fits.writeto(path.products / 'psf_posang={:06.2f}_cube.fits'.format(pa), psf_cube[:, ii], overwrite=True)
             else:
                 # save metadata
-                flux_files.to_csv(os.path.join(path.products, 'psf_posang=all_frames.csv'))
-                fits.writeto(os.path.join(path.products, 'psf_posang=all_posang.fits'), psf_posang, overwrite=True)
+                flux_files.to_csv(path.products / 'psf_posang=all_frames.csv')
+                fits.writeto(path.products / 'psf_posang=all_posang.fits', psf_posang, overwrite=True)
 
                 # save final cubes
-                fits.writeto(os.path.join(path.products, 'psf_posang=all_cube.fits'), psf_cube, overwrite=True)
+                fits.writeto(path.products / 'psf_posang=all_cube.fits', psf_cube, overwrite=True)
 
             # delete big cubes
             del psf_cube
@@ -1818,9 +1811,8 @@ class SpectroReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1865,18 +1857,18 @@ class SpectroReduction(object):
                     ii = np.where(cen_posang == pa)[0]
                     
                     # save metadata
-                    starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'starcenter_posang={:06.2f}_frames.csv'.format(pa)))
-                    fits.writeto(os.path.join(path.products, 'starcenter_posang={:06.2f}_posang.fits'.format(pa)), cen_posang[ii], overwrite=True)
+                    starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'starcenter_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'starcenter_posang={:06.2f}_posang.fits'.format(pa), cen_posang[ii], overwrite=True)
 
                     # save final cubes
-                    fits.writeto(os.path.join(path.products, 'starcenter_posang={:06.2f}_cube.fits'.format(pa)), cen_cube[:, ii], overwrite=True)
+                    fits.writeto(path.products / 'starcenter_posang={:06.2f}_cube.fits'.format(pa), cen_cube[:, ii], overwrite=True)
             else:
                 # save metadata
-                starcen_files.to_csv(os.path.join(path.products, 'starcenter_posang=all_frames.csv'))
-                fits.writeto(os.path.join(path.products, 'starcenter_posang=all_posang.fits'), cen_posang, overwrite=True)
+                starcen_files.to_csv(path.products / 'starcenter_posang=all_frames.csv')
+                fits.writeto(path.products / 'starcenter_posang=all_posang.fits', cen_posang, overwrite=True)
 
                 # save final cubes
-                fits.writeto(os.path.join(path.products, 'starcenter_posang=all_cube.fits'), cen_cube, overwrite=True)
+                fits.writeto(path.products / 'starcenter_posang=all_cube.fits', cen_cube, overwrite=True)
 
             # delete big cubes
             del cen_cube
@@ -1910,7 +1902,7 @@ class SpectroReduction(object):
                     centers = centers_default
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                centers = fits.getdata(os.path.join(path.preproc, fname))
+                centers = fits.getdata(path.preproc / fname)
             
             # final center
             if cpix:
@@ -1924,8 +1916,7 @@ class SpectroReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube = fits.getdata(files[0])
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1970,18 +1961,18 @@ class SpectroReduction(object):
                     ii = np.where(sci_posang == pa)[0]
                     
                     # save metadata
-                    object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(os.path.join(path.products, 'science_posang={:06.2f}_frames.csv'.format(pa)))
-                    fits.writeto(os.path.join(path.products, 'science_posang={:06.2f}_posang.fits'.format(pa)), sci_posang[ii], overwrite=True)
+                    object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'science_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'science_posang={:06.2f}_posang.fits'.format(pa), sci_posang[ii], overwrite=True)
 
                     # save final cubes
-                    fits.writeto(os.path.join(path.products, 'science_posang={:06.2f}_cube.fits'.format(pa)), sci_cube[:, ii], overwrite=True)
+                    fits.writeto(path.products / 'science_posang={:06.2f}_cube.fits'.format(pa), sci_cube[:, ii], overwrite=True)
             else:
                 # save metadata
-                object_files.to_csv(os.path.join(path.products, 'science_posang=all_frames.csv'))
-                fits.writeto(os.path.join(path.products, 'science_posang=all_posang.fits'), sci_posang, overwrite=True)
+                object_files.to_csv(path.products, 'science_posang=all_frames.csv')
+                fits.writeto(path.products / 'science_posang=all_posang.fits', sci_posang, overwrite=True)
 
                 # save final cubes
-                fits.writeto(os.path.join(path.products, 'science_posang=all_cube.fits'), sci_cube, overwrite=True)
+                fits.writeto(path.products / 'science_posang=all_cube.fits', sci_cube, overwrite=True)
 
             # delete big cubes
             del sci_cube
@@ -2009,27 +2000,27 @@ class SpectroReduction(object):
         path = self._path
                 
         # tmp
-        if os.path.exists(path.tmp):
+        if path.tmp.exists():
             shutil.rmtree(path.tmp, ignore_errors=True)
 
         # sof
-        if os.path.exists(path.sof):
+        if path.sof.exists():
             shutil.rmtree(path.sof, ignore_errors=True)
 
         # calib
-        if os.path.exists(path.calib):
+        if path.calib.exists():
             shutil.rmtree(path.calib, ignore_errors=True)
 
         # preproc
-        if os.path.exists(path.preproc):
+        if path.preproc.exists():
             shutil.rmtree(path.preproc, ignore_errors=True)
 
         # raw
         if delete_raw:
-            if os.path.exists(path.raw):
+            if path.raw.exists():
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
-            if os.path.exists(path.products):
+            if path.products.exists():
                 shutil.rmtree(path.products, ignore_errors=True)
