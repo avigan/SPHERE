@@ -1,5 +1,3 @@
-import os
-import glob
 import pandas as pd
 import subprocess
 import numpy as np
@@ -13,15 +11,16 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import configparser
 
+from pathlib import Path
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
 import vltpf
+import vltpf.utils as utils
 import vltpf.utils.imutils as imutils
 import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
-import vltpf.ReductionPath as ReductionPath
 import vltpf.toolbox as toolbox
 
 
@@ -63,23 +62,22 @@ class ImagingReduction(object):
         '''
 
         # expand path
-        path = os.path.expanduser(os.path.join(path, ''))
+        path = Path(path).expanduser().resolve()
         
         # zeroth-order reduction validation
-        raw = os.path.join(path, 'raw')
-        if not os.path.exists(raw):
+        raw = path / 'raw'
+        if not raw.exists():
             raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
         
         # init path and name
-        self._path = ReductionPath.Path(path)
+        self._path = utils.ReductionPath(path)
         self._instrument = 'IRDIS'
         
         # instrument mode
         self._mode = 'Unknown'
 
         # configuration
-        package_directory = os.path.dirname(os.path.abspath(vltpf.__file__))
-        configfile = os.path.join(package_directory, 'instruments', self._instrument+'.ini')
+        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
         try:
             config.read(configfile)
@@ -325,8 +323,8 @@ class ImagingReduction(object):
         path = self._path
         
         # files info
-        fname = os.path.join(path.preproc, 'files.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'files.csv'
+        if fname.exists():
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -346,8 +344,8 @@ class ImagingReduction(object):
         else:
             files_info = None
 
-        fname = os.path.join(path.preproc, 'frames.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'frames.csv'
+        if fname.exists():
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -363,8 +361,8 @@ class ImagingReduction(object):
         else:
             frames_info = None
 
-        fname = os.path.join(path.preproc, 'frames_preproc.csv')
-        if os.path.exists(fname):
+        fname = path.preproc / 'frames_preproc.csv'
+        if fname.exists():
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -388,7 +386,7 @@ class ImagingReduction(object):
             files = frames_info_preproc.index
             for file, idx in files:
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_preprocess_science'] = done
 
@@ -397,7 +395,7 @@ class ImagingReduction(object):
                                         (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
             for file, idx in files:
                 fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
-                file = glob.glob(os.path.join(path.preproc, fname+'.fits'))
+                file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_star_center'] = done
 
@@ -416,8 +414,8 @@ class ImagingReduction(object):
         path = self._path
         
         # list files
-        files = glob.glob(os.path.join(path.raw, '*.fits'))
-        files = [os.path.splitext(os.path.basename(f))[0] for f in files]
+        files = path.raw.glob('*.fits')
+        files = [f.stem for f in files]
 
         if len(files) == 0:
             raise ValueError('No raw FITS files in reduction path')
@@ -425,9 +423,8 @@ class ImagingReduction(object):
         print(' * found {0} FITS files in {1}'.format(len(files), path.raw))
 
         # read list of keywords
-        package_directory = os.path.dirname(os.path.abspath(vltpf.__file__))
         keywords = []
-        file = open(os.path.join(package_directory, 'instruments', 'keywords.dat'), 'r')
+        file = open(Path(vltpf.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -446,7 +443,7 @@ class ImagingReduction(object):
         files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
         for f in files:
-            hdu = fits.open(os.path.join(path.raw, f+'.fits'))
+            hdu = fits.open(path.raw / '{}.fits'.format(f))
             hdr = hdu[0].header
 
             for k, sk in zip(keywords, keywords_short):
@@ -479,7 +476,7 @@ class ImagingReduction(object):
         files_info.sort_values(by='DATE-OBS', inplace=True)
 
         # save files_info
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))    
+        files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
         # update recipe execution
@@ -533,7 +530,7 @@ class ImagingReduction(object):
         toolbox.compute_angles(frames_info)
 
         # save
-        frames_info.to_csv(os.path.join(path.preproc, 'frames.csv'))
+        frames_info.to_csv(path.preproc / 'frames.csv')
         self._frames_info = frames_info
 
         # update recipe execution
@@ -708,10 +705,10 @@ class ImagingReduction(object):
                     print(' * {0} in filter {1} with DIT={2:.2f} sec ({3} files)'.format(ctype, cfilt, DIT, len(cfiles)))
 
                     # create sof
-                    sof = os.path.join(path.sof, 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT))
+                    sof = path.sof / 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT)
                     file = open(sof, 'w')
                     for f in files:
-                        file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
+                        file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
                     file.close()
 
                     # products
@@ -735,8 +732,8 @@ class ImagingReduction(object):
                             '--ird.master_dark.sigma_clip=5.0',
                             '--ird.master_dark.save_addprod=TRUE',
                             '--ird.master_dark.max_acceptable={0}'.format(max_level),
-                            '--ird.master_dark.outfilename={0}{1}.fits'.format(path.calib, dark_file),
-                            '--ird.master_dark.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                            '--ird.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
+                            '--ird.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
                             sof]
 
                     # check esorex
@@ -776,7 +773,7 @@ class ImagingReduction(object):
                     files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_STATIC_BADPIXELMAP'
 
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_dark'] = True
@@ -814,10 +811,10 @@ class ImagingReduction(object):
             print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
             
             # create sof
-            sof = os.path.join(path.sof, 'flat_filt={0}.sof'.format(cfilt))
+            sof = path.sof / 'flat_filt={0}.sof'.format(cfilt)
             file = open(sof, 'w')
             for f in files:
-                file.write('{0}{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+                file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
             file.close()
 
             # products
@@ -830,8 +827,8 @@ class ImagingReduction(object):
                     '--no-datamd5=TRUE',
                     'sph_ird_instrument_flat',
                     '--ird.instrument_flat.save_addprod=TRUE',
-                    '--ird.instrument_flat.outfilename={0}{1}.fits'.format(path.calib, flat_file),
-                    '--ird.instrument_flat.badpixfilename={0}{1}.fits'.format(path.calib, bpm_file),
+                    '--ird.instrument_flat.outfilename={0}/{1}.fits'.format(path.calib, flat_file),
+                    '--ird.instrument_flat.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
                     sof]
 
             # check esorex
@@ -871,7 +868,7 @@ class ImagingReduction(object):
             files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
         
         # save
-        files_info.to_csv(os.path.join(path.preproc, 'files.csv'))
+        files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
@@ -941,9 +938,9 @@ class ImagingReduction(object):
         frames_info = self._frames_info
         
         # clean before we start
-        files = glob.glob(os.path.join(path.preproc, '*_DIT???_preproc.fits'))
+        files = path.preproc.glob('*_DIT???_preproc.fits')
         for file in files:
-            os.remove(file)
+            file.unlink()
 
         # filter combination
         filter_comb = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()[0]
@@ -952,7 +949,7 @@ class ImagingReduction(object):
         if fix_badpix:
             bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
                                    (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
-            bpm_files = [os.path.join(path.calib, f+'.fits') for f in bpm_files]
+            bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
 
@@ -968,7 +965,7 @@ class ImagingReduction(object):
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
             raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
-        flat = fits.getdata(os.path.join(path.calib, flat_file.index[0]+'.fits'))
+        flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
             
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
@@ -1006,7 +1003,7 @@ class ImagingReduction(object):
                         print('Warning: no background has been found. Pre-processing will continue but data quality will likely be affected')
                         bkg = np.zeros((1024, 2048))
                     elif len(dfiles) == 1:
-                        bkg = fits.getdata(os.path.join(path.calib, dfiles.index[0]+'.fits'))
+                        bkg = fits.getdata(path.calib / '{}.fits'.format(dfiles.index[0]))
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
                         raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
@@ -1020,7 +1017,7 @@ class ImagingReduction(object):
 
                     # read data
                     print('   ==> read data')
-                    img, hdr = fits.getdata(os.path.join(path.raw, fname+'.fits'), header=True)
+                    img, hdr = fits.getdata(path.raw / '{}.fits'.format(fname), header=True)
                     
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
@@ -1122,7 +1119,7 @@ class ImagingReduction(object):
                     for f in range(len(img)):
                         frame = nimg[f, ...].squeeze()                    
                         hdr['HIERARCH ESO DET NDIT'] = 1
-                        fits.writeto(os.path.join(path.preproc, fname+'_DIT{0:03d}_preproc.fits'.format(f)), frame, hdr,
+                        fits.writeto(path.preproc / '{}_DIT{:03d}_preproc.fits'.format(fname, f), frame, hdr,
                                      overwrite=True, output_verify='silentfix')
 
                     print()
@@ -1131,7 +1128,7 @@ class ImagingReduction(object):
 
         # sort and save final dataframe
         frames_info_preproc.sort_values(by='TIME', inplace=True)
-        frames_info_preproc.to_csv(os.path.join(path.preproc, 'frames_preproc.csv'))
+        frames_info_preproc.to_csv(path.preproc / 'frames_preproc.csv')
 
         self._frames_info_preproc = frames_info_preproc
 
@@ -1182,18 +1179,17 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube, hdr = fits.getdata(files[0], header=True)
+                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
                 # centers
                 if plot:
-                    save_path = os.path.join(path.products, fname+'_PSF_fitting.pdf')
+                    save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
                 print()
 
         # then OBJECT,CENTER
@@ -1204,8 +1200,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube, hdr = fits.getdata(files[0], header=True)
+                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
                 # coronagraph
                 coro_name = starcen_files.loc[(file, idx), 'INS COMB ICOR']
@@ -1217,7 +1212,7 @@ class ImagingReduction(object):
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
                 if plot:
-                    save_path = os.path.join(path.products, fname+'_spots_fitting.pdf')
+                    save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
@@ -1226,7 +1221,7 @@ class ImagingReduction(object):
                                                             coro=coro, save_path=save_path)
 
                 # save
-                fits.writeto(os.path.join(path.preproc, fname+'_centers.fits'), img_center, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
                 print()
 
         # update recipe execution
@@ -1318,7 +1313,7 @@ class ImagingReduction(object):
         wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)                
         wave = np.array(wave)
 
-        fits.writeto(os.path.join(path.products, 'wavelength.fits'), wave, overwrite=True)
+        fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
 
         # max images size
         if psf_dim > 1024:
@@ -1369,9 +1364,8 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -1407,12 +1401,12 @@ class ImagingReduction(object):
                         psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
-            flux_files.to_csv(os.path.join(path.products, 'psf_frames.csv'))
-            fits.writeto(os.path.join(path.products, 'psf_cube.fits'), psf_cube, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'psf_parang.fits'), psf_parang, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'psf_derot.fits'), psf_derot, overwrite=True)
+            flux_files.to_csv(path.products / 'psf_frames.csv')
+            fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
+            fits.writeto(path.products / 'psf_parang.fits', psf_parang, overwrite=True)
+            fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
             if save_scaled:
-                fits.writeto(os.path.join(path.products, 'psf_cube_scaled.fits'), psf_cube_scaled, overwrite=True)
+                fits.writeto(path.products / 'psf_cube_scaled.fits', psf_cube_scaled, overwrite=True)
 
             # delete big cubes
             del psf_cube
@@ -1448,9 +1442,8 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'.fits'))
-                cube = fits.getdata(files[0])
-                centers = fits.getdata(os.path.join(path.preproc, fname+'_centers.fits'))                
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
                 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -1489,12 +1482,12 @@ class ImagingReduction(object):
                         cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
-            starcen_files.to_csv(os.path.join(path.products, 'starcenter_frames.csv'))
-            fits.writeto(os.path.join(path.products, 'starcenter_cube.fits'), cen_cube, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'starcenter_parang.fits'), cen_parang, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'starcenter_derot.fits'), cen_derot, overwrite=True)
+            starcen_files.to_csv(path.products / 'starcenter_frames.csv')
+            fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
+            fits.writeto(path.products / 'starcenter_parang.fits', cen_parang, overwrite=True)
+            fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
             if save_scaled:
-                fits.writeto(os.path.join(path.products, 'starcenter_cube_scaled.fits'), cen_cube_scaled, overwrite=True)
+                fits.writeto(path.products / 'starcenter_cube_scaled.fits', cen_cube_scaled, overwrite=True)
 
             # delete big cubes
             del cen_cube
@@ -1530,7 +1523,7 @@ class ImagingReduction(object):
                 dms_dy_ref = 0
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                centers = fits.getdata(os.path.join(path.preproc, fname))
+                centers = fits.getdata(path.preproc / fname)
 
                 # Dithering Motion Stage for star center: value is in micron,
                 # and the pixel size is 18 micron
@@ -1556,7 +1549,7 @@ class ImagingReduction(object):
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = glob.glob(os.path.join(path.preproc, fname+'*.fits'))
+                files = list(path.preproc.glob('{}*.fits'.format(fname)))
                 cube = fits.getdata(files[0])
 
                 # neutral density
@@ -1599,12 +1592,12 @@ class ImagingReduction(object):
                         sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
-            object_files.to_csv(os.path.join(path.products, 'science_frames.csv'))
-            fits.writeto(os.path.join(path.products, 'science_cube.fits'), sci_cube, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'science_parang.fits'), sci_parang, overwrite=True)
-            fits.writeto(os.path.join(path.products, 'science_derot.fits'), sci_derot, overwrite=True)
+            object_files.to_csv(path.products / 'science_frames.csv')
+            fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
+            fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
+            fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
             if save_scaled:
-                fits.writeto(os.path.join(path.products, 'science_cube_scaled.fits'), sci_cube_scaled, overwrite=True)
+                fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
 
             # delete big cubes
             del sci_cube
@@ -1634,27 +1627,27 @@ class ImagingReduction(object):
         path = self._path
                 
         # tmp
-        if os.path.exists(path.tmp):
+        if path.tmp.exists():
             shutil.rmtree(path.tmp, ignore_errors=True)
 
         # sof
-        if os.path.exists(path.sof):
+        if path.sof.exists():
             shutil.rmtree(path.sof, ignore_errors=True)
 
         # calib
-        if os.path.exists(path.calib):
+        if path.calib.exists():
             shutil.rmtree(path.calib, ignore_errors=True)
 
         # preproc
-        if os.path.exists(path.preproc):
+        if path.preproc.exists():
             shutil.rmtree(path.preproc, ignore_errors=True)
 
         # raw
         if delete_raw:
-            if os.path.exists(path.raw):
+            if path.raw.exists():
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
-            if os.path.exists(path.products):
+            if path.products.exists():
                 shutil.rmtree(path.products, ignore_errors=True)
