@@ -175,6 +175,7 @@ class ImagingReduction(object):
         dico = self._config
 
         # misc parameters
+        print()
         print('{0:<30s}{1}'.format('Parameter', 'Value'))
         print('-'*35)
         keys = [key for key in dico if key.startswith('misc')]
