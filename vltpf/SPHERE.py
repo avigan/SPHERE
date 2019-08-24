@@ -6,6 +6,7 @@ import os
 import glob
 import shutil
 import math
+import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as etree
 
@@ -293,6 +294,53 @@ def sort_files_from_fits(path, silent=True):
         for file in files:
             shutil.move(file, path_new)
 
+            
+def classify_irdis_dataset(path):
+    '''Classify an IRDIS dataset based on the science files
+
+    path : str
+        Path to the directory containing the dataset
+
+    '''
+
+    # expand path
+    path = os.path.expanduser(os.path.join(path, ''))
+
+    # zeroth-order reduction validation
+    raw = os.path.join(path, 'raw')
+    if not os.path.exists(raw):
+        raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+
+    # list all fits files
+    files = glob.glob(os.path.join(raw, '*.fits'))
+    if len(files) == 0:
+        return None
+
+    # search for science files
+    modes = []
+    for file in files:
+        hdr = fits.getheader(file)
+
+        dpr_catg = hdr.get('HIERARCH ESO DPR CATG')
+        mode     = hdr.get('HIERARCH ESO INS1 MODE')
+
+        if dpr_catg == 'SCIENCE':
+            modes.append(mode)
+
+    modes = np.array(modes)
+
+    n_imaging = (modes == 'NIROBS').sum() + (modes == 'EXT').sum() + \
+        (modes == 'DBI').sum() + (modes == 'CI').sum()
+    n_pola    = (modes == 'DPI').sum()
+    n_spectro = (modes == 'LSS').sum()
+
+    if (n_imaging >= n_pola) and (n_imaging >= n_spectro):
+        return 'imaging'
+    elif (n_pola >= n_imaging) and (n_pola >= n_spectro):
+        return 'pola'
+    else:
+        return 'spectro'
+                
 
 class Dataset:
     '''
