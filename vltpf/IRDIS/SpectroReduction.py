@@ -45,20 +45,20 @@ def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
     Returns
     -------
     wave_lin : array
-        Array with the linear calibration for each field, as a function 
+        Array with the linear calibration for each field, as a function
         of pixel coordinate
     '''
     wave_map = np.zeros((2, 1024, 1024))
     wave_map[0] = wave_calib[:, 0:1024]
     wave_map[1] = wave_calib[:, 1024:]
     wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
-    
+
     wave_ext = 10
     wave_lin = np.zeros((2, 1024))
-    
+
     wave_lin[0] = np.mean(wave_map[0, :, centers[0, 0]-wave_ext:centers[0, 0]+wave_ext], axis=1)
     wave_lin[1] = np.mean(wave_map[1, :, centers[1, 0]-wave_ext:centers[1, 0]+wave_ext], axis=1)
-    
+
     return wave_lin
 
 
@@ -80,7 +80,7 @@ class SpectroReduction(object):
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
         'sph_ird_wave_calib': ['sort_files', 'sph_ird_cal_detector_flat'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib',
@@ -88,11 +88,11 @@ class SpectroReduction(object):
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science',
                                  'sph_ird_star_center', 'sph_ird_wavelength_recalibration']
     }
-    
+
     ##################################################
     # Constructor
     ##################################################
-    
+
     def __init__(self, path):
         '''Initialization of the SpectroReduction instances
 
@@ -105,19 +105,19 @@ class SpectroReduction(object):
 
         # expand path
         path = Path(path).expanduser().resolve()
-        
+
         # zeroth-order reduction validation
         raw = path / 'raw'
         if not raw.exists():
             raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
-        
+
         # init path and name
         self._path = utils.ReductionPath(path)
         self._instrument = 'IRDIS'
-        
+
         # instrument mode
         self._mode = 'Unknown'
-        
+
         # configuration
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
@@ -127,7 +127,7 @@ class SpectroReduction(object):
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
             self._nwave = -1
-            
+
             # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
@@ -140,11 +140,11 @@ class SpectroReduction(object):
                     try:
                         val = eval(value)
                     except NameError:
-                        val = value                    
+                        val = value
                     self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
-        
+
         # execution of recipes
         self._recipe_execution = {
             'sort_files': False,
@@ -157,21 +157,21 @@ class SpectroReduction(object):
 
         # reload any existing data frames
         self.read_info()
-    
+
     ##################################################
     # Representation
     ##################################################
-    
+
     def __repr__(self):
         return '<SpectroReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
-    
+
     def __format__(self):
         return self.__repr__()
-    
+
     ##################################################
     # Properties
     ##################################################
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -179,11 +179,11 @@ class SpectroReduction(object):
     @property
     def pixel(self):
         return self._pixel
-    
+
     @property
     def nwave(self):
         return self._nwave
-    
+
     @property
     def path(self):
         return self._path
@@ -191,11 +191,11 @@ class SpectroReduction(object):
     @property
     def files_info(self):
         return self._files_info
-    
+
     @property
     def frames_info(self):
         return self._frames_info
-    
+
     @property
     def frames_info_preproc(self):
         return self._frames_info_preproc
@@ -203,11 +203,11 @@ class SpectroReduction(object):
     @property
     def recipe_execution(self):
         return self._recipe_execution
-    
+
     @property
     def config(self):
-        return self._config    
-    
+        return self._config
+
     @property
     def mode(self):
         return self._mode
@@ -249,7 +249,7 @@ class SpectroReduction(object):
         keys = [key for key in dico if key.startswith('wave')]
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
-            
+
         # combining
         print('-'*35)
         keys = [key for key in dico if key.startswith('combine')]
@@ -262,10 +262,10 @@ class SpectroReduction(object):
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
         print('-'*35)
-            
+
         print()
-        
-           
+
+
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
@@ -273,46 +273,46 @@ class SpectroReduction(object):
 
         # make sure we have sub-directories
         self._path.create_subdirectories()
-                
+
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
-    
-    
+
+
     def create_static_calibrations(self):
         '''
         Create static calibrations with esorex
         '''
 
         config = self._config
-        
+
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
         self.sph_ird_wave_calib(silent=config['misc_silent_esorex'])
 
-    
+
     def preprocess_science(self):
         '''
         Clean and collapse images
         '''
-        
+
         config = self._config
-        
+
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
                                         collapse_science=config['preproc_collapse_science'],
                                         collapse_psf=config['preproc_collapse_psf'],
                                         collapse_center=config['preproc_collapse_center'])
-    
+
 
     def process_science(self):
         '''
         Perform star center, combine cubes into final (x,y,time,lambda)
         cubes, correct anamorphism and scale the images
         '''
-        
+
         config = self._config
-        
+
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  plot=config['misc_plot'])
         self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'],
@@ -325,26 +325,26 @@ class SpectroReduction(object):
                                   shift_method=config['combine_shift_method'],
                                   manual_center=config['combine_manual_center'],
                                   skip_center=config['combine_skip_center'])
-    
+
     def clean(self):
         '''
         Clean the reduction directory, leaving only the raw and products
         sub-directory
         '''
-        
+
         config = self._config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
                                delete_products=config['clean_delete_products'])
-    
-        
+
+
     def full_reduction(self):
         '''
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
-        
+
         self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
@@ -354,7 +354,7 @@ class SpectroReduction(object):
     ##################################################
     # SPHERE/IRDIS methods
     ##################################################
-    
+
     def read_info(self):
         '''
         Read the files, calibs and frames information from disk
@@ -371,7 +371,7 @@ class SpectroReduction(object):
 
         # path
         path = self._path
-        
+
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -381,7 +381,7 @@ class SpectroReduction(object):
             files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
             files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
-            
+
             # update recipe execution
             self._recipe_execution['sort_files'] = True
             if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
@@ -390,7 +390,7 @@ class SpectroReduction(object):
                 self._recipe_execution['sph_ird_cal_detector_flat'] = True
             if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
                 self._recipe_execution['sph_ird_wave_calib'] = True
-                
+
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
         else:
@@ -423,7 +423,7 @@ class SpectroReduction(object):
             frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=False)
             frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=False)
             frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=False)
-            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=False)            
+            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=False)
         else:
             frames_info_preproc = None
 
@@ -436,7 +436,7 @@ class SpectroReduction(object):
         if frames_info_preproc is not None:
             self._recipe_execution['sph_ird_wavelength_recalibration'] \
                 = (path.preproc / 'wavelength_final.fits').exists()
-            
+
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
@@ -454,7 +454,7 @@ class SpectroReduction(object):
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_star_center'] = done
 
-        
+
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
@@ -467,7 +467,7 @@ class SpectroReduction(object):
 
         # parameters
         path = self._path
-        
+
         # list files
         files = path.raw.glob('*.fits')
         files = [f.stem for f in files]
@@ -493,7 +493,7 @@ class SpectroReduction(object):
             key = keywords_short[idx]
             if key.find('HIERARCH ESO ') != -1:
                 keywords_short[idx] = key[13:]
-        
+
         # files table
         files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
@@ -509,12 +509,12 @@ class SpectroReduction(object):
         # drop files that are not handled, based on DPR keywords
         files_info.dropna(subset=['DPR TYPE'], inplace=True)
         files_info = files_info[(files_info['DPR CATG'] != 'ACQUISITION') & (files_info['DPR TYPE'] != 'OBJECT,AO')]
-        
+
         # check instruments
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
             raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
-        
+
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
@@ -526,10 +526,10 @@ class SpectroReduction(object):
 
         # update instrument mode
         self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
-        
+
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
-        
+
         # save files_info
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
@@ -537,7 +537,7 @@ class SpectroReduction(object):
         # update recipe execution
         self._recipe_execution['sort_files'] = True
 
-        
+
     def sort_frames(self):
         '''
         Extract the frames information from the science files and save
@@ -551,18 +551,18 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # science files
-        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
+        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
 
         # raise error when no science frames are present
         if len(sci_files) == 0:
             raise ValueError('This dataset contains no science frame. There should be at least one!')
-        
+
         # build indices
         files = []
         img   = []
@@ -576,7 +576,7 @@ class SpectroReduction(object):
         frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        frames_info = frames_info.align(files_info, level=0)[1]    
+        frames_info = frames_info.align(files_info, level=0)[1]
 
         # compute timestamps
         toolbox.compute_times(frames_info)
@@ -590,20 +590,20 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._recipe_execution['sort_frames'] = True
-        
+
         #
         # print some info
         #
         cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
         if len(cinfo) == 0:
             cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-        
+
         ra_drot   = cinfo['INS4 DROT2 RA'][0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = '{:02.0f}:{:02.0f}:{:02.3f}'.format(ra_drot_h, ra_drot_m, ra_drot_s)
-        
+
         dec_drot  = cinfo['INS4 DROT2 DEC'][0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
@@ -617,9 +617,9 @@ class SpectroReduction(object):
         pa_end   = cinfo['PARANG'][-1]
 
         posang   = cinfo['INS4 DROT2 POSANG'].unique()
-        
+
         date = str(cinfo['DATE'][0])[0:10]
-        
+
         print(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
         print(' * RA / DEC:    {0} / {1}'.format(RA, DEC))
         print(' * Date:        {0}'.format(date))
@@ -634,7 +634,7 @@ class SpectroReduction(object):
         print(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         print(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
-        
+
     def check_files_association(self):
         '''
         Performs the calibration files association as a sanity check.
@@ -651,17 +651,17 @@ class SpectroReduction(object):
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
             raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
-        
+
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
             raise ValueError('Sequence is mixing different types of observations: {0}'.format(modes))
-        
+
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
             raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
@@ -673,7 +673,7 @@ class SpectroReduction(object):
         # keep static calibrations and sky backgrounds
         calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
                             ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
-        
+
         ###############################################
         # static calibrations not dependent on DIT
         ###############################################
@@ -685,7 +685,7 @@ class SpectroReduction(object):
         if len(cfiles) <= 1:
             error_flag += 1
             print(' * Error: there should be more than 1 flat in filter combination {0}'.format(filter_comb))
-        
+
         # wave
         cfiles = calibs[(calibs['DPR TYPE'] == 'LAMP,WAVE') & (calibs['INS COMB IFLT'] == filter_comb)]
         if len(cfiles) == 0:
@@ -698,19 +698,19 @@ class SpectroReduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
             files_info.drop(time_delta[1:].index, inplace=True)
-        
+
         ##################################################
         # static calibrations that depend on science DIT
         ##################################################
-        
+
         obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
         DITs = files_info.loc[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT'), 'DET SEQ1 DIT'].unique().round(2)
-        
+
         # handle darks in a slightly different way because there might be several different DITs
         for DIT in DITs:
             # instrumental backgrounds
@@ -740,7 +740,7 @@ class SpectroReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
-    
+
     def sph_ird_cal_dark(self, silent=True):
         '''
         Create the dark and background calibrations
@@ -753,13 +753,13 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements)
-        
+
         print('Creating darks and backgrounds')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
                             ((files_info['DPR TYPE'] == 'DARK') |
@@ -803,8 +803,8 @@ class SpectroReduction(object):
                     max_level = 1000
                     if cfilt in ['S_LR']:
                         max_level = 15000
-                    
-                    # esorex parameters    
+
+                    # esorex parameters
                     args = ['esorex',
                             '--no-checksum=TRUE',
                             '--no-datamd5=TRUE',
@@ -871,24 +871,24 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements)
-        
+
         print('Creating flats')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
                             (files_info['DPR TYPE'] == 'FLAT,LAMP')]
         filter_combs = calibs['INS COMB IFLT'].unique()
-        
+
         for cfilt in filter_combs:
             cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
             files = cfiles.index
 
             print(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
-            
+
             # create sof
             sof = path.sof / 'flat_filt={0}.sof'.format(cfilt)
             file = open(sof, 'w')
@@ -899,8 +899,8 @@ class SpectroReduction(object):
             # products
             flat_file = 'flat_filt={0}'.format(cfilt)
             bpm_file  = 'flat_bpm_filt={0}'.format(cfilt)
-            
-            # esorex parameters    
+
+            # esorex parameters
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -945,14 +945,14 @@ class SpectroReduction(object):
             files_info.loc[bpm_file, 'INS1 OPTI2 NAME'] = cfiles['INS1 OPTI2 NAME'][0]
             files_info.loc[bpm_file, 'PROCESSED'] = True
             files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
-        
+
         # save
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
 
-    
+
     def sph_ird_wave_calib(self, silent=True):
         '''
         Create the wavelength calibration
@@ -965,20 +965,20 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wave_calib', self.recipe_requirements)
-        
+
         print('Creating wavelength calibration')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
         if len(wave_file) != 1:
             raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-        
+
         DIT = wave_file['DET SEQ1 DIT'][0]
-        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_MASTER_DARK') & 
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_MASTER_DARK') &
                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(dark_file) == 0:
             raise ValueError('There should at least 1 dark file for wavelength calibration. Found none.')
@@ -987,14 +987,14 @@ class SpectroReduction(object):
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
         if len(flat_file) == 0:
             raise ValueError('There should at least 1 flat file for wavelength calibration. Found none.')
-        
+
         bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
         if len(flat_file) == 0:
             raise ValueError('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
-        
+
         # products
         wav_file = 'wave_calib'
-        
+
         # esorex parameters
         if filter_comb == 'S_LR':
             # create standard sof in LRS
@@ -1005,7 +1005,7 @@ class SpectroReduction(object):
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
-            
+
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1016,15 +1016,15 @@ class SpectroReduction(object):
                     '--ird.wave_calib.number_lines=6',
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
-        elif filter_comb == 'S_MR':            
+        elif filter_comb == 'S_MR':
             # masking of second order spectrum in MRS
             wave_fname = wave_file.index[0]
             wave_data, hdr = fits.getdata(path.raw / '{}.fits'.format(wave_fname), header=True)
             wave_data = wave_data.squeeze()
             wave_data[:60, :] = 0
-            fits.writeto(path.preproc / '{}_masked.fits'.format(wave_fname), wave_data, hdr, overwrite=True, 
+            fits.writeto(path.preproc / '{}_masked.fits'.format(wave_fname), wave_data, hdr, overwrite=True,
                          output_verify='silentfix')
-            
+
             # create sof using the masked file
             sof = path.sof / 'wave.sof'
             file = open(sof, 'w')
@@ -1049,7 +1049,7 @@ class SpectroReduction(object):
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
                             'that the ESO pipeline is properly installed before running VLTPF.')
-        
+
         # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
@@ -1070,7 +1070,7 @@ class SpectroReduction(object):
         files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
         files_info.loc[wav_file, 'PROCESSED'] = True
         files_info.loc[wav_file, 'PRO CATG'] = 'IRD_WAVECALIB'
-        
+
         # save
         files_info.to_csv(path.preproc / 'files.csv')
 
@@ -1094,7 +1094,7 @@ class SpectroReduction(object):
 
         The pre-processed frames are saved in the preproc
         sub-directory and will be combined later.
-        
+
         Parameters
         ----------
         subtract_background : bool
@@ -1118,14 +1118,14 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements)
-        
+
         print('Pre-processing science files')
 
         # parameters
         path = self._path
         files_info = self._files_info
         frames_info = self._frames_info
-        
+
         # clean before we start
         files = path.preproc.glob('*_DIT???_preproc.fits')
         for file in files:
@@ -1148,18 +1148,18 @@ class SpectroReduction(object):
             bpm[:, :50]      = 0
             bpm[:, 941:1078] = 0
             bpm[:, 1966:]    = 0
-            
-        # flat        
+
+        # flat
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
             raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
-            
+
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns, dtype='float')
-        
+
         # loop on the different type of science files
         sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
         dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
@@ -1169,7 +1169,7 @@ class SpectroReduction(object):
             sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
 
             if len(sci_files) == 0:
-                continue        
+                continue
 
             for DIT in sci_DITs:
                 sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
@@ -1207,7 +1207,7 @@ class SpectroReduction(object):
                     # read data
                     print('   ==> read data')
                     img, hdr = fits.getdata(path.raw / '{}.fits'.format(fname), header=True)
-                    
+
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
                         img = img[np.newaxis, ...]
@@ -1218,7 +1218,7 @@ class SpectroReduction(object):
                     img[:, :, :50]      = np.nan
                     img[:, :, 941:1078] = np.nan
                     img[:, :, 1966:]    = np.nan
-                    
+
                     # collapse
                     if (typ == 'OBJECT,CENTER'):
                         if collapse_center:
@@ -1244,7 +1244,7 @@ class SpectroReduction(object):
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
 
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
-                    
+
                     # background subtraction
                     if subtract_background:
                         print('   ==> subtract background')
@@ -1256,11 +1256,11 @@ class SpectroReduction(object):
                         print('   ==> divide by flat field')
                         for f in range(len(img)):
                             img[f] /= flat
-                        
+
                     # bad pixels correction
                     if fix_badpix:
                         print('   ==> correct bad pixels')
-                        for f in range(len(img)):                            
+                        for f in range(len(img)):
                             frame = img[f]
                             frame = imutils.fix_badpix(frame, bpm, npix=12, weight=True)
 
@@ -1279,10 +1279,10 @@ class SpectroReduction(object):
                         nimg[f, 0] = img[f, :, 0:1024]
                         nimg[f, 1] = img[f, :, 1024:]
                     img = nimg
-                        
+
                     # save DITs individually
                     for f in range(len(img)):
-                        frame = nimg[f, ...].squeeze()                    
+                        frame = nimg[f, ...].squeeze()
                         hdr['HIERARCH ESO DET NDIT'] = 1
                         fits.writeto(path.preproc / '{}_DIT{:03d}_preproc.fits'.format(fname, f), frame, hdr,
                                      overwrite=True, output_verify='silentfix')
@@ -1318,7 +1318,7 @@ class SpectroReduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements)
-        
+
         print('Star centers determination')
 
         # parameters
@@ -1332,23 +1332,23 @@ class SpectroReduction(object):
         # FIXME: centers should be stored in .ini files and passed to
         # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496), 
+            centers = np.array(((484, 496),
                                 (488, 486)))
             wave_min = 920
             wave_max = 2330
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519), 
+            centers = np.array(((474, 519),
                                 (479, 509)))
             wave_min = 940
             wave_max = 1820
-        
+
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
         wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
-        
+
         # start with OBJECT,FLUX
-        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']        
+        flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
             for file, idx in flux_files.index:
                 print('  ==> OBJECT,FLUX: {0}'.format(file))
@@ -1386,14 +1386,14 @@ class SpectroReduction(object):
                     cube_sci, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname2), header=True)
                 else:
                     cube_sci = None
-                
+
                 # centers
                 if plot:
                     save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_centers, spot_dist, img_centers \
-                    = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel, 
+                    = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel,
                                                                 high_pass=high_pass, save_path=save_path)
 
                 # save
@@ -1426,10 +1426,10 @@ class SpectroReduction(object):
             Display and save diagnostic plot for quality check. Default is True
 
         '''
-        
+
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wavelength_recalibration', self.recipe_requirements)
-        
+
         print('Wavelength recalibration')
 
         # parameters
@@ -1443,16 +1443,16 @@ class SpectroReduction(object):
         # FIXME: centers should be stored in .ini files and passed to
         # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496), 
+            centers = np.array(((484, 496),
                                 (488, 486)))
             wave_min = 920
             wave_max = 2330
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519), 
+            centers = np.array(((474, 519),
                                 (479, 509)))
             wave_min = 940
             wave_max = 1820
-        
+
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
@@ -1461,7 +1461,7 @@ class SpectroReduction(object):
         # reference wavelength
         idx_ref = 3
         wave_ref = lasers[idx_ref]
-        
+
         # get spot distance from the first OBJECT,CENTER in the sequence
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) == 0:
@@ -1472,23 +1472,23 @@ class SpectroReduction(object):
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
         spot_dist = fits.getdata(path.preproc / '{}.fits'.format(fname))
-        
+
         if plot:
             pdf = PdfPages(path.products / 'wavelength_recalibration.pdf')
-        
+
         pix = np.arange(1024)
         wave_final = np.zeros((1024, 2))
         for fidx in range(2):
             print('  field {0:2d}/{1:2d}'.format(fidx+1, 2))
-            
+
             wave = wave_lin[fidx]
             dist = spot_dist[:, fidx]
 
             imin = np.nanargmin(np.abs(wave-wave_ref))
-            
+
             # scaling factor
             scaling_raw = dist / dist[imin]
-            
+
             if filter_comb == 'S_LR':
                 # FIXME: implement smoothing of the scaling factor for
                 # LRS mode
@@ -1497,16 +1497,16 @@ class SpectroReduction(object):
                 # linear fit with a 5-degree polynomial
                 good = np.where(np.isfinite(wave))
                 p = np.polyfit(pix[good], scaling_raw[good], 5)
-                
+
                 scaling_fit = np.polyval(p, pix)
-            
+
             wave_final_raw = wave[imin] * scaling_raw
             wave_final_fit = wave[imin] * scaling_fit
 
             bad = np.where(np.logical_not(np.isfinite(wave)))
             wave_final_raw[bad] = np.nan
             wave_final_fit[bad] = np.nan
-            
+
             wave_diff = np.abs(wave_final_fit - wave)
             print('   ==> difference with calibrated wavelength: ' +
                   'min={0:.1f} nm, max={1:.1f} nm'.format(np.nanmin(wave_diff), np.nanmax(wave_diff)))
@@ -1519,12 +1519,12 @@ class SpectroReduction(object):
                 wave_final[:, fidx] = wave_final_raw
                 use_r = ' <=='
                 use_f = ''
-            
+
             # plot
             if plot:
                 plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
-                
+
                 plt.subplot(211)
                 plt.axvline(imin, color='k', linestyle='--')
                 plt.plot(pix, wave, label='DRH', color='r', lw=3)
@@ -1534,7 +1534,7 @@ class SpectroReduction(object):
                 plt.ylabel('Wavelength r[nm]')
                 plt.title('Field #{}'.format(fidx))
                 plt.xlim(1024, 0)
-                
+
                 plt.subplot(212)
                 plt.axvline(imin, color='k', linestyle='--')
                 plt.plot(pix, wave-wave_final_raw)
@@ -1542,9 +1542,9 @@ class SpectroReduction(object):
                 plt.ylabel('Residuals r[nm]')
                 plt.xlabel('Detector coordinate [pix]')
                 plt.xlim(1024, 0)
-                
+
                 plt.tight_layout()
-            
+
                 pdf.savefig()
 
         if plot:
@@ -1554,7 +1554,7 @@ class SpectroReduction(object):
         print(' * saving')
         fits.writeto(path.preproc / 'wavelength_final.fits', wave_final, overwrite=True)
 
-    
+
         # update recipe execution
         self._recipe_execution['sph_ird_wavelength_recalibration'] = True
 
@@ -1565,18 +1565,18 @@ class SpectroReduction(object):
 
         All types of data are combined independently: PSFs
         (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
-        coronagraphic images (OBJECT). 
+        coronagraphic images (OBJECT).
 
         Depending on the observing strategy, there can be several
         position angle positions in the sequence. Images taken at
-        different position angles can be either kept together or 
-        split into different cubes. In either case a posang vector 
+        different position angles can be either kept together or
+        split into different cubes. In either case a posang vector
         is saved alongside the science cube(s).
 
         For each type of data, the method saves 3 different files:
-        
+
           - *_cube: the (x,y,time) cube
-        
+
           - *_posang: the position angle vector.
 
           - *_frames: a csv file with all the information for every
@@ -1584,7 +1584,7 @@ class SpectroReduction(object):
                       data cube.
 
         Data are save separately for each field.
-        
+
         Parameters
         ----------
         cpix : bool
@@ -1597,7 +1597,7 @@ class SpectroReduction(object):
             Size of the PSF images along in the spatial
             dimension. Default is 80x pixels
 
-        science_dim : even int    
+        science_dim : even int
             Size of the science images (star centers and standard
             coronagraphic images) in the spatial dimension. Default is
             800 pixels
@@ -1608,7 +1608,7 @@ class SpectroReduction(object):
             wavelength. Default is True.
 
         split_posang : bool
-            Save data taken at different position angles in separate 
+            Save data taken at different position angles in separate
             science files. Default is True
 
         manual_center : array
@@ -1624,16 +1624,16 @@ class SpectroReduction(object):
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
             option is useful if fine centering must be done afterwards.
-        
+
         shift_method : str
             Method to shifting the images: fft or interp.  Default is
             fft
 
         '''
-        
+
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements)
-        
+
         print('Combine science data')
 
         # parameters
@@ -1646,16 +1646,16 @@ class SpectroReduction(object):
         # FIXME: centers should be stored in .ini files and passed to
         # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496), 
+            centers = np.array(((484, 496),
                                 (488, 486)))
             wave_min = 920
             wave_max = 2330
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519), 
+            centers = np.array(((474, 519),
                                 (479, 509)))
             wave_min = 940
             wave_max = 1820
-        
+
         # wavelength solution: make sure we have the same number of
         # wave points in each field
         wave   = fits.getdata(path.preproc / 'wavelength_final.fits')
@@ -1663,17 +1663,17 @@ class SpectroReduction(object):
         iwave0 = np.where(mask[:, 0])[0]
         iwave1 = np.where(mask[:, 1])[0]
         nwave  = np.min([iwave0.size, iwave1.size])
-        
-        iwave = np.empty((nwave, 2), dtype=np.int)        
+
+        iwave = np.empty((nwave, 2), dtype=np.int)
         iwave[:, 0] = iwave0[:nwave]
         iwave[:, 1] = iwave1[:nwave]
 
         final_wave = np.empty((nwave, 2))
         final_wave[:, 0] = wave[iwave[:, 0], 0]
         final_wave[:, 1] = wave[iwave[:, 1], 1]
-        
+
         fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
-        
+
         # max images size
         if psf_dim > 1024:
             print('Warning: psf_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
@@ -1693,12 +1693,12 @@ class SpectroReduction(object):
             manual_center = np.array(manual_center)
             if manual_center.shape != (2,):
                 raise ValueError('manual_center does not have the right number of dimensions.')
-            
+
             print('Warning: images will be centered at the user-provided values.')
 
         if correct_mrs_chromatism and (filter_comb == 'S_MR'):
             print('Warning: fine centering will be done anyway to correct for MRS chromatism')
-            
+
         #
         # OBJECT,FLUX
         #
@@ -1725,12 +1725,12 @@ class SpectroReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
                 centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
-                                
+
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 psf_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # center 
+                # center
                 for field_idx, img in enumerate(cube):
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
@@ -1739,26 +1739,26 @@ class SpectroReduction(object):
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
-                            
+
                             line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
                             nimg = nimg / DIT
-                            
+
                             psf_cube[field_idx, file_idx, wave_idx] = nimg[:psf_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()
-                    
+
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
                         psf_cube[field_idx, file_idx] = nimg[ciwave, :psf_dim]
-                
+
                     # neutral density
-                    cwave  = final_wave[:, field_idx] 
+                    cwave  = final_wave[:, field_idx]
                     ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     psf_cube[field_idx, file_idx] = (psf_cube[field_idx, file_idx].T / attenuation).T
@@ -1767,7 +1767,7 @@ class SpectroReduction(object):
                 pas = np.unique(psf_posang)
                 for pa in pas:
                     ii = np.where(psf_posang == pa)[0]
-                    
+
                     # save metadata
                     flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'psf_posang={:06.2f}_frames.csv'.format(pa))
                     fits.writeto(path.products / 'psf_posang={:06.2f}_posang.fits'.format(pa), psf_posang[ii], overwrite=True)
@@ -1818,8 +1818,8 @@ class SpectroReduction(object):
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 cen_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # center 
-                for field_idx, img in enumerate(cube):                    
+                # center
+                for field_idx, img in enumerate(cube):
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
 
@@ -1827,35 +1827,35 @@ class SpectroReduction(object):
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
-                            
+
                             line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
                             nimg = nimg / DIT
-                            
+
                             cen_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()
-                    
+
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
                         cen_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
-            
+
                     # neutral density
-                    cwave  = final_wave[:, field_idx] 
+                    cwave  = final_wave[:, field_idx]
                     ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     cen_cube[field_idx, file_idx] = (cen_cube[field_idx, file_idx].T / attenuation).T
-                    
+
             if split_posang:
                 pas = np.unique(cen_posang)
                 for pa in pas:
                     ii = np.where(cen_posang == pa)[0]
-                    
+
                     # save metadata
                     starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'starcenter_posang={:06.2f}_frames.csv'.format(pa))
                     fits.writeto(path.products / 'starcenter_posang={:06.2f}_posang.fits'.format(pa), cen_posang[ii], overwrite=True)
@@ -1903,7 +1903,7 @@ class SpectroReduction(object):
             else:
                 fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
                 centers = fits.getdata(path.preproc / fname)
-            
+
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -1922,8 +1922,8 @@ class SpectroReduction(object):
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 sci_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # center 
-                for field_idx, img in enumerate(cube):                    
+                # center
+                for field_idx, img in enumerate(cube):
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
 
@@ -1931,35 +1931,35 @@ class SpectroReduction(object):
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
-                            
+
                             line = img[widx, :]
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
                             nimg = nimg / DIT
-                            
+
                             sci_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
                         if skip_center:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()
-                    
+
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
                         sci_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
-            
+
                     # neutral density
-                    cwave  = final_wave[:, field_idx] 
+                    cwave  = final_wave[:, field_idx]
                     ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                     w, attenuation = transmission.transmission_nd(ND, wave=cwave)
                     sci_cube[field_idx, file_idx] = (sci_cube[field_idx, file_idx].T / attenuation).T
-                    
+
             if split_posang:
                 pas = np.unique(sci_posang)
                 for pa in pas:
                     ii = np.where(sci_posang == pa)[0]
-                    
+
                     # save metadata
                     object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'science_posang={:06.2f}_frames.csv'.format(pa))
                     fits.writeto(path.products / 'science_posang={:06.2f}_posang.fits'.format(pa), sci_posang[ii], overwrite=True)
@@ -1977,12 +1977,12 @@ class SpectroReduction(object):
             # delete big cubes
             del sci_cube
 
-            print()        
+            print()
 
         # update recipe execution
         self._recipe_execution['sph_ird_combine_data'] = True
 
-    
+
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
         '''
         Clean everything except for raw data and science products (by default)
@@ -1998,7 +1998,7 @@ class SpectroReduction(object):
 
         # parameters
         path = self._path
-                
+
         # tmp
         if path.tmp.exists():
             shutil.rmtree(path.tmp, ignore_errors=True)

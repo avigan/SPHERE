@@ -40,7 +40,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         Apply a mask on the flats to compensate the optical
         vignetting. The areas of the detector that are vignetted are
         replaced by a value of 1 in the flats. Default is True
-    
+
     Returns
     -------
     flat : array
@@ -68,13 +68,13 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # create master flat
     DIT0 = hdr0['HIERARCH ESO DET SEQ1 DIT']
     DIT1 = hdr1['HIERARCH ESO DET SEQ1 DIT']
-    
+
     if DIT0 > DIT1:
         flat = ff0 - ff1
     else:
         flat = ff1 - ff0
 
-    # bad pixels correction    
+    # bad pixels correction
     flat = imutils.fix_badpix(flat, bpm_in, npix=12, weight=True)
 
     # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
@@ -92,7 +92,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
 
     # final products
     flat = flat / np.median(flat)
-    
+
     bpm = (flat <= 0.9) | (flat >= 1.1)
     bpm = bpm.astype(np.uint8)
 
@@ -101,7 +101,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     if mask_vignetting:
         ifu_mask = fits.getdata(Path(vltpf.__file__).parent / 'data' / 'ifu_mask.fits')
         flat[ifu_mask == 0] = 1
-    
+
     return flat, bpm
 
 
@@ -127,7 +127,7 @@ def sph_ifs_correct_spectral_xtalk(img):
     coded did not treat the edges in a clean way defined
     mathematically. The scipy.ndimage.convolve() function offers
     different possibilities for the edges that are all documented.
-    
+
     Parameters
     ----------
     img : array_like
@@ -139,7 +139,7 @@ def sph_ifs_correct_spectral_xtalk(img):
         Science frame corrected from the spectral crosstalk
 
     '''
-    
+
     # definition of the dimension of the matrix
     sepmax = 20
     dim    = sepmax*2+1
@@ -198,7 +198,7 @@ def sph_ifs_fix_badpix(img, bpm):
     bpm[-ext-1:, :] = 0
     bpm[:, -ext-1:] = 0
 
-    # use NaN for identifying bad pixels directly in the image 
+    # use NaN for identifying bad pixels directly in the image
     img_clean[bpm == 1] = np.nan
 
     # static indices for searching good pixels and for the linear fit
@@ -243,7 +243,7 @@ def sph_ifs_fix_badpix(img, bpm):
     mask = np.isnan(img_clean)
     img_clean[mask] = img[mask]
 
-    return img_clean    
+    return img_clean
 
 
 def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_lasers):
@@ -262,7 +262,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
 
     wave_scale : array_like
         Wavelength scaling values
-    
+
     wave_lasers : array_like
         Real wavelength of the calibration lasers; in nanometers.
 
@@ -284,7 +284,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     diff = wave_peaks - wave_lasers
 
     return np.max(np.abs(diff))
-    
+
 
 def fit_peak(x, y, display=False):
     '''
@@ -300,14 +300,14 @@ def fit_peak(x, y, display=False):
 
     display : bool
         Display the result of the fit
-    
+
     Returns
     -------
-    par    
+    par
         Fit parameters: Gaussian amplitude, Gaussian mean, Gaussian
         stddev, line slope, line intercept
     '''
-    
+
     # fit: Gaussian + constant
     g_init = models.Gaussian1D(amplitude=y.max(), mean=x[np.argmax(y)]) + models.Linear1D(slope=0, intercept=0)
     fitter = fitting.LevMarLSQFitter()
@@ -319,7 +319,7 @@ def fit_peak(x, y, display=False):
         plt.plot(x, y, color='k')
         plt.plot(x, fit(x), color='r')
         plt.tight_layout()
-    
+
     return fit.parameters
 
 
@@ -351,16 +351,16 @@ class Reduction(object):
                                   'sph_ifs_cal_specpos', 'sph_ifs_cal_wave',
                                   'sph_ifs_preprocess_science', 'sph_ifs_preprocess_wave'],
         'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
-                                             'sph_ifs_science_cubes'],    
+                                             'sph_ifs_science_cubes'],
         'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],
         'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes',
                                  'sph_ifs_wavelength_recalibration', 'sph_ifs_star_center']
     }
-    
+
     ##################################################
     # Constructor
     ##################################################
-    
+
     def __init__(self, path):
         '''
         Initialization of the IFSReduction
@@ -373,19 +373,19 @@ class Reduction(object):
 
         # expand path
         path = Path(path).expanduser().resolve()
-        
+
         # zeroth-order reduction validation
         raw = path / 'raw'
         if not raw.exists():
             raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
-        
+
         # init path and name
         self._path = utils.ReductionPath(path)
         self._instrument = 'IFS'
-        
+
         # instrument mode
         self._mode = 'Unknown'
-        
+
         # configuration
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
@@ -395,7 +395,7 @@ class Reduction(object):
             # instrument
             self._pixel = float(config.get('instrument', 'pixel'))
             self._nwave = int(config.get('instrument', 'nwave'))
-            
+
             # calibration
             self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
 
@@ -405,11 +405,11 @@ class Reduction(object):
                 try:
                     val = eval(value)
                 except NameError:
-                    val = value                    
+                    val = value
                 self._config[key] = val
         except configparser.Error as e:
             raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
-        
+
         # execution of recipes
         self._recipe_execution = {
             'sort_files': False,
@@ -427,24 +427,24 @@ class Reduction(object):
             'sph_ifs_star_center': False,
             'sph_ifs_combine_data': False
         }
-        
+
         # reload any existing data frames
         self.read_info()
-    
+
     ##################################################
     # Representation
     ##################################################
-    
+
     def __repr__(self):
         return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
 
     def __format__(self):
         return self.__repr__()
-    
+
     ##################################################
     # Properties
     ##################################################
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -452,11 +452,11 @@ class Reduction(object):
     @property
     def pixel(self):
         return self._pixel
-    
+
     @property
     def nwave(self):
         return self._nwave
-    
+
     @property
     def path(self):
         return self._path
@@ -464,11 +464,11 @@ class Reduction(object):
     @property
     def files_info(self):
         return self._files_info
-    
+
     @property
     def frames_info(self):
         return self._frames_info
-    
+
     @property
     def frames_info_preproc(self):
         return self._frames_info_preproc
@@ -479,7 +479,7 @@ class Reduction(object):
 
     @property
     def config(self):
-        return self._config    
+        return self._config
 
     @property
     def mode(self):
@@ -516,7 +516,7 @@ class Reduction(object):
         keys = [key for key in dico if key.startswith('center')]
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
-        
+
         # combining
         print('-'*35)
         keys = [key for key in dico if key.startswith('combine')]
@@ -529,10 +529,10 @@ class Reduction(object):
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
         print('-'*35)
-            
+
         print()
 
-    
+
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
@@ -540,25 +540,25 @@ class Reduction(object):
 
         # make sure we have sub-directories
         self._path.create_subdirectories()
-        
+
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
-        
-    
+
+
     def create_static_calibrations(self):
         '''
         Create static calibrations, mainly with esorex
         '''
-        
+
         config = self._config
-        
+
         self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ifs_cal_detector_flat(silent=config['misc_silent_esorex'])
         self.sph_ifs_cal_specpos(silent=config['misc_silent_esorex'])
         self.sph_ifs_cal_wave(silent=config['misc_silent_esorex'])
         self.sph_ifs_cal_ifu_flat(silent=config['misc_silent_esorex'])
-        
+
 
     def preprocess_science(self):
         '''
@@ -566,7 +566,7 @@ class Reduction(object):
         '''
 
         config = self._config
-        
+
         self.sph_ifs_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
                                         correct_xtalk=config['preproc_fix_badpix'],
@@ -586,7 +586,7 @@ class Reduction(object):
         '''
 
         config = self._config
-        
+
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
                                               offset=config['center_offset'],
                                               plot=config['misc_plot'])
@@ -602,25 +602,25 @@ class Reduction(object):
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
-    
+
     def clean(self):
         '''
         Clean the reduction directory
         '''
-        
+
         config = self._config
-        
+
         if config['clean']:
             self.sph_ifs_clean(delete_raw=config['clean_delete_raw'],
                                delete_products=config['clean_delete_products'])
-        
-        
+
+
     def full_reduction(self):
         '''
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
-        
+
         self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
@@ -630,7 +630,7 @@ class Reduction(object):
     ##################################################
     # SPHERE/IFS methods
     ##################################################
-    
+
     def read_info(self):
         '''
         Read the files, calibs and frames information from disk
@@ -657,7 +657,7 @@ class Reduction(object):
             files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
             files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
-            
+
             # update recipe execution
             self._recipe_execution['sort_files'] = True
             if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DARK'):
@@ -703,7 +703,7 @@ class Reduction(object):
             frames_info_preproc['DET FRAM UTC'] = pd.to_datetime(frames_info_preproc['DET FRAM UTC'], utc=False)
             frames_info_preproc['TIME START'] = pd.to_datetime(frames_info_preproc['TIME START'], utc=False)
             frames_info_preproc['TIME'] = pd.to_datetime(frames_info_preproc['TIME'], utc=False)
-            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=False)            
+            frames_info_preproc['TIME END'] = pd.to_datetime(frames_info_preproc['TIME END'], utc=False)
         else:
             frames_info_preproc = None
 
@@ -729,7 +729,7 @@ class Reduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ifs_preprocess_science'] = done
-            
+
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
@@ -747,7 +747,7 @@ class Reduction(object):
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ifs_star_center'] = done
 
-        
+
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
@@ -760,7 +760,7 @@ class Reduction(object):
 
         # parameters
         path = self._path
-        
+
         # list files
         files = path.raw.glob('*.fits')
         files = [f.stem for f in files]
@@ -807,7 +807,7 @@ class Reduction(object):
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
             raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
-        
+
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
@@ -819,10 +819,10 @@ class Reduction(object):
 
         # update instrument mode
         self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
-        
+
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
-        
+
         # save files_info
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
@@ -830,7 +830,7 @@ class Reduction(object):
         # update recipe execution
         self._recipe_execution['sort_files'] = True
 
-        
+
     def sort_frames(self):
         '''
         Extract the frames information from the science files and save
@@ -844,18 +844,18 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # science files
-        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]    
+        sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
 
         # raise error when no science frames are present
         if len(sci_files) == 0:
             raise ValueError('This dataset contains no science frame. There should be at least one!')
-        
+
         # build indices
         files = []
         img   = []
@@ -869,7 +869,7 @@ class Reduction(object):
         frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        frames_info = frames_info.align(files_info, level=0)[1]    
+        frames_info = frames_info.align(files_info, level=0)[1]
 
         # compute timestamps
         toolbox.compute_times(frames_info)
@@ -890,13 +890,13 @@ class Reduction(object):
         cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
         if len(cinfo) == 0:
             cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-        
+
         ra_drot   = cinfo['INS4 DROT2 RA'][0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = '{:02.0f}:{:02.0f}:{:02.3f}'.format(ra_drot_h, ra_drot_m, ra_drot_s)
-        
+
         dec_drot  = cinfo['INS4 DROT2 DEC'][0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
@@ -910,9 +910,9 @@ class Reduction(object):
         pa_end   = cinfo['PARANG'][-1]
 
         posang   = cinfo['INS4 DROT2 POSANG'].unique()
-        
+
         date = str(cinfo['DATE'][0])[0:10]
-        
+
         print(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
         print(' * RA / DEC:    {0} / {1}'.format(RA, DEC))
         print(' * Date:        {0}'.format(date))
@@ -920,7 +920,7 @@ class Reduction(object):
         print(' * Derotator:   {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
         print(' * Coronagraph: {0}'.format(cinfo['INS COMB ICOR'][0]))
         print(' * Mode:        {0}'.format(cinfo['INS1 MODE'][0]))
-        print(' * Filter:      {0}'.format(cinfo['INS2 COMB IFS'][0]))  
+        print(' * Filter:      {0}'.format(cinfo['INS2 COMB IFS'][0]))
         print(' * DIT:         {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
         print(' * NDIT:        {0:.0f}'.format(cinfo['DET NDIT'][0]))
         print(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
@@ -938,18 +938,18 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
-        
+
         print('Performing file association for calibrations')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
             raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
-        
+
         # IFS obs mode
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()
         if len(modes) != 1:
@@ -986,7 +986,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1004,7 +1004,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1022,7 +1022,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1040,7 +1040,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1059,7 +1059,7 @@ class Reduction(object):
                 # find the two closest to science files
                 sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
                 time_sci   = sci_files['DATE-OBS'].min()
-                time_flat  = cfiles['DATE-OBS']            
+                time_flat  = cfiles['DATE-OBS']
                 time_delta = np.abs(time_sci - time_flat).argsort()
 
                 # drop the others
@@ -1077,7 +1077,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1095,7 +1095,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1113,7 +1113,7 @@ class Reduction(object):
             # find the two closest to science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
             time_sci   = sci_files['DATE-OBS'].min()
-            time_flat  = cfiles['DATE-OBS']            
+            time_flat  = cfiles['DATE-OBS']
             time_delta = np.abs(time_sci - time_flat).argsort()
 
             # drop the others
@@ -1164,8 +1164,8 @@ class Reduction(object):
         # save
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
-    
-        
+
+
     def sph_ifs_cal_dark(self, silent=True):
         '''
         Create the dark and background calibrations
@@ -1178,13 +1178,13 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', self.recipe_requirements)
-        
+
         print('Creating darks and backgrounds')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
                             ((files_info['DPR TYPE'] == 'DARK') |
@@ -1196,7 +1196,7 @@ class Reduction(object):
         DITs  = calibs['DET SEQ1 DIT'].unique().round(2)
 
         for ctype in types:
-            for DIT in DITs:            
+            for DIT in DITs:
                 cfiles = calibs[(calibs['DPR TYPE'] == ctype) & (calibs['DET SEQ1 DIT'].round(2) == DIT)]
                 files = cfiles.index
 
@@ -1221,7 +1221,7 @@ class Reduction(object):
                 dark_file = 'dark_{0}_DIT={1:.2f}'.format(loc, DIT)
                 bpm_file  = 'dark_{0}_bpm_DIT={1:.2f}'.format(loc, DIT)
 
-                # esorex parameters    
+                # esorex parameters
                 args = ['esorex',
                         '--no-checksum=TRUE',
                         '--no-datamd5=TRUE',
@@ -1284,20 +1284,20 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', self.recipe_requirements)
-        
+
         print('Creating flats')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
                             ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
                              (files_info['DPR TECH'] == 'IMAGE'))]
 
         # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
         if mode == 'OBS_YJ':
             mode_short = 'YJ'
         elif mode == 'OBS_H':
@@ -1334,7 +1334,7 @@ class Reduction(object):
             else:
                 wav = str(int(wave))
             flat_file = 'master_detector_flat_{0}_l{1}'.format(wav, lamp)
-            bpm_file  = 'dff_badpixelname_{0}_l{1}'.format(wav, lamp)        
+            bpm_file  = 'dff_badpixelname_{0}_l{1}'.format(wav, lamp)
 
             hdu = fits.open(path.raw / files[0])
             fits.writeto(path.calib / '{}.fits'.format(flat_file), flat, header=hdu[0].header, output_verify='silentfix', overwrite=True)
@@ -1376,25 +1376,25 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', self.recipe_requirements)
-        
+
         print('Creating specpos')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
         if len(specpos_file) != 1:
             raise ValueError('There should be exactly 1 raw specpos files. Found {0}.'.format(len(specpos_file)))
 
-        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             raise ValueError('There should at least 1 dark file for calibrations. Found none.')
 
         # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]    
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
         if mode == 'OBS_YJ':
             Hmode = 'FALSE'
         elif mode == 'OBS_H':
@@ -1411,8 +1411,8 @@ class Reduction(object):
 
         # products
         specp_file = 'spectra_positions'
-        
-        # esorex parameters    
+
+        # esorex parameters
         args = ['esorex',
                 '--no-checksum=TRUE',
                 '--no-datamd5=TRUE',
@@ -1425,7 +1425,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
                             'that the ESO pipeline is properly installed before running VLTPF.')
-        
+
         # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
@@ -1463,13 +1463,13 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', self.recipe_requirements)
-        
+
         print('Creating wavelength calibration')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
         if len(wave_file) != 1:
@@ -1479,13 +1479,13 @@ class Reduction(object):
         if len(specpos_file) != 1:
             raise ValueError('There should be exactly 1 specpos file. Found {0}.'.format(len(specpos_file)))
 
-        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') & 
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             raise ValueError('There should at least 1 dark file for calibrations. Found none.')
 
         # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
 
         # create sof
         sof = path.sof / 'wave.sof'
@@ -1497,7 +1497,7 @@ class Reduction(object):
 
         # products
         wav_file = 'wave_calib'
-        
+
         # esorex parameters
         if mode == 'OBS_YJ':
             args = ['esorex',
@@ -1527,7 +1527,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
                             'that the ESO pipeline is properly installed before running VLTPF.')
-        
+
         # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
@@ -1565,15 +1565,15 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', self.recipe_requirements)
-        
+
         print('Creating IFU flat')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
         if mode == 'OBS_YJ':
             mode_short = 'YJ'
         elif mode == 'OBS_H':
@@ -1653,7 +1653,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
                             'that the ESO pipeline is properly installed before running VLTPF.')
-        
+
         # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
@@ -1738,14 +1738,14 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', self.recipe_requirements)
-        
+
         print('Pre-processing science files')
 
         # parameters
         path = self._path
         files_info = self._files_info
         frames_info = self._frames_info
-        
+
         # clean before we start
         files = path.preproc.glob('*_DIT???_preproc.fits')
         for file in files:
@@ -1757,7 +1757,7 @@ class Reduction(object):
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files)
-        
+
         # final dataframe
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
@@ -1765,13 +1765,13 @@ class Reduction(object):
         # loop on the different type of science files
         sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
         dark_types = ['SKY', 'DARK,BACKGROUND', 'DARK']
-        for typ in sci_types:    
+        for typ in sci_types:
             # science files
             sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == typ)]
             sci_DITs = list(sci_files['DET SEQ1 DIT'].round(2).unique())
 
             if len(sci_files) == 0:
-                continue        
+                continue
 
             for DIT in sci_DITs:
                 sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
@@ -1784,7 +1784,7 @@ class Reduction(object):
                     dfiles = []
                     for d in dark_types:
                         dfiles = files_info[(files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
-                                            (files_info['DPR TYPE'] == d) & 
+                                            (files_info['DPR TYPE'] == d) &
                                             (files_info['DET SEQ1 DIT'].round(2) == DIT)]
                         if len(dfiles) != 0:
                             break
@@ -1831,7 +1831,7 @@ class Reduction(object):
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
                     elif (typ == 'OBJECT'):
-                        if collapse_science:                        
+                        if collapse_science:
                             if collapse_type == 'mean':
                                 print('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                                 img = np.mean(img, axis=0, keepdims=True)
@@ -1896,14 +1896,14 @@ class Reduction(object):
                     # if not, warn user and add fake one: it could be internal source data
                     if hdr.get('HIERARCH ESO TEL TARG ALPHA') is None:
                         print('Warning: no valid coordinates found in header. Adding fake ones to be able to produce (x,y,lambda) datacubes.')
-                        
+
                         hdr['HIERARCH ESO TEL TARG ALPHA'] =  120000.0
                         hdr['HIERARCH ESO TEL TARG DELTA'] = -900000.0
 
-                            
+
                     # save DITs individually
                     for f in range(len(img)):
-                        frame = img[f].squeeze()                    
+                        frame = img[f].squeeze()
                         hdr['HIERARCH ESO DET NDIT'] = 1
                         fits.writeto(path.preproc / '{}_DIT{:03d}_preproc.fits'.format(fname, f), frame, hdr,
                                      overwrite=True, output_verify='silentfix')
@@ -1921,7 +1921,7 @@ class Reduction(object):
         # update recipe execution
         self._recipe_execution['sph_ifs_preprocess_science'] = True
 
-        
+
     def sph_ifs_preprocess_wave(self):
         '''
         Pre-processes the wavelength calibration frame for later
@@ -1930,11 +1930,11 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_wave', self.recipe_requirements)
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
-                
+
         print('Pre-processing wavelength calibration file')
 
         # bpm
@@ -2000,20 +2000,20 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', self.recipe_requirements)
-        
+
         print('Creating the (x,y,lambda) science cubes')
 
         # parameters
         path = self._path
         files_info = self._files_info
-        
+
         # clean before we start
         files = path.preproc.glob('*_DIT???_preproc_?????.fits')
         for file in files:
             file.unlink()
 
         # IFS obs mode
-        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]            
+        mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
         if mode == 'OBS_YJ':
             mode_short = 'YJ'
         elif mode == 'OBS_H':
@@ -2027,7 +2027,7 @@ class Reduction(object):
 
         # get list of calibration files
         bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP') &
-                              (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]    
+                              (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
 
         ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
         if len(ifu_flat_file) != 1:
@@ -2094,7 +2094,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             raise NameError('esorex does not appear to be in your PATH. Please make sure ' +
                             'that the ESO pipeline is properly installed before running VLTPF.')
-        
+
         # execute esorex
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
@@ -2138,9 +2138,9 @@ class Reduction(object):
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
-            The offset will move the search box of the waffle spots by the amount of 
+            The offset will move the search box of the waffle spots by the amount of
             specified pixels in each direction. Default is no offset
-        
+
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
 
@@ -2148,7 +2148,7 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', self.recipe_requirements)
-        
+
         print('Recalibrating wavelength')
 
         # parameters
@@ -2197,7 +2197,7 @@ class Reduction(object):
             coro = False
         else:
             coro = True
-        
+
         # compute centers from waffle spots
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
         if plot:
@@ -2215,7 +2215,7 @@ class Reduction(object):
 
         #
         # wavelength recalibration
-        #    
+        #
         print(' * recalibration')
 
         # find wavelength calibration file name
@@ -2302,7 +2302,7 @@ class Reduction(object):
         if plot:
             plt.figure('Wavelength recalibration', figsize=(17, 5.5))
             plt.clf()
-            
+
             plt.subplot(131)
             plt.plot(img_center[:, 0], img_center[:, 1], linestyle='none', marker='+')
             plt.xlabel('x center [pix]')
@@ -2328,11 +2328,11 @@ class Reduction(object):
             plt.ylabel('Flux')
             plt.legend(loc='upper right')
             plt.title('Wavelength calibration')
-            
+
             plt.tight_layout()
 
             plt.savefig(path.products / 'wavelength_recalibration.pdf')
-            
+
         # update recipe execution
         self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
 
@@ -2348,9 +2348,9 @@ class Reduction(object):
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
-            The offset will move the search box of the waffle spots by the amount of 
+            The offset will move the search box of the waffle spots by the amount of
             specified pixels in each direction. Default is no offset
-        
+
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
 
@@ -2358,7 +2358,7 @@ class Reduction(object):
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_star_center', self.recipe_requirements)
-        
+
         print('Star centers determination')
 
         # parameters
@@ -2366,7 +2366,7 @@ class Reduction(object):
         nwave = self._nwave
         pixel = self._pixel
         frames_info = self._frames_info_preproc
-        
+
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
@@ -2374,7 +2374,7 @@ class Reduction(object):
                 print('  ==> OBJECT,FLUX: {0}'.format(file))
 
                 # read data
-                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)    
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
                 files = list(path.preproc.glob(fname+'*[0-9].fits'))
                 cube, hdr = fits.getdata(files[0], header=True)
 
@@ -2382,7 +2382,7 @@ class Reduction(object):
                 cube[:, :40, :]  = 0
                 cube[:, :, :25]  = 0
                 cube[:, :, 250:] = 0
-                
+
                 # wavelength
                 wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
                 wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
@@ -2398,7 +2398,7 @@ class Reduction(object):
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
                 print()
-        
+
         # then OBJECT,CENTER
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) != 0:
@@ -2425,7 +2425,7 @@ class Reduction(object):
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
                                                                 high_pass=high_pass, center_offset=offset,
                                                                 save_path=save_path)
-                
+
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
                 print()
@@ -2442,21 +2442,21 @@ class Reduction(object):
         (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
         coronagraphic images (OBJECT). For each type of data, the
         method saves 3 or 4 different files:
-        
+
           - *_cube: the (x,y,time,lambda) cube
-        
+
           - *_parang: the parallactic angle vector
-        
+
           - *_derot: the derotation angles vector. This vector takes
                      into account the parallactic angle and any
                      instrumental pupil offset. This is the values
                      that need to be used for aligning the images with
                      North up and East left.
-        
+
           - *_frames: a csv file with all the information for every
                       frames. There is one line by time step in the
                       data cube.
-        
+
           - *_cube_scaled: the (x,y,time,lambda) cube with images
                            rescaled spectraly. This is useful if you
                            plan to perform spectral differential
@@ -2464,7 +2464,7 @@ class Reduction(object):
 
         The method also save a frames.csv file with all the
         information extracted the raw files headers.
-                
+
         Parameters
         ----------
         cpix : bool
@@ -2475,7 +2475,7 @@ class Reduction(object):
         psf_dim : even int
             Size of the PSF images. Default is 80x80 pixels
 
-        science_dim : even int    
+        science_dim : even int
             Size of the science images (star centers and standard
             coronagraphic images). Default is 290, 290 pixels
 
@@ -2490,7 +2490,7 @@ class Reduction(object):
             skip_center is ignored for the OBJECT,CENTER and OBJECT
             frames. Default is None
 
-        skip_center : bool        
+        skip_center : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -2500,33 +2500,33 @@ class Reduction(object):
 
         Default is False. Note that if skip_center is
             True, the save_scaled option is automatically disabled.
-        
+
         shift_method : str
             Method to scaling and shifting the images: fft or interp.
             Default is fft
-        
+
         save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The default is False
 
         '''
-        
+
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_combine_data', self.recipe_requirements)
-        
+
         print('Combine science data')
 
         # parameters
         path = self._path
         nwave = self._nwave
         frames_info = self._frames_info_preproc
-        
+
         # read final wavelength calibration
         fname = path.products / 'wavelength.fits'
         if not fname.exists():
             raise FileExistsError('Missing wavelength.fits file. ' +
-                                  'You must first run the sph_ifs_wavelength_recalibration() method.')    
-        wave = fits.getdata(fname)    
+                                  'You must first run the sph_ifs_wavelength_recalibration() method.')
+        wave = fits.getdata(fname)
 
         # max images size
         if psf_dim > 290:
@@ -2547,7 +2547,7 @@ class Reduction(object):
             manual_center = np.array(manual_center)
             if (manual_center.shape != (2,)) or (manual_center.shape != (nwave, 2)):
                 raise ValueError('manual_center does not have the right number of dimensions.')
-            
+
             if manual_center.shape == (2,):
                 manual_center = np.full((nwave, 2), manual_center)
 
@@ -2583,10 +2583,10 @@ class Reduction(object):
                 files = list(path.preproc.glob(fname+'?????.fits'))
                 cube = fits.getdata(files[0])
                 centers = fits.getdata(path.preproc / '{}centers.fits'.format(fname))
-                
+
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
-                
+
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
@@ -2614,7 +2614,7 @@ class Reduction(object):
                         nimg = psf_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
                         psf_cube[wave_idx, file_idx] = nimg
-                    
+
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = psf_cube[wave_idx, file_idx]
@@ -2668,7 +2668,7 @@ class Reduction(object):
 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
-                
+
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
@@ -2699,7 +2699,7 @@ class Reduction(object):
                         nimg = cen_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
                         cen_cube[wave_idx, file_idx] = nimg
-                    
+
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = cen_cube[wave_idx, file_idx]
@@ -2769,7 +2769,7 @@ class Reduction(object):
 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
-                
+
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
@@ -2794,7 +2794,7 @@ class Reduction(object):
                         nimg = sci_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0059, 1.0011), method='interp')
                         sci_cube[wave_idx, file_idx] = nimg
-                    
+
                     # wavelength-scaled version
                     if save_scaled:
                         nimg = sci_cube[wave_idx, file_idx]
@@ -2834,7 +2834,7 @@ class Reduction(object):
 
         # parameters
         path = self._path
-                
+
         # tmp
         if path.tmp.exists():
             shutil.rmtree(path.tmp, ignore_errors=True)

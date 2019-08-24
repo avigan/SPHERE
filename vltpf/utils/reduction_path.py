@@ -11,7 +11,7 @@ class ReductionPath(object):
     ##################################################
     # Constructor
     ##################################################
-    
+
     def __init__(self, path):
         self._root = Path(path).expanduser()
 
@@ -29,14 +29,14 @@ class ReductionPath(object):
     ##################################################
     # Representation
     ##################################################
-    
+
     def __repr__(self):
         return str(self._root)
-    
+
     ##################################################
     # Properties
     ##################################################
-    
+
     @property
     def root(self):
         return self._root
@@ -59,23 +59,23 @@ class ReductionPath(object):
     @property
     def raw(self):
         return self._raw
-    
+
     @property
     def calib(self):
         return self._calib
-    
+
     @property
     def sof(self):
         return self._sof
-    
+
     @property
     def tmp(self):
         return self._tmp
-    
+
     @property
     def preproc(self):
         return self._preproc
-    
+
     @property
     def products(self):
         return self._products
@@ -83,7 +83,7 @@ class ReductionPath(object):
     ##################################################
     # Methods
     ##################################################
-    
+
     def create_subdirectories(self):
         # create sub-directories if needed
         if not self._raw.exists():
@@ -103,4 +103,3 @@ class ReductionPath(object):
 
         if not self._products.exists():
             self._products.mkdir(exist_ok=True)
-
