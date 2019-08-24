@@ -90,7 +90,7 @@ class ImagingReduction(object):
 
             # reduction
             self._config = {}
-            for group in ['reduction', 'reduction-spectro']:
+            for group in ['reduction', 'reduction-imaging']:
                 items = dict(config.items(group))
                 self._config.update(items)
                 for key, value in items.items():
