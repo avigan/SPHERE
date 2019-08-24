@@ -369,7 +369,7 @@ class Reduction(object):
         Parameters
         ----------
         path : str
-            Path to the directory containing the raw data
+            Path to the directory containing the dataset
         '''
 
         # expand path
