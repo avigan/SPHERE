@@ -455,7 +455,6 @@ class Dataset:
             
             r.full_reduction()
 
-            
     ##################################################
     # Class methods
     ##################################################
@@ -481,6 +480,8 @@ class Dataset:
                     try:
                         arm = hdr['HIERARCH ESO SEQ ARM']
                         if arm == 'IRDIS':
+                            # FIXME: ticket #72. Make sure that we make a difference 
+                            # between imaging and spectro reductions 
                             instrument = 'IRDIS'
                             reduction  = IRDIS.ImagingReduction(reduction_path)
                             self._IRDIS_reductions.append(reduction)
