@@ -397,8 +397,8 @@ class Reduction(object):
             self._nwave = int(config.get('instrument', 'nwave'))
 
             # calibration
-            self._wave_cal_lasers = eval(config.get('calibration', 'wave_cal_lasers'))
-            self._default_center = eval(config.get('calibration', 'default_center'))
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+            self._default_center = np.array(eval(config.get('calibration', 'default_center')))
             self._orientation_offset = eval(config.get('calibration', 'orientation_offset'))            
 
             # reduction parameters
@@ -2212,10 +2212,9 @@ class Reduction(object):
         else:
             save_path = None
         spot_center, spot_dist, img_center \
-            = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                        pixel, orientation_offset, center_guess,
-                                                        high_pass=high_pass, center_offset=offset,
-                                                        coro=coro, save_path=save_path)
+            = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
+                                                        pixel, orientation_offset, high_pass=high_pass, 
+                                                        center_offset=offset, coro=coro, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2325,7 +2324,7 @@ class Reduction(object):
             plt.xlabel('Spectral channel index')
             plt.ylabel('Scaling factor')
             plt.title('Spectral scaling')
-            plt.legend(loc='upper left')
+            plt.legend(loc='upper left', fontsize='x-small')
 
             plt.subplot(133)
             plt.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
@@ -2335,7 +2334,7 @@ class Reduction(object):
             plt.xlabel(r'Wavelength [nm]')
             plt.xlim(wave_min-50, wave_max+50)
             plt.ylabel('Flux')
-            plt.legend(loc='upper right')
+            plt.legend(loc='upper right', fontsize='x-small')
             plt.title('Wavelength calibration')
 
             plt.tight_layout()
@@ -2433,10 +2432,9 @@ class Reduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                                pixel, orientation_offset, center_guess,
-                                                                high_pass=high_pass, center_offset=offset,
-                                                                save_path=save_path)
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
+                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                center_offset=offset, save_path=save_path)
 
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)

@@ -17,7 +17,7 @@ reduction.show_config()
 #%% reduction
 reduction.full_reduction()
 
-####################################################@
+####################################################
 # manual reduction
 #
 

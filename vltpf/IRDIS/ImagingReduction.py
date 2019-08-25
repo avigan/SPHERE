@@ -87,10 +87,10 @@ class ImagingReduction(object):
             self._nwave = 2
 
             # calibration
-            self._wave_cal_lasers = eval(config.get('calibration', 'wave_cal_lasers'))
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
           
             # imaging calibration
-            self._default_center = eval(config.get('calibration-imaging', 'default_center'))
+            self._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
             self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
 
             # reduction parameters
@@ -1169,7 +1169,7 @@ class ImagingReduction(object):
         path = self._path
         pixel = self._pixel
         orientation_offset = self._orientation_offset
-        center_guess = np.array(self._default_center)
+        center_guess = self._default_center
         frames_info = self._frames_info_preproc        
 
         # wavelength
@@ -1222,10 +1222,9 @@ class ImagingReduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, 'IRDIS', waffle_orientation,
-                                                                pixel, orientation_offset, center_guess,
-                                                                high_pass=high_pass, center_offset=offset,
-                                                                coro=coro, save_path=save_path)
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, waffle_orientation, center_guess,
+                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                center_offset=offset, coro=coro, save_path=save_path)
 
                 # save
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)

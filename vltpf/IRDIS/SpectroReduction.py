@@ -129,14 +129,14 @@ class SpectroReduction(object):
             self._nwave = -1
 
             # calibration
-            self._wave_cal_lasers = eval(config.get('calibration', 'wave_cal_lasers'))
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
             
             # spectro calibration
-            self._default_center_lrs = eval(config.get('calibration-spectro', 'default_center_lrs'))
+            self._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
             self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
             self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
 
-            self._default_center_mrs = eval(config.get('calibration-spectro', 'default_center_mrs'))
+            self._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
             self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
             self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
 
