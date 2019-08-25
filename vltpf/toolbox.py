@@ -581,6 +581,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
 
 
 def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation,
+                                      pixel, orientation_offset, center_guess,
                                       high_pass=False, center_offset=(0, 0), smooth=0,
                                       coro=True, save_path=None):
     '''
@@ -599,6 +600,16 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
     waffle_orientation : str
         String giving the waffle orientation '+' or 'x'
+
+    pixel : float
+        Pixel scale, in mas/pixel
+
+    orientation_offset : float
+        Field orientation offset, in degrees
+
+    center_guess : array
+        Estimation of the image center as a function of wavelength. 
+        This should be an array of shape nwave*2.
 
     high_pass : bool
         Apply high-pass filter to the image before searching for the
@@ -634,20 +645,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
     '''
 
-    # instrument
-    # FIXME: pixel size should be stored in .ini files and passed to
-    # function when needed (ticket #60)
-    if instrument == 'IFS':
-        pixel = 7.46
-        offset = 102
-    elif instrument == 'IRDIS':
-        pixel = 12.25
-        offset = 0
-    else:
-        raise ValueError('Unknown instrument {0}'.format(instrument))
-
     # standard parameters
-    dim = cube.shape[-1]
     nwave = wave.size
     loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
 
@@ -655,9 +653,9 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     freq = 10 * np.sqrt(2) * 0.97
     box = 8
     if waffle_orientation == '+':
-        orient = offset * np.pi / 180
+        orient = orientation_offset * np.pi / 180
     elif waffle_orientation == 'x':
-        orient = offset * np.pi / 180 + np.pi / 4
+        orient = orientation_offset * np.pi / 180 + np.pi / 4
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
@@ -665,15 +663,6 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     # multi-page PDF to save result
     if save_path is not None:
         pdf = PdfPages(save_path)
-
-    # center guess
-    # FIXME: centers should be stored in .ini files and passed to
-    # function when needed (ticket #60)
-    if instrument == 'IFS':
-        center_guess = np.full((nwave, 2), ((dim // 2)+3, (dim // 2)-1))
-    elif instrument == 'IRDIS':
-        center_guess = np.array(((485, 520),
-                                 (486, 508)))
 
     # loop over images
     spot_centers = np.zeros((nwave, 4, 2))

@@ -1168,7 +1168,9 @@ class ImagingReduction(object):
         # parameters
         path = self._path
         pixel = self._pixel
-        frames_info = self._frames_info_preproc
+        orientation_offset = self._orientation_offset
+        center_guess = np.array(self._default_center)
+        frames_info = self._frames_info_preproc        
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1221,8 +1223,9 @@ class ImagingReduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave, 'IRDIS', waffle_orientation,
-                                                            high_pass=high_pass, center_offset=offset,
-                                                            coro=coro, save_path=save_path)
+                                                                pixel, orientation_offset, center_guess,
+                                                                high_pass=high_pass, center_offset=offset,
+                                                                coro=coro, save_path=save_path)
 
                 # save
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
@@ -1330,7 +1333,7 @@ class ImagingReduction(object):
 
         # centering
         # FIXME: store default center in IRDIS.ini?
-        centers_default = np.array([[484, 517], [486, 508]])
+        centers_default = self._default_center
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
