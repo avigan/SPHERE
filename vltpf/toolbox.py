@@ -15,6 +15,8 @@ from astropy.time import Time
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
+global_cmap = 'inferno'
+
 
 def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
     '''
@@ -463,20 +465,23 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
         img_centers[idx, 1] = cy_final
 
         if save_path:
-            plt.figure('PSF center - imaging', figsize=(8, 8))
+            plt.figure('PSF center - imaging', figsize=(8.3, 8))
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
-            plt.plot([cx_final], [cy_final], marker='D', color='red')
+            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+                       interpolation='nearest', cmap=global_cmap)
+            plt.plot([cx_final], [cy_final], marker='D', color='blue')
             plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
             plt.title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
 
             ext = 1000 / pixel
             plt.xlim(cx_final-ext, cx_final+ext)
+            plt.xlabel('x position [pix]')
             plt.ylim(cy_final-ext, cy_final+ext)
+            plt.ylabel('y position [pix]')
 
-            plt.tight_layout()
+            plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
 
             pdf.savefig()
 
@@ -563,8 +568,10 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
         if save_path:
             plt.subplot(1, 2, fidx+1)
 
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
-            plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=0.5)
+            plt.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), 
+                       interpolation='nearest', cmap=global_cmap)
+            plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', 
+                     ms=2, alpha=0.5)
 
             plt.title(r'Field #{0}'.format(fidx+1))
 
@@ -690,13 +697,21 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
         # create plot if needed
         if save_path:
-            fig = plt.figure('Waffle center - imaging', figsize=(8, 8))
+            fig = plt.figure('Waffle center - imaging', figsize=(8.3, 8))
             plt.clf()
 
-            col = ['red', 'blue', 'magenta', 'purple']
+            if high_pass:
+                norm = colors.SymLogNorm(1e-4)
+            else:
+                norm = colors.LogNorm()
+            
+            col = ['green', 'blue', 'deepskyblue', 'purple']
             ax = fig.add_subplot(111)
-            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=colors.LogNorm(), interpolation='nearest')
+            ax.imshow(img/img.max(), aspect='equal', vmin=1e-2, vmax=1, norm=norm,
+                      interpolation='nearest', cmap=global_cmap)
             ax.set_title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
+            ax.set_xlabel('x position [pix]')
+            ax.set_ylabel('y position [pix]')
 
         # satelitte spots
         for s in range(4):
@@ -731,17 +746,19 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
             # plot sattelite spots and fit
             if save_path:
-                ax.plot([cx_final], [cy_final], marker='D', color=col[s])
+                ax.plot([cx_final], [cy_final], marker='D', color=col[s], zorder=1000)
                 ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
 
                 axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
-                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest')
+                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
+                           cmap=global_cmap)
                 axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
                 axs.set_xticks([])
                 axs.set_yticks([])
 
                 axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
-                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest')
+                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
+                           cmap=global_cmap)
                 axs.set_xticks([])
                 axs.set_yticks([])
 
@@ -762,10 +779,10 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
         if save_path:
             ax.plot([spot_centers[idx, 0, 0], spot_centers[idx, 2, 0]],
                     [spot_centers[idx, 0, 1], spot_centers[idx, 2, 1]],
-                    color='w', linestyle='dashed')
+                    color='w', linestyle='dashed', zorder=900)
             ax.plot([spot_centers[idx, 1, 0], spot_centers[idx, 3, 0]],
                     [spot_centers[idx, 1, 1], spot_centers[idx, 3, 1]],
-                    color='w', linestyle='dashed')
+                    color='w', linestyle='dashed', zorder=900)
 
             ax.plot([intersect[0]], [intersect[1]], marker='+', color='w', ms=15)
 
@@ -773,7 +790,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
             ax.set_xlim(intersect[0]-ext, intersect[0]+ext)
             ax.set_ylim(intersect[1]-ext, intersect[1]+ext)
 
-            plt.tight_layout()
+            plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
 
             if save_path:
                 pdf.savefig()
@@ -896,10 +913,14 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
         if save_path:
             plt.subplot(1, 2, fidx+1)
-            plt.imshow(img/img.max(), aspect='equal', vmin=-1e-2, vmax=1e-2, interpolation='nearest')
-            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
-            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
-            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', ms=2, alpha=1)
+            plt.imshow(img/img.max(), aspect='equal', vmin=-1e-2, vmax=1e-2, interpolation='nearest',
+                       cmap=global_cmap)
+            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='r', linestyle='none', 
+                     ms=2, alpha=1)
+            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='r', linestyle='none', 
+                     ms=2, alpha=1)
+            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', 
+                     ms=2, alpha=1)
 
             plt.title(r'Field #{0}'.format(fidx+1))
 
