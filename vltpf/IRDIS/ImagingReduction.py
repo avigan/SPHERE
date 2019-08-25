@@ -87,9 +87,13 @@ class ImagingReduction(object):
             self._nwave = 2
 
             # calibration
-            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+            self._wave_cal_lasers = eval(config.get('calibration', 'wave_cal_lasers'))
+          
+            # imaging calibration
+            self._default_center = eval(config.get('calibration-imaging', 'default_center'))
+            self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
 
-            # reduction
+            # reduction parameters
             self._config = {}
             for group in ['reduction', 'reduction-imaging']:
                 items = dict(config.items(group))

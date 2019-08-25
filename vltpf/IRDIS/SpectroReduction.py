@@ -129,9 +129,18 @@ class SpectroReduction(object):
             self._nwave = -1
 
             # calibration
-            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+            self._wave_cal_lasers = eval(config.get('calibration', 'wave_cal_lasers'))
+            
+            # spectro calibration
+            self._default_center_lrs = eval(config.get('calibration-spectro', 'default_center_lrs'))
+            self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
+            self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
 
-            # reduction
+            self._default_center_mrs = eval(config.get('calibration-spectro', 'default_center_mrs'))
+            self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
+            self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
+
+            # reduction parameters
             self._config = {}
             for group in ['reduction', 'reduction-spectro']:
                 items = dict(config.items(group))
