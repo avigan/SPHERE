@@ -1004,6 +1004,9 @@ class SpectroReduction(object):
         # products
         wav_file = 'wave_calib'
 
+        # laser wavelengths
+        wave_lasers = self._wave_cal_lasers
+        
         # esorex parameters
         if filter_comb == 'S_LR':
             # create standard sof in LRS
@@ -1015,7 +1018,6 @@ class SpectroReduction(object):
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
 
-            # FIXME: use wave_lasers from .ini file
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1024,6 +1026,12 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=FALSE',
                     '--ird.wave_calib.threshold=2000',
                     '--ird.wave_calib.number_lines=6',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
+                    '--ird.wave_calib.wavelength_line6={:.2f}'.format(wave_lasers[5]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
         elif filter_comb == 'S_MR':
@@ -1044,7 +1052,6 @@ class SpectroReduction(object):
             file.write('{0}/{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
 
-            # FIXME: use wave_lasers from .ini file
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1053,6 +1060,11 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=TRUE',
                     '--ird.wave_calib.threshold=1000',
                     '--ird.wave_calib.number_lines=5',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
 
