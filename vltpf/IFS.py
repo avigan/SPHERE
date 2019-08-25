@@ -1500,6 +1500,7 @@ class Reduction(object):
 
         # esorex parameters
         if mode == 'OBS_YJ':
+            # FIXME: use wave_cal_lasers in config
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1511,6 +1512,7 @@ class Reduction(object):
                     '--ifs.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
         elif mode == 'OBS_H':
+            # FIXME: use wave_cal_lasers in config
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -2538,6 +2540,7 @@ class Reduction(object):
             science_dim = 290
 
         # centering
+        # FIXME: store default center in IFS.ini?
         centers_default = np.full((nwave, 2), 290//2)
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')

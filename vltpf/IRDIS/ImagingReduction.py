@@ -1325,6 +1325,7 @@ class ImagingReduction(object):
             science_dim = 1024
 
         # centering
+        # FIXME: store default center in IRDIS.ini?
         centers_default = np.array([[484, 517], [486, 508]])
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')

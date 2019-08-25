@@ -1006,6 +1006,7 @@ class SpectroReduction(object):
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
 
+            # FIXME: use wave_lasers from .ini file
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1034,6 +1035,7 @@ class SpectroReduction(object):
             file.write('{0}/{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
             file.close()
 
+            # FIXME: use wave_lasers from .ini file
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
