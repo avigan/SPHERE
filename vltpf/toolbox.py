@@ -521,7 +521,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
 
     # prepare plot
     if save_path:
-        plt.figure('PSF center - spectro', figsize=(7, 12))
+        plt.figure('PSF center - spectro', figsize=(6, 12))
         plt.clf()
 
     # loop over fiels and wavelengths
@@ -568,20 +568,25 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
         if save_path:
             plt.subplot(1, 2, fidx+1)
 
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-3, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
                        interpolation='nearest', cmap=global_cmap)
-            plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', 
+            plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='dodgerblue', linestyle='none',
                      ms=2, alpha=0.5)
 
             plt.title(r'Field #{0}'.format(fidx+1))
 
             ext = 1000 / pixel
             plt.xlim(cx_int-ext, cx_int+ext)
+            plt.xlabel('x position [pix]')
+            
             plt.ylim(0, 1024)
-
+            if fidx == 0:
+                plt.ylabel('y position [pix]')
+            else:
+                plt.gca().yaxis.set_ticklabels([])
 
     if save_path:
-        plt.tight_layout()
+        plt.subplots_adjust(left=0.15, right=0.98, bottom=0.07, top=0.965, wspace=0.05)
         plt.savefig(save_path)
 
     return psf_centers
@@ -851,7 +856,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
     # prepare plot
     if save_path:
-        plt.figure('Waffle centering - spectro', figsize=(7, 12))
+        plt.figure('Waffle centering - spectro', figsize=(6, 12))
         plt.clf()
 
     # subtract science cube if provided
@@ -910,26 +915,41 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             spot_dist[widx, fidx] = np.abs(c1-c0)
 
             img_centers[widx, fidx] = (c0 + c1) / 2
-
-        if save_path:
+            
+        if save_path:            
+            if high_pass or (cube_sci is not None):
+                norm = colors.PowerNorm(gamma=1)
+                vmin = -1e-2
+                vmax = 1e-2
+            else:
+                norm = colors.LogNorm()
+                vmin = 1e-5
+                vmax = 1
+            
             plt.subplot(1, 2, fidx+1)
-            plt.imshow(img/img.max(), aspect='equal', vmin=-1e-2, vmax=1e-2, interpolation='nearest',
-                       cmap=global_cmap)
-            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='r', linestyle='none', 
-                     ms=2, alpha=1)
-            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='r', linestyle='none', 
-                     ms=2, alpha=1)
-            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='r', linestyle='none', 
-                     ms=2, alpha=1)
+            plt.imshow(img/img.max(), aspect='equal', vmin=vmin, vmax=vmax, interpolation='nearest',
+                       cmap=global_cmap, norm=norm)
+            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='dodgerblue', 
+                     linestyle='none', ms=2, alpha=1)
+            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='dodgerblue', 
+                     linestyle='none', ms=2, alpha=1)
+            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='dodgerblue', 
+                     linestyle='none', ms=2, alpha=1)
 
             plt.title(r'Field #{0}'.format(fidx+1))
 
             ext = 1000 / pixel
             plt.xlim(cx_int-ext, cx_int+ext)
+            plt.xlabel('x position [pix]')
+            
             plt.ylim(0, 1024)
+            if fidx == 0:
+                plt.ylabel('y position [pix]')
+            else:
+                plt.gca().yaxis.set_ticklabels([])
 
     if save_path:
-        plt.tight_layout()
+        plt.subplots_adjust(left=0.15, right=0.98, bottom=0.07, top=0.965, wspace=0.05)
         plt.savefig(save_path)
 
     return spot_centers, spot_dist, img_centers
