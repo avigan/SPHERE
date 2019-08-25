@@ -397,9 +397,11 @@ class Reduction(object):
             self._nwave = int(config.get('instrument', 'nwave'))
 
             # calibration
-            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+            self._default_center = np.array(eval(config.get('calibration', 'default_center')))
+            self._orientation_offset = eval(config.get('calibration', 'orientation_offset'))            
 
-            # reduction
+            # reduction parameters
             self._config = dict(config.items('reduction'))
             for key, value in self._config.items():
                 try:
@@ -1500,6 +1502,7 @@ class Reduction(object):
 
         # esorex parameters
         if mode == 'OBS_YJ':
+            # FIXME: use wave_cal_lasers in config
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -1511,6 +1514,7 @@ class Reduction(object):
                     '--ifs.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
         elif mode == 'OBS_H':
+            # FIXME: use wave_cal_lasers in config
             args = ['esorex',
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
@@ -2154,6 +2158,9 @@ class Reduction(object):
         # parameters
         path = self._path
         nwave = self._nwave
+        pixel = self._pixel
+        orientation_offset = self._orientation_offset
+        center_guess = np.full((nwave, 2), self._default_center)
         files_info = self._files_info
         frames_info = self._frames_info_preproc
 
@@ -2205,9 +2212,9 @@ class Reduction(object):
         else:
             save_path = None
         spot_center, spot_dist, img_center \
-            = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                        high_pass=high_pass, center_offset=offset,
-                                                        coro=coro, save_path=save_path)
+            = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
+                                                        pixel, orientation_offset, high_pass=high_pass, 
+                                                        center_offset=offset, coro=coro, save_path=save_path)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2317,7 +2324,7 @@ class Reduction(object):
             plt.xlabel('Spectral channel index')
             plt.ylabel('Scaling factor')
             plt.title('Spectral scaling')
-            plt.legend(loc='upper left')
+            plt.legend(loc='upper left', fontsize='x-small')
 
             plt.subplot(133)
             plt.plot(wave_drh, wave_flux, linestyle='dotted', color='k', label='Original')
@@ -2325,8 +2332,9 @@ class Reduction(object):
             for w in self._wave_cal_lasers:
                 plt.axvline(x=w, linestyle='dashed', color='purple')
             plt.xlabel(r'Wavelength [nm]')
+            plt.xlim(wave_min-50, wave_max+50)
             plt.ylabel('Flux')
-            plt.legend(loc='upper right')
+            plt.legend(loc='upper right', fontsize='x-small')
             plt.title('Wavelength calibration')
 
             plt.tight_layout()
@@ -2365,6 +2373,8 @@ class Reduction(object):
         path = self._path
         nwave = self._nwave
         pixel = self._pixel
+        orientation_offset = self._orientation_offset
+        center_guess = np.full((nwave, 2), self._default_center)
         frames_info = self._frames_info_preproc
 
         # start with OBJECT,FLUX
@@ -2422,9 +2432,9 @@ class Reduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
-                                                                high_pass=high_pass, center_offset=offset,
-                                                                save_path=save_path)
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
+                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                center_offset=offset, save_path=save_path)
 
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
@@ -2538,7 +2548,7 @@ class Reduction(object):
             science_dim = 290
 
         # centering
-        centers_default = np.full((nwave, 2), 290//2)
+        centers_default = np.full((nwave, 2), self._default_center)
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'

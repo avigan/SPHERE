@@ -87,9 +87,13 @@ class ImagingReduction(object):
             self._nwave = 2
 
             # calibration
-            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+          
+            # imaging calibration
+            self._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
+            self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
 
-            # reduction
+            # reduction parameters
             self._config = {}
             for group in ['reduction', 'reduction-imaging']:
                 items = dict(config.items(group))
@@ -1164,7 +1168,9 @@ class ImagingReduction(object):
         # parameters
         path = self._path
         pixel = self._pixel
-        frames_info = self._frames_info_preproc
+        orientation_offset = self._orientation_offset
+        center_guess = self._default_center
+        frames_info = self._frames_info_preproc        
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1216,9 +1222,9 @@ class ImagingReduction(object):
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, 'IRDIS', waffle_orientation,
-                                                            high_pass=high_pass, center_offset=offset,
-                                                            coro=coro, save_path=save_path)
+                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, waffle_orientation, center_guess,
+                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                center_offset=offset, coro=coro, save_path=save_path)
 
                 # save
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
@@ -1325,7 +1331,8 @@ class ImagingReduction(object):
             science_dim = 1024
 
         # centering
-        centers_default = np.array([[484, 517], [486, 508]])
+        # FIXME: store default center in IRDIS.ini?
+        centers_default = self._default_center
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'

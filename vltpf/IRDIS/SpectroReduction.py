@@ -129,9 +129,18 @@ class SpectroReduction(object):
             self._nwave = -1
 
             # calibration
-            self._wave_cal_lasers = [float(w) for w in config.get('calibration', 'wave_cal_lasers').split(',')]
+            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+            
+            # spectro calibration
+            self._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
+            self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
+            self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
 
-            # reduction
+            self._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
+            self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
+            self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
+
+            # reduction parameters
             self._config = {}
             for group in ['reduction', 'reduction-spectro']:
                 items = dict(config.items(group))
@@ -995,6 +1004,9 @@ class SpectroReduction(object):
         # products
         wav_file = 'wave_calib'
 
+        # laser wavelengths
+        wave_lasers = self._wave_cal_lasers
+        
         # esorex parameters
         if filter_comb == 'S_LR':
             # create standard sof in LRS
@@ -1014,6 +1026,12 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=FALSE',
                     '--ird.wave_calib.threshold=2000',
                     '--ird.wave_calib.number_lines=6',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
+                    '--ird.wave_calib.wavelength_line6={:.2f}'.format(wave_lasers[5]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
         elif filter_comb == 'S_MR':
@@ -1042,6 +1060,11 @@ class SpectroReduction(object):
                     '--ird.wave_calib.grism_mode=TRUE',
                     '--ird.wave_calib.threshold=1000',
                     '--ird.wave_calib.number_lines=5',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
                     sof]
 
@@ -1327,25 +1350,21 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
@@ -1438,25 +1457,21 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # reference wavelength
         idx_ref = 3
@@ -1641,20 +1656,16 @@ class SpectroReduction(object):
         nwave = self._nwave
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field

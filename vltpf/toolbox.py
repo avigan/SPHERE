@@ -580,25 +580,32 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     return psf_centers
 
 
-def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation,
-                                      high_pass=False, center_offset=(0, 0), smooth=0,
-                                      coro=True, save_path=None):
+def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
+                                      orientation_offset,  high_pass=False, center_offset=(0, 0), 
+                                      smooth=0, coro=True, save_path=None):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
     Parameters
     ----------
-    cube : array_like
+    cube_cen : array_like
         IRDIFS waffle cube
 
     wave : array_like
         Wavelength values, in nanometers
 
-    instrument : str
-        Instrument, IFS or IRDIS
-
     waffle_orientation : str
         String giving the waffle orientation '+' or 'x'
+
+    center_guess : array
+        Estimation of the image center as a function of wavelength. 
+        This should be an array of shape nwave*2.
+
+    pixel : float
+        Pixel scale, in mas/pixel
+
+    orientation_offset : float
+        Field orientation offset, in degrees
 
     high_pass : bool
         Apply high-pass filter to the image before searching for the
@@ -634,20 +641,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
     '''
 
-    # instrument
-    # FIXME: pixel size should be stored in .ini files and passed to
-    # function when needed (ticket #60)
-    if instrument == 'IFS':
-        pixel = 7.46
-        offset = 102
-    elif instrument == 'IRDIS':
-        pixel = 12.25
-        offset = 0
-    else:
-        raise ValueError('Unknown instrument {0}'.format(instrument))
-
     # standard parameters
-    dim = cube.shape[-1]
     nwave = wave.size
     loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
 
@@ -655,9 +649,9 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     freq = 10 * np.sqrt(2) * 0.97
     box = 8
     if waffle_orientation == '+':
-        orient = offset * np.pi / 180
+        orient = orientation_offset * np.pi / 180
     elif waffle_orientation == 'x':
-        orient = offset * np.pi / 180 + np.pi / 4
+        orient = orientation_offset * np.pi / 180 + np.pi / 4
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
@@ -666,20 +660,11 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     if save_path is not None:
         pdf = PdfPages(save_path)
 
-    # center guess
-    # FIXME: centers should be stored in .ini files and passed to
-    # function when needed (ticket #60)
-    if instrument == 'IFS':
-        center_guess = np.full((nwave, 2), ((dim // 2)+3, (dim // 2)-1))
-    elif instrument == 'IRDIS':
-        center_guess = np.array(((485, 520),
-                                 (486, 508)))
-
     # loop over images
     spot_centers = np.zeros((nwave, 4, 2))
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
-    for idx, (wave, img) in enumerate(zip(wave, cube)):
+    for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
         print('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
@@ -699,7 +684,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
 
         # mask for non-coronagraphic observations
         if not coro:
-            mask = aperture.disc(cube[0].shape[-1], 5*loD[idx], diameter=False,
+            mask = aperture.disc(cube_cen[0].shape[-1], 5*loD[idx], diameter=False,
                                  center=(cx_int, cy_int), invert=True)
             img *= mask
 
@@ -799,7 +784,7 @@ def star_centers_from_waffle_img_cube(cube, wave, instrument, waffle_orientation
     return spot_centers, spot_dist, img_centers
 
 
-def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pixel, high_pass=False,
+def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_guess, pixel, high_pass=False,
                                       save_path=None):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
@@ -815,7 +800,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
     wave_cube : array_like
         Wavelength values for each field, in nanometers
 
-    centers : tupple
+    center_guess : tupple
         Approximate center of the two fields
 
     pixel : float
@@ -870,7 +855,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, centers, pi
             img = img - ndimage.median_filter(img, 15, mode='mirror')
 
         # sub-image
-        cx_int = centers[fidx, 0]
+        cx_int = center_guess[fidx, 0]
         sub = img[:, cx_int-box:cx_int+box]
         xx  = np.arange(2*box)
 
