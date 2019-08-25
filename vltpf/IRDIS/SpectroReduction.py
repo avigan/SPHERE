@@ -1350,25 +1350,21 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
@@ -1461,25 +1457,21 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength map
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # reference wavelength
         idx_ref = 3
@@ -1664,20 +1656,16 @@ class SpectroReduction(object):
         nwave = self._nwave
         frames_info = self._frames_info_preproc
 
-        # filter combination
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        # FIXME: centers should be stored in .ini files and passed to
-        # function when needed (ticket #60)
         if filter_comb == 'S_LR':
-            centers = np.array(((484, 496),
-                                (488, 486)))
-            wave_min = 920
-            wave_max = 2330
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers = np.array(((474, 519),
-                                (479, 509)))
-            wave_min = 940
-            wave_max = 1820
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field
