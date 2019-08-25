@@ -1549,6 +1549,7 @@ class SpectroReduction(object):
                 plt.ylabel('Wavelength r[nm]')
                 plt.title('Field #{}'.format(fidx))
                 plt.xlim(1024, 0)
+                plt.gca().xaxis.set_ticklabels([])
 
                 plt.subplot(212)
                 plt.axvline(imin, color='k', linestyle='--')
@@ -1558,7 +1559,7 @@ class SpectroReduction(object):
                 plt.xlabel('Detector coordinate [pix]')
                 plt.xlim(1024, 0)
 
-                plt.tight_layout()
+                plt.subplots_adjust(left=0.13, right=0.97, bottom=0.08, top=0.96, hspace=0.05)
 
                 pdf.savefig()
 
