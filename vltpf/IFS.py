@@ -2158,6 +2158,9 @@ class Reduction(object):
         # parameters
         path = self._path
         nwave = self._nwave
+        pixel = self._pixel
+        orientation_offset = self._orientation_offset
+        center_guess = np.full((nwave, 2), self._default_center)
         files_info = self._files_info
         frames_info = self._frames_info_preproc
 
@@ -2210,6 +2213,7 @@ class Reduction(object):
             save_path = None
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
+                                                        pixel, orientation_offset, center_guess,
                                                         high_pass=high_pass, center_offset=offset,
                                                         coro=coro, save_path=save_path)
 
@@ -2329,6 +2333,7 @@ class Reduction(object):
             for w in self._wave_cal_lasers:
                 plt.axvline(x=w, linestyle='dashed', color='purple')
             plt.xlabel(r'Wavelength [nm]')
+            plt.xlim(wave_min-50, wave_max+50)
             plt.ylabel('Flux')
             plt.legend(loc='upper right')
             plt.title('Wavelength calibration')
@@ -2369,6 +2374,8 @@ class Reduction(object):
         path = self._path
         nwave = self._nwave
         pixel = self._pixel
+        orientation_offset = self._orientation_offset
+        center_guess = np.full((nwave, 2), self._default_center)
         frames_info = self._frames_info_preproc
 
         # start with OBJECT,FLUX
@@ -2427,6 +2434,7 @@ class Reduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, 'IFS', waffle_orientation,
+                                                                pixel, orientation_offset, center_guess,
                                                                 high_pass=high_pass, center_offset=offset,
                                                                 save_path=save_path)
 
@@ -2542,8 +2550,7 @@ class Reduction(object):
             science_dim = 290
 
         # centering
-        # FIXME: store default center in IFS.ini?
-        centers_default = np.full((nwave, 2), 290//2)
+        centers_default = np.full((nwave, 2), self._default_center)
         if skip_center:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
