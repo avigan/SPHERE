@@ -47,7 +47,7 @@ reduction.sph_ifs_science_cubes(silent=True)
 reduction.sph_ifs_wavelength_recalibration(high_pass=True, offset=(-3, 0), plot=True)
 reduction.sph_ifs_star_center(high_pass=True, offset=(-3, 0), plot=True)
 reduction.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_anamorphism=True,
-                               shift_method='interp', manual_center=None, skip_center=False,
+                               shift_method='interp', manual_center=None, coarse_centering=False,
                                save_scaled=False)
 
 #%% cleaning

@@ -600,7 +600,7 @@ class Reduction(object):
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
                                   manual_center=config['combine_manual_center'],
-                                  skip_center=config['combine_skip_center'],
+                                  coarse_centering=config['combine_coarse_centering'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
@@ -2445,7 +2445,7 @@ class Reduction(object):
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -2472,8 +2472,8 @@ class Reduction(object):
                            plan to perform spectral differential
                            imaging in your analysis.
 
-        The method also save a frames.csv file with all the
-        information extracted the raw files headers.
+        FIXME: proper documentation for centering. Ticket #68
+        Centering: by default data are finely centered
 
         Parameters
         ----------
@@ -2497,10 +2497,10 @@ class Reduction(object):
             User provided centers for the OBJECT,CENTER and OBJECT
             frames. This should be an array of either 2 or nwavex2
             values. If a manual center is provided, the value of
-            skip_center is ignored for the OBJECT,CENTER and OBJECT
+            coarse_centering is ignored for the OBJECT,CENTER and OBJECT
             frames. Default is None
 
-        skip_center : bool
+        coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -2508,7 +2508,7 @@ class Reduction(object):
             option is useful if fine centering must be done
             afterwards.
 
-        Default is False. Note that if skip_center is
+        Default is False. Note that if coarse_centering is
             True, the save_scaled option is automatically disabled.
 
         shift_method : str
@@ -2548,8 +2548,9 @@ class Reduction(object):
             science_dim = 290
 
         # centering
+        # FIXME: better handling and documentation of centering keywords. Ticket #68
         centers_default = np.full((nwave, 2), self._default_center)
-        if skip_center:
+        if coarse_centering:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
@@ -2608,7 +2609,8 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if skip_center:
+                    # FIXME: better handling and documentation of centering keywords. Ticket #68
+                    if coarse_centering:
                         cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
@@ -2690,10 +2692,11 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
+                    # FIXME: better handling and documentation of centering keywords. Ticket #68
                     if manual_center is not None:
                         cx, cy = manual_center[wave_idx, :]
                     else:
-                        if skip_center:
+                        if coarse_centering:
                             cx, cy = centers_default[wave_idx, :]
                         else:
                             cx, cy = centers[wave_idx, :]
@@ -2747,6 +2750,7 @@ class Reduction(object):
                       'They will just be combined.')
 
                 # choose between manual center or default centers
+                # FIXME: better handling and documentation of centering keywords. Ticket #68
                 if manual_center is not None:
                     centers = manual_center
                 else:

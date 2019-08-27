@@ -333,7 +333,7 @@ class SpectroReduction(object):
                                   split_posang=config['combine_split_posang'],
                                   shift_method=config['combine_shift_method'],
                                   manual_center=config['combine_manual_center'],
-                                  skip_center=config['combine_skip_center'])
+                                  coarse_centering=config['combine_coarse_centering'])
 
     def clean(self):
         '''
@@ -1576,7 +1576,7 @@ class SpectroReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
-                             split_posang=True, shift_method='fft', manual_center=None, skip_center=False):
+                             split_posang=True, shift_method='fft', manual_center=None, coarse_centering=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1591,7 +1591,7 @@ class SpectroReduction(object):
 
         For each type of data, the method saves 3 different files:
 
-          - *_cube: the (x,y,time) cube
+          - *_cube: the (x,y,time,nfield) cube
 
           - *_posang: the position angle vector.
 
@@ -1599,7 +1599,8 @@ class SpectroReduction(object):
                       frames. There is one line by time step in the
                       data cube.
 
-        Data are save separately for each field.
+        FIXME: proper documentation for centering. Ticket #68
+        Centering: by default data are finely centered
 
         Parameters
         ----------
@@ -1631,10 +1632,10 @@ class SpectroReduction(object):
             User provided spatial center for the OBJECT,CENTER and
             OBJECT frames. This should be an array of 2 values (cx for
             the 2 IRDIS fields). If a manual center is provided, the
-            value of skip_center is ignored for the OBJECT,CENTER and
+            value of coarse_centering is ignored for the OBJECT,CENTER and
             OBJECT frames. Default is None
 
-        skip_center : bool
+        coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -1696,8 +1697,9 @@ class SpectroReduction(object):
             science_dim = 1024
 
         # centering
+        # FIXME: better handling and documentation of centering keywords. Ticket #68
         centers_default = centers[:, 0]
-        if skip_center:
+        if coarse_centering:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
@@ -1748,6 +1750,7 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -1758,7 +1761,8 @@ class SpectroReduction(object):
 
                             psf_cube[field_idx, file_idx, wave_idx] = nimg[:psf_dim]
                     else:
-                        if skip_center:
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
+                        if coarse_centering:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()
@@ -1836,6 +1840,7 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -1846,7 +1851,8 @@ class SpectroReduction(object):
 
                             cen_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
-                        if skip_center:
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
+                        if coarse_centering:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()
@@ -1903,11 +1909,12 @@ class SpectroReduction(object):
             # in the sequence, but it would be better to be able to
             # select which CENTER to use
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-            if (len(starcen_files) == 0) or skip_center or (manual_center is not None):
+            if (len(starcen_files) == 0) or coarse_centering or (manual_center is not None):
                 print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
                       'They will just be combined.')
 
                 # choose between manual center or default centers
+                # FIXME: better handling and documentation of centering keywords. Ticket #68
                 if manual_center is not None:
                     centers = manual_center
                 else:
@@ -1940,6 +1947,7 @@ class SpectroReduction(object):
                     ciwave = iwave[:, field_idx]
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -1950,7 +1958,8 @@ class SpectroReduction(object):
 
                             sci_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
-                        if skip_center:
+                        # FIXME: better handling and documentation of centering keywords. Ticket #68
+                        if coarse_centering:
                             cx = centers_default[field_idx]
                         else:
                             cx = centers[ciwave, field_idx].mean()

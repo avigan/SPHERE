@@ -18,7 +18,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 import vltpf
 import vltpf.utils as utils
-import vltpf.utils.imutils as imutils
+import vltpf.utils.imutils as imutilséé
 import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
 import vltpf.toolbox as toolbox
@@ -275,7 +275,7 @@ class ImagingReduction(object):
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
                                   manual_center=config['combine_manual_center'],
-                                  skip_center=config['combine_skip_center'],
+                                  coarse_centering=config['combine_coarse_centering'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
@@ -1235,7 +1235,7 @@ class ImagingReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1262,6 +1262,9 @@ class ImagingReduction(object):
                            plan to perform spectral differential
                            imaging in your analysis.
 
+        FIXME: proper documentation for centering. Ticket #68
+        Centering: by default data are finely centered
+
         Parameters
         ----------
         cpix : bool
@@ -1284,10 +1287,10 @@ class ImagingReduction(object):
             User provided centers for the OBJECT,CENTER and OBJECT
             frames. This should be an array of 2x2 values (cx,cy for
             the 2 wavelengths). If a manual center is provided, the
-            value of skip_center is ignored for the OBJECT,CENTER and
+            value of coarse_centering is ignored for the OBJECT,CENTER and
             OBJECT frames. Default is None
 
-        skip_center : bool
+        coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -1331,9 +1334,9 @@ class ImagingReduction(object):
             science_dim = 1024
 
         # centering
-        # FIXME: store default center in IRDIS.ini?
+        # FIXME: better handling and documentation of centering keywords. Ticket #68
         centers_default = self._default_center
-        if skip_center:
+        if coarse_centering:
             print('Warning: images will not be fine centered. They will just be combined.')
             shift_method = 'roll'
 
@@ -1385,7 +1388,8 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if skip_center:
+                    # FIXME: better handling and documentation of centering keywords. Ticket #68
+                    if coarse_centering:
                         cx, cy = centers_default[wave_idx, :]
                     else:
                         cx, cy = centers[wave_idx, :]
@@ -1463,10 +1467,11 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
+                    # FIXME: better handling and documentation of centering keywords. Ticket #68
                     if manual_center is not None:
                         cx, cy = manual_center[wave_idx, :]
                     else:
-                        if skip_center:
+                        if coarse_centering:
                             cx, cy = centers_default[wave_idx, :]
                         else:
                             cx, cy = centers[wave_idx, :]
@@ -1515,11 +1520,12 @@ class ImagingReduction(object):
             # in the sequence, but it would be better to be able to
             # select which CENTER to use
             starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-            if (len(starcen_files) == 0) or skip_center or (manual_center is not None):
+            if (len(starcen_files) == 0) or coarse_centering or (manual_center is not None):
                 print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
                       'They will just be combined.')
 
                 # choose between manual center or default centers
+                # FIXME: better handling and documentation of centering keywords. Ticket #68
                 if manual_center is not None:
                     centers = manual_center
                 else:
