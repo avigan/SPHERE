@@ -85,6 +85,11 @@ class SpectroReduction(object):
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib',
                                              'sph_ird_star_center'],
+        # FIXME: sph_ird_star_center and
+        # sph_ird_wavelength_recalibration could probably be removed
+        # from this list as they are not strictly required to combine
+        # the data at least at a basic level. To be tested
+        # Ticket #68
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science',
                                  'sph_ird_star_center', 'sph_ird_wavelength_recalibration']
     }
@@ -161,7 +166,11 @@ class SpectroReduction(object):
             'check_files_association': False,
             'sph_ifs_cal_dark': False,
             'sph_ifs_cal_detector_flat': False,
-            'sph_ird_wave_calib': False
+            'sph_ird_wave_calib': False,
+            'sph_ird_preprocess_science': False,
+            'sph_ird_star_center': False,
+            'sph_ird_wavelength_recalibration': False,
+            'sph_ird_combine_data': False
         }
 
         # reload any existing data frames
@@ -444,7 +453,10 @@ class SpectroReduction(object):
         # additional checks to update recipe execution
         if frames_info_preproc is not None:
             self._recipe_execution['sph_ird_wavelength_recalibration'] \
-                = (path.preproc / 'wavelength_final.fits').exists()
+                = (path.preproc / 'wavelength_default.fits').exists()
+
+            self._recipe_execution['sph_ird_wavelength_recalibration'] \
+                = (path.preproc / 'wavelength_recalibrated.fits').exists()
 
             done = True
             files = frames_info_preproc.index
@@ -1457,6 +1469,15 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
+        # remove old files
+        wfile = path.preproc / 'wavelength_default.fits'
+        if wfile.exists():
+            wfile.unlink()
+
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wfile.unlink()
+        
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         if filter_comb == 'S_LR':
@@ -1482,7 +1503,11 @@ class SpectroReduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(path.preproc / 'wavelength_final.fits', wave_lin, overwrite=True)
+            fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin, overwrite=True)
+            
+            # update recipe execution
+            self._recipe_execution['sph_ird_wavelength_recalibration'] = True
+            
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
@@ -1568,8 +1593,7 @@ class SpectroReduction(object):
 
         # save
         print(' * saving')
-        fits.writeto(path.preproc / 'wavelength_final.fits', wave_final, overwrite=True)
-
+        fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
 
         # update recipe execution
         self._recipe_execution['sph_ird_wavelength_recalibration'] = True
@@ -1669,9 +1693,19 @@ class SpectroReduction(object):
             wave_min = self._wave_min_mrs
             wave_max = self._wave_max_mrs
 
+        # read final wavelength calibration
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wave = fits.getdata(wfile)
+        else:
+            wfile = path.preproc / 'wavelength_default.fits'
+            if wfile.exists():
+                wave = fits.getdata(wfile)
+            else:
+                raise FileExistsError('Missing wavelength_default.fits or wavelength_recalibrated.fits files. You must first run the sph_ird_wavelength_recalibration() method first.')
+
         # wavelength solution: make sure we have the same number of
         # wave points in each field
-        wave   = fits.getdata(path.preproc / 'wavelength_final.fits')
         mask   = ((wave_min <= wave) & (wave <= wave_max))
         iwave0 = np.where(mask[:, 0])[0]
         iwave1 = np.where(mask[:, 1])[0]
