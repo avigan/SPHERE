@@ -111,7 +111,12 @@ class ImagingReduction(object):
         self._recipe_execution = {
             'sort_files': False,
             'sort_frames': False,
-            'check_files_association': False
+            'check_files_association': False,
+            'sph_ird_cal_dark': False,
+            'sph_ird_cal_detector_flat': False,
+            'sph_ird_preprocess_science': False,
+            'sph_ird_star_center': False,
+            'sph_ird_combine_data': False
         }
 
         # reload any existing data frames
