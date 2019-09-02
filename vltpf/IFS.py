@@ -721,6 +721,9 @@ class Reduction(object):
                 = (path.preproc / '{}_preproc.fits'.format(wave_file.index[0])).exists()
 
             self._recipe_execution['sph_ifs_wavelength_recalibration'] \
+                = (path.preproc / 'wavelength_default.fits').exists()
+            
+            self._recipe_execution['sph_ifs_wavelength_recalibration'] \
                 = (path.preproc / 'wavelength_recalibrated.fits').exists()
 
         if frames_info_preproc is not None:
