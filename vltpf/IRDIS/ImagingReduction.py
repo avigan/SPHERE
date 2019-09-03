@@ -1417,8 +1417,8 @@ class ImagingReduction(object):
                 if cfile.exists():
                     centers = fits.getdata(cfile)
                 else:
-                    print('Warning: sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center)
+                    print('Warning: sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                    centers = self._default_center
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
@@ -1474,7 +1474,7 @@ class ImagingReduction(object):
         #
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         nfiles = len(starcen_files)
-        if nfiles != 0:
+        if (nfiles != 0) and (self._recipe_execution['sph_ird_star_center']):
             print(' * OBJECT,CENTER data')
 
             # final arrays
@@ -1562,6 +1562,10 @@ class ImagingReduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
+            # null value for Dithering Motion Stage by default
+            dms_dx_ref = 0
+            dms_dy_ref = 0
+            
             # use manual center if explicitely requested
             if manual_center is not None:
                 centers = manual_center
@@ -1574,24 +1578,27 @@ class ImagingReduction(object):
                 starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
                 if len(starcen_files) == 0:
                     print('Warning: no OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center)
-                    
-                    # null value for Dithering Motion Stage
-                    dms_dx_ref = 0
-                    dms_dy_ref = 0
+                    centers = self._default_center
                 else:
                     fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                    centers = fits.getdata(path.preproc / fname)
-                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                    fpath = path.preproc / fname
+                    if fpath.exists():
+                        centers = fits.getdata(fpath)
                     
-                    # Dithering Motion Stage for star center: value is in micron,
-                    # and the pixel size is 18 micron
-                    dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                    dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                        # Dithering Motion Stage for star center: value is in micron,
+                        # and the pixel size is 18 micron
+                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
+                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                    else:
+                        print('Warning: sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                        centers = self._default_center
+                        
 
             # make sure we have only integers if user wants coarse centering
             if coarse_centering:
                 centers = centers.astype(np.int)
+                dms_dx_ref = np.int(dms_dx_ref)
+                dms_dy_ref = np.int(dms_dy_ref)
 
             # final center
             if cpix:
@@ -1642,8 +1649,6 @@ class ImagingReduction(object):
                     cx = cx + dms_dx_ref + dms_dx
                     cy = cy + dms_dy_ref + dms_dy
 
-                    print(cx, cy)
-                    
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
