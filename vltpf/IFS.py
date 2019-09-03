@@ -2545,10 +2545,7 @@ class Reduction(object):
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
             option is useful if fine centering must be done
-            afterwards.
-
-        Default is False. Note that if coarse_centering is
-            True, the save_scaled option is automatically disabled.
+            afterwards. Default is False.
 
         shift_method : str
             Method to scaling and shifting the images: fft or interp.
