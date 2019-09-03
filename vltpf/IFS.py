@@ -2665,7 +2665,7 @@ class Reduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    cx, cy = centers[wave_idx, :].astype(np.int)
+                    cx, cy = centers[wave_idx, :]
 
                     img  = img[:-1, :-1].astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
