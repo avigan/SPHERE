@@ -7,6 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
+import logging
 
 import vltpf.utils.aperture as aperture
 
@@ -16,6 +17,8 @@ from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
 global_cmap = 'inferno'
+
+_log = logging.getLogger(__name__)
 
 
 def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
@@ -48,9 +51,7 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
             missing.append(r)
 
     if not execute_recipe:
-        raise ValueError('{0} cannot executed because some files have been '.format(recipe_name) +
-                         'removed from the reduction directory ' +
-                         'or the following recipes have not been executed: {0}. '.format(missing))
+        raise ValueError('{0} cannot executed because some files have been removed from the reduction directory or the following recipes have not been executed: {0}. '.format(recipe_name, missing))
 
     return execute_recipe
 
@@ -298,7 +299,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         Collapsed data frame
     '''
 
-    print('   ==> collapse frames information')
+    _log.info('   ==> collapse frames information')
 
     nfinfo = None
     if collapse_type == 'none':
@@ -439,7 +440,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     # loop over images
     img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        _log.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -528,7 +529,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     nimg = len(cube)
     psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
-        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        _log.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
@@ -677,7 +678,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
-        print('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        _log.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -865,14 +866,14 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
     # subtract science cube if provided
     if cube_sci is not None:
-        print(' ==> subtract science cube')
+        _log.info(' ==> subtract science cube')
         cube_cen -= cube_sci
 
     spot_centers = np.full((1024, 2, 2), np.nan)
     spot_dist    = np.full((1024, nimg), np.nan)
     img_centers  = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube_cen):
-        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        _log.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube_cen[fidx])
