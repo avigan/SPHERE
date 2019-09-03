@@ -1315,9 +1315,8 @@ class ImagingReduction(object):
 
         manual_center : array
             User provided centers for the OBJECT,CENTER and OBJECT
-            frames. This should be an array of either 2 or nwavex2
-            values. For OBJECT,FLUX frames, the PSF is always
-            recentered. Default is None
+            frames. This should be an array of either 2 or nwave*2
+            values. Default is None
 
         coarse_centering : bool
             Control if images are finely centered or not before being

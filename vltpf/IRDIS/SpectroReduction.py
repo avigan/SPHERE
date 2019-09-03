@@ -1645,8 +1645,9 @@ class SpectroReduction(object):
         cpix : bool
             If True the images are centered on the pixel at coordinate
             dim//2 in the spatial dimension. If False the images are
-            centered between 2 pixels, at coordinates
-            (dim-1)/2. Default is True.
+            centered between 2 pixels, at coordinates (dim-1)/2. The
+            value of cpix is automatically set to True when
+            coarse_centering is set to True. Default is True.
 
         psf_dim : even int
             Size of the PSF images along in the spatial
@@ -1660,7 +1661,9 @@ class SpectroReduction(object):
         correct_mrs_chromatism : bool
             Correct for the slight chromatism in the MRS mode. This
             chromatism induces a slight shift of the PSF center with
-            wavelength. Default is True.
+            wavelength. The value of correct_mrs_chromatism is
+            automatically set to True when coarse_centering is set to
+            True. Default is True.
 
         split_posang : bool
             Save data taken at different position angles in separate
@@ -1669,16 +1672,15 @@ class SpectroReduction(object):
         manual_center : array
             User provided spatial center for the OBJECT,CENTER and
             OBJECT frames. This should be an array of 2 values (cx for
-            the 2 IRDIS fields). If a manual center is provided, the
-            value of coarse_centering is ignored for the OBJECT,CENTER and
-            OBJECT frames. Default is None
+            the 2 IRDIS fields). Default is None
 
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
-            option is useful if fine centering must be done afterwards.
+            option is useful if fine centering must be done
+            afterwards. Default is False.
 
         shift_method : str
             Method to shifting the images: fft or interp.  Default is
