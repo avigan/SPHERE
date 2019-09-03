@@ -1288,8 +1288,8 @@ class ImagingReduction(object):
 
         If there was no OBJECT,CENTER acquired in the sequence, then
         the centering will be performed with respect to a default,
-        pre-defined center that a representative of the typical center
-        of the coronagraph.
+        pre-defined center that is representative of the typical
+        center of the coronagraph.
 
         Parameters
         ----------
@@ -1336,6 +1336,7 @@ class ImagingReduction(object):
             much longer. The value of save_scaled is automatically set
             to True when coarse_centering is set to True. The default
             is False
+
         '''
 
         # check if recipe can be executed

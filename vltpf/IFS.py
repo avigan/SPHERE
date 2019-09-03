@@ -2508,8 +2508,8 @@ class Reduction(object):
 
         If there was no OBJECT,CENTER acquired in the sequence, then
         the centering will be performed with respect to a default,
-        pre-defined center that a representative of the typical center
-        of the coronagraph.
+        pre-defined center that is representative of the typical
+        center of the coronagraph.
 
         Parameters
         ----------
