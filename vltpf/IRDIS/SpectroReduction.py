@@ -1716,9 +1716,10 @@ class SpectroReduction(object):
         else:
             wfile = path.preproc / 'wavelength_default.fits'
             if wfile.exists():
+                print('Warning: using default wavelength calibration.')
                 wave = fits.getdata(wfile)
             else:
-                raise FileExistsError('Missing wavelength_default.fits or wavelength_recalibrated.fits files. You must first run the sph_ird_wavelength_recalibration() method first.')
+                raise FileExistsError('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_wave_calib or sph_ird_wavelength_recalibration().')
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field
