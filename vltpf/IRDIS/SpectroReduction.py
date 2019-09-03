@@ -84,8 +84,7 @@ class SpectroReduction(object):
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science',
-                                 'sph_ird_wavelength_recalibration']
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']
     }
 
     ##################################################
@@ -1103,6 +1102,21 @@ class SpectroReduction(object):
         # save
         files_info.to_csv(path.preproc / 'files.csv')
 
+        # store default wavelength calibration in preproc
+        if filter_comb == 'S_LR':
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
+        elif filter_comb == 'S_MR':
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
+
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wav_file))
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+
+        fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
+        
         # update recipe execution
         self._recipe_execution['sph_ird_wave_calib'] = True
 
@@ -1465,10 +1479,6 @@ class SpectroReduction(object):
         frames_info = self._frames_info_preproc
 
         # remove old files
-        wfile = path.preproc / 'wavelength_default.fits'
-        if wfile.exists():
-            wfile.unlink()
-
         wfile = path.preproc / 'wavelength_recalibrated.fits'
         if wfile.exists():
             wfile.unlink()
@@ -1498,11 +1508,6 @@ class SpectroReduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
-            
-            # update recipe execution
-            self._recipe_execution['sph_ird_wavelength_recalibration'] = True
-            
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])

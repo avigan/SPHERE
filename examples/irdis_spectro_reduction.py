@@ -45,4 +45,4 @@ reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300,
                                shift_method='fft', manual_center=None, coarse_centering=False)
 
 #%% cleaning
-reduction.sph_ird_clean(delete_raw=False, delete_products=False)
+reduction.sph_ird_clean(delete_raw=False, delete_products=True)
