@@ -1380,7 +1380,7 @@ class ImagingReduction(object):
                 raise ValueError('manual_center does not have the right number of dimensions.')
 
             if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center)
+                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
 
             print('Warning: images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 

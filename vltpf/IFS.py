@@ -2605,7 +2605,7 @@ class Reduction(object):
                 raise ValueError('manual_center does not have the right number of dimensions.')
 
             if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center)
+                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
 
             print('Warning: images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 
@@ -2645,7 +2645,7 @@ class Reduction(object):
                     centers = fits.getdata(cfile)
                 else:
                     print('Warning: sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center)
+                    centers = np.full((nwave, 2), self._default_center, dtype=np.float)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
@@ -2808,7 +2808,7 @@ class Reduction(object):
                 starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
                 if len(starcen_files) == 0:
                     print('Warning: no OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center)
+                    centers = np.full((nwave, 2), self._default_center, dtype=np.float)
                 else:
                     fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
                     fpath = path.preproc / fname
@@ -2817,7 +2817,7 @@ class Reduction(object):
                         centers = fits.getdata(fpath)
                     else:
                         print('Warning: sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                        centers = np.full((nwave, 2), self._default_center)
+                        centers = np.full((nwave, 2), self._default_center, dtype=np.float)
 
             # make sure we have only integers if user wants coarse centering
             if coarse_centering:
