@@ -1474,7 +1474,7 @@ class ImagingReduction(object):
         #
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         nfiles = len(starcen_files)
-        if (nfiles != 0) and (self._recipe_execution['sph_ird_star_center']):
+        if nfiles != 0:
             print(' * OBJECT,CENTER data')
 
             # final arrays
