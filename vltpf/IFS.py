@@ -2724,14 +2724,16 @@ class Reduction(object):
             for file_idx, (file, idx) in enumerate(starcen_files.index):
                 print('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(starcen_files), file, idx))
 
+                # read data
+                fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
+                files = list(path.preproc.glob(fname+'?????.fits'))
+                cube = fits.getdata(files[0])
+                
                 # use manual center if explicitely requested
                 if manual_center is not None:
                     centers = manual_center
                 else:
                     # otherwise read center data
-                    fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
-                    files = list(path.preproc.glob(fname+'?????.fits'))
-                    cube = fits.getdata(files[0])
                     centers = fits.getdata(path.preproc / '{}centers.fits'.format(fname))
                 
                 # make sure we have only integers if user wants coarse centering
