@@ -51,4 +51,4 @@ reduction.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_a
                                save_scaled=False)
 
 #%% cleaning
-reduction.sph_ifs_clean(delete_raw=False, delete_products=False)
+reduction.sph_ifs_clean(delete_raw=False, delete_products=True)
