@@ -47,6 +47,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         Master detector flat
 
     bpm : array
+
         Bad pixel map from flat
 
     '''
@@ -353,8 +354,7 @@ class Reduction(object):
         'sph_ifs_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ifs_preprocess_wave',
                                              'sph_ifs_science_cubes'],
         'sph_ifs_star_center': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes'],        
-        'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes',
-                                 'sph_ifs_wavelength_recalibration']
+        'sph_ifs_combine_data': ['sort_files', 'sort_frames', 'sph_ifs_science_cubes']
     }
 
     ##################################################
@@ -1556,6 +1556,15 @@ class Reduction(object):
         # save
         files_info.to_csv(path.preproc / 'files.csv')
 
+        # store default wavelength calibration in preproc
+        hdr = fits.getheader(path.calib / '{}.fits'.format(wav_file))
+
+        wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
+        wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
+        wave_drh = np.linspace(wave_min, wave_max, self._nwave)
+        
+        fits.writeto(path.preproc / 'wavelength_default.fits', wave_drh, overwrite=True)
+        
         # update recipe execution
         self._recipe_execution['sph_ifs_cal_wave'] = True
 
@@ -2167,11 +2176,7 @@ class Reduction(object):
         files_info = self._files_info
         frames_info = self._frames_info_preproc
 
-        # remove old files
-        wfile = path.preproc / 'wavelength_default.fits'
-        if wfile.exists():
-            wfile.unlink()
-
+        # remove old file
         wfile = path.preproc / 'wavelength_recalibrated.fits'
         if wfile.exists():
             wfile.unlink()
@@ -2201,11 +2206,6 @@ class Reduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(path.preproc / 'wavelength_default.fits', wave_drh, overwrite=True)
-            
-            # update recipe execution
-            self._recipe_execution['sph_ifs_wavelength_recalibration'] = True
-            
             return
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
