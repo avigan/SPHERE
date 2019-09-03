@@ -42,9 +42,10 @@ class ImagingReduction(object):
         'check_files_association': ['sort_files'],
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 'sph_ird_cal_detector_flat'],
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 
+                                       'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science', 'sph_ird_star_center']
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']
     }
 
     ##################################################
@@ -111,7 +112,12 @@ class ImagingReduction(object):
         self._recipe_execution = {
             'sort_files': False,
             'sort_frames': False,
-            'check_files_association': False
+            'check_files_association': False,
+            'sph_ird_cal_dark': False,
+            'sph_ird_cal_detector_flat': False,
+            'sph_ird_preprocess_science': False,
+            'sph_ird_star_center': False,
+            'sph_ird_combine_data': False
         }
 
         # reload any existing data frames
@@ -275,7 +281,7 @@ class ImagingReduction(object):
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
                                   manual_center=config['combine_manual_center'],
-                                  skip_center=config['combine_skip_center'],
+                                  coarse_centering=config['combine_coarse_centering'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
 
@@ -1235,7 +1241,7 @@ class ImagingReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, skip_center=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1262,12 +1268,37 @@ class ImagingReduction(object):
                            plan to perform spectral differential
                            imaging in your analysis.
 
+        Centering
+        ---------
+
+        By default, a fine (sub-pixel) centering is performed if the
+        an OBJECT,CENTER frame was acquired in the sequence or if
+        there is a valid user-provided center. However, if the
+        coarse_centering keyword is set to True, only a "coarse
+        centering" is performed, which requires no interpolation:
+
+          - only integer shifts (shift_method='roll')
+          - centering on an integer pixel (cpix=True)
+          - no correction of the anamorphism (correct_anamorphism=False)
+          - no saving of the rescaled frames (save_scaled=False)
+
+        This option is useful if the user wants to perform a
+        posteriori centering of the frames, e.g. to fully preserve 
+        photometry. 
+
+        If there was no OBJECT,CENTER acquired in the sequence, then
+        the centering will be performed with respect to a default,
+        pre-defined center that is representative of the typical
+        center of the coronagraph.
+
         Parameters
         ----------
         cpix : bool
             If True the images are centered on the pixel at coordinate
-            (dim//2,dim//2). If False the images are centered between 4
-            pixels, at coordinates ((dim-1)/2,(dim-1)/2). Default is True.
+            (dim//2,dim//2). If False the images are centered between
+            4 pixels, at coordinates ((dim-1)/2,(dim-1)/2). The value
+            of cpix is automatically set to True when coarse_centering
+            is set to True. Default is True.
 
         psf_dim : even int
             Size of the PSF images. Default is 80x80 pixels
@@ -1277,22 +1308,24 @@ class ImagingReduction(object):
             coronagraphic images). Default is 290, 290 pixels
 
         correct_anamorphism : bool
-            Correct the optical anamorphism of the instrument. Default
-            is True. See user manual for details.
+            Correct the optical anamorphism of the instrument (see
+            user manual for details). The value of correct_anamorphism
+            is automatically set to True when coarse_centering is set
+            to True. Default is True.
 
         manual_center : array
             User provided centers for the OBJECT,CENTER and OBJECT
-            frames. This should be an array of 2x2 values (cx,cy for
-            the 2 wavelengths). If a manual center is provided, the
-            value of skip_center is ignored for the OBJECT,CENTER and
-            OBJECT frames. Default is None
+            frames. This should be an array of either 2 or nwavex2
+            values. For OBJECT,FLUX frames, the PSF is always
+            recentered. Default is None
 
-        skip_center : bool
+        coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
             center of the data close to the center of the images. This
-            option is useful if fine centering must be done afterwards.
+            option is useful if fine centering must be done
+            afterwards. Default is False.
 
         shift_method : str
             Method to scaling and shifting the images: fft or interp.
@@ -1300,7 +1333,9 @@ class ImagingReduction(object):
 
         save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
-            much longer. The default is False
+            much longer. The value of save_scaled is automatically set
+            to True when coarse_centering is set to True. The default
+            is False
 
         '''
 
@@ -1330,19 +1365,24 @@ class ImagingReduction(object):
             print('Warning: science_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
             science_dim = 1024
 
-        # centering
-        # FIXME: store default center in IRDIS.ini?
-        centers_default = self._default_center
-        if skip_center:
-            print('Warning: images will not be fine centered. They will just be combined.')
+        # centering configuration
+        if coarse_centering:
+            print('Warning: images will be coarsely centered without any interpolation. Automatic settings for coarse centering: shift_method=\'roll\', cpix=True, correct_anamorphism=False, save_scaled=False')
             shift_method = 'roll'
+            cpix = True
+            correct_anamorphism = False
+            save_scaled = False
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
-            if manual_center.shape != (2, 2):
+            
+            if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
                 raise ValueError('manual_center does not have the right number of dimensions.')
 
-            print('Warning: images will be centered at the user-provided values.')
+            if manual_center.shape == (2,):
+                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
+
+            print('Warning: images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 
         #
         # OBJECT,FLUX
@@ -1372,7 +1412,17 @@ class ImagingReduction(object):
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+                
+                cfile = path.preproc / '{}_centers.fits'.format(fname)
+                if cfile.exists():
+                    centers = fits.getdata(cfile)
+                else:
+                    print('Warning: sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                    centers = self._default_center
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
 
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -1385,10 +1435,7 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if skip_center:
-                        cx, cy = centers_default[wave_idx, :]
-                    else:
-                        cx, cy = centers[wave_idx, :]
+                    cx, cy = centers[wave_idx, :]
 
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
@@ -1450,8 +1497,18 @@ class ImagingReduction(object):
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
 
+                # use manual center if explicitely requested
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    # otherwise read center data
+                    centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+                
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
+                
                 # neutral density
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
@@ -1463,13 +1520,7 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    if manual_center is not None:
-                        cx, cy = manual_center[wave_idx, :]
-                    else:
-                        if skip_center:
-                            cx, cy = centers_default[wave_idx, :]
-                        else:
-                            cx, cy = centers[wave_idx, :]
+                    cx, cy = centers[wave_idx, :]
 
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
@@ -1511,31 +1562,43 @@ class ImagingReduction(object):
         if nfiles != 0:
             print(' * OBJECT data')
 
-            # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
-            # in the sequence, but it would be better to be able to
-            # select which CENTER to use
-            starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-            if (len(starcen_files) == 0) or skip_center or (manual_center is not None):
-                print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
-                      'They will just be combined.')
-
-                # choose between manual center or default centers
-                if manual_center is not None:
-                    centers = manual_center
-                else:
-                    centers = centers_default
-
-                # null value for Dithering Motion Stage
-                dms_dx_ref = 0
-                dms_dy_ref = 0
+            # null value for Dithering Motion Stage by default
+            dms_dx_ref = 0
+            dms_dy_ref = 0
+            
+            # use manual center if explicitely requested
+            if manual_center is not None:
+                centers = manual_center
             else:
-                fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                centers = fits.getdata(path.preproc / fname)
+                # otherwise, look whether we have an OBJECT,CENTER frame
+            
+                # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
+                # in the sequence, but it would be better to be able to
+                # select which CENTER to use
+                starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+                if len(starcen_files) == 0:
+                    print('Warning: no OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
+                    centers = self._default_center
+                else:
+                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                    fpath = path.preproc / fname
+                    if fpath.exists():
+                        centers = fits.getdata(fpath)
+                    
+                        # Dithering Motion Stage for star center: value is in micron,
+                        # and the pixel size is 18 micron
+                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
+                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                    else:
+                        print('Warning: sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                        centers = self._default_center
+                        
 
-                # Dithering Motion Stage for star center: value is in micron,
-                # and the pixel size is 18 micron
-                dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+            # make sure we have only integers if user wants coarse centering
+            if coarse_centering:
+                centers = centers.astype(np.int)
+                dms_dx_ref = np.int(dms_dx_ref)
+                dms_dy_ref = np.int(dms_dy_ref)
 
             # final center
             if cpix:
@@ -1573,6 +1636,11 @@ class ImagingReduction(object):
                 dms_dx = frames_info.loc[(file, idx), 'INS1 PAC X'] / 18
                 dms_dy = frames_info.loc[(file, idx), 'INS1 PAC Y'] / 18
 
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    dms_dx = np.int(dms_dx)
+                    dms_dy = np.int(dms_dy)
+                
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     cx, cy = centers[wave_idx, :]

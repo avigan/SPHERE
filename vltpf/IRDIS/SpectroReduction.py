@@ -83,10 +83,9 @@ class SpectroReduction(object):
         'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
-        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib',
-                                             'sph_ird_star_center'],
+        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science',
-                                 'sph_ird_star_center', 'sph_ird_wavelength_recalibration']
+                                 'sph_ird_wavelength_recalibration']
     }
 
     ##################################################
@@ -161,7 +160,11 @@ class SpectroReduction(object):
             'check_files_association': False,
             'sph_ifs_cal_dark': False,
             'sph_ifs_cal_detector_flat': False,
-            'sph_ird_wave_calib': False
+            'sph_ird_wave_calib': False,
+            'sph_ird_preprocess_science': False,
+            'sph_ird_star_center': False,
+            'sph_ird_wavelength_recalibration': False,
+            'sph_ird_combine_data': False
         }
 
         # reload any existing data frames
@@ -333,7 +336,7 @@ class SpectroReduction(object):
                                   split_posang=config['combine_split_posang'],
                                   shift_method=config['combine_shift_method'],
                                   manual_center=config['combine_manual_center'],
-                                  skip_center=config['combine_skip_center'])
+                                  coarse_centering=config['combine_coarse_centering'])
 
     def clean(self):
         '''
@@ -444,7 +447,10 @@ class SpectroReduction(object):
         # additional checks to update recipe execution
         if frames_info_preproc is not None:
             self._recipe_execution['sph_ird_wavelength_recalibration'] \
-                = (path.preproc / 'wavelength_final.fits').exists()
+                = (path.preproc / 'wavelength_default.fits').exists()
+
+            self._recipe_execution['sph_ird_wavelength_recalibration'] \
+                = (path.preproc / 'wavelength_recalibrated.fits').exists()
 
             done = True
             files = frames_info_preproc.index
@@ -1389,9 +1395,10 @@ class SpectroReduction(object):
 
         # then OBJECT,CENTER (if any)
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-        DIT = starcen_files['DET SEQ1 DIT'].round(2)[0]
-        starsci_files = frames_info[(frames_info['DPR TYPE'] == 'OBJECT') & (frames_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(starcen_files) != 0:
+            DIT = starcen_files['DET SEQ1 DIT'].round(2)[0]
+            starsci_files = frames_info[(frames_info['DPR TYPE'] == 'OBJECT') & (frames_info['DET SEQ1 DIT'].round(2) == DIT)]
+
             for file, idx in starcen_files.index:
                 print('  ==> OBJECT,CENTER: {0}'.format(file))
 
@@ -1426,7 +1433,7 @@ class SpectroReduction(object):
 
     def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
-        are available.
+        are available. Otherwise simply use the ESO pipeline-calibrated law.
 
         It follows a similar process to that used for the IFS
         data. The method for the IFS is described in Vigan et
@@ -1457,6 +1464,15 @@ class SpectroReduction(object):
         files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
+        # remove old files
+        wfile = path.preproc / 'wavelength_default.fits'
+        if wfile.exists():
+            wfile.unlink()
+
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wfile.unlink()
+        
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         if filter_comb == 'S_LR':
@@ -1482,7 +1498,11 @@ class SpectroReduction(object):
         if len(starcen_files) == 0:
             print(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. ' +
                   'The standard wavelength calibrated by the ESO pripeline will be used.')
-            fits.writeto(path.preproc / 'wavelength_final.fits', wave_lin, overwrite=True)
+            fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
+            
+            # update recipe execution
+            self._recipe_execution['sph_ird_wavelength_recalibration'] = True
+            
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
@@ -1568,15 +1588,14 @@ class SpectroReduction(object):
 
         # save
         print(' * saving')
-        fits.writeto(path.preproc / 'wavelength_final.fits', wave_final, overwrite=True)
-
+        fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
 
         # update recipe execution
         self._recipe_execution['sph_ird_wavelength_recalibration'] = True
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
-                             split_posang=True, shift_method='fft', manual_center=None, skip_center=False):
+                             split_posang=True, shift_method='fft', manual_center=None, coarse_centering=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1591,7 +1610,7 @@ class SpectroReduction(object):
 
         For each type of data, the method saves 3 different files:
 
-          - *_cube: the (x,y,time) cube
+          - *_cube: the (x,y,time,nfield) cube
 
           - *_posang: the position angle vector.
 
@@ -1599,7 +1618,27 @@ class SpectroReduction(object):
                       frames. There is one line by time step in the
                       data cube.
 
-        Data are save separately for each field.
+        Centering
+        ---------
+
+        By default, a fine (sub-pixel) centering is performed if the
+        an OBJECT,CENTER frame was acquired in the sequence or if
+        there is a valid user-provided center. However, if the
+        coarse_centering keyword is set to True, only a "coarse
+        centering" is performed, which requires no interpolation:
+
+          - only integer shifts (shift_method='roll')
+          - centering on an integer pixel (cpix=True)
+          - no correction of the MRS chromatism (correct_mrs_chromatism=False)
+
+        This option is useful if the user wants to perform a
+        posteriori centering of the spectrum, e.g. to fully preserve
+        photometry.
+
+        If there was no OBJECT,CENTER acquired in the sequence, then
+        the centering will be performed with respect to a default,
+        pre-defined center that is representative of the typical center
+        of the coronagraph.
 
         Parameters
         ----------
@@ -1631,10 +1670,10 @@ class SpectroReduction(object):
             User provided spatial center for the OBJECT,CENTER and
             OBJECT frames. This should be an array of 2 values (cx for
             the 2 IRDIS fields). If a manual center is provided, the
-            value of skip_center is ignored for the OBJECT,CENTER and
+            value of coarse_centering is ignored for the OBJECT,CENTER and
             OBJECT frames. Default is None
 
-        skip_center : bool
+        coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
             shifting them by an integer number of pixel to bring the
@@ -1660,22 +1699,32 @@ class SpectroReduction(object):
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         if filter_comb == 'S_LR':
-            centers  = self._default_center_lrs
+            default_center = self._default_center_lrs
             wave_min = self._wave_min_lrs
             wave_max = self._wave_max_lrs
         elif filter_comb == 'S_MR':
-            centers  = self._default_center_mrs
+            default_center = self._default_center_mrs
             wave_min = self._wave_min_mrs
             wave_max = self._wave_max_mrs
 
+        # read final wavelength calibration
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wave = fits.getdata(wfile)
+        else:
+            wfile = path.preproc / 'wavelength_default.fits'
+            if wfile.exists():
+                wave = fits.getdata(wfile)
+            else:
+                raise FileExistsError('Missing wavelength_default.fits or wavelength_recalibrated.fits files. You must first run the sph_ird_wavelength_recalibration() method first.')
+
         # wavelength solution: make sure we have the same number of
         # wave points in each field
-        wave   = fits.getdata(path.preproc / 'wavelength_final.fits')
         mask   = ((wave_min <= wave) & (wave <= wave_max))
         iwave0 = np.where(mask[:, 0])[0]
         iwave1 = np.where(mask[:, 1])[0]
         nwave  = np.min([iwave0.size, iwave1.size])
-
+        
         iwave = np.empty((nwave, 2), dtype=np.int)
         iwave[:, 0] = iwave0[:nwave]
         iwave[:, 1] = iwave1[:nwave]
@@ -1683,7 +1732,7 @@ class SpectroReduction(object):
         final_wave = np.empty((nwave, 2))
         final_wave[:, 0] = wave[iwave[:, 0], 0]
         final_wave[:, 1] = wave[iwave[:, 1], 1]
-
+    
         fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
 
         # max images size
@@ -1695,21 +1744,22 @@ class SpectroReduction(object):
             print('Warning: science_dim cannot be larger than 1024 pix. A value of 1024 will be used.')
             science_dim = 1024
 
-        # centering
-        centers_default = centers[:, 0]
-        if skip_center:
-            print('Warning: images will not be fine centered. They will just be combined.')
+        # centering configuration
+        if coarse_centering:
+            print('Warning: images will be coarsely centered without any interpolation. Automatic settings for coarse centering: shift_method=\'roll\', cpix=True, correct_mrs_chromatism=False')
             shift_method = 'roll'
-
+            cpix = True
+            correct_mrs_chromatism = False
+        
         if manual_center is not None:
             manual_center = np.array(manual_center)
+            
             if manual_center.shape != (2,):
                 raise ValueError('manual_center does not have the right number of dimensions.')
 
-            print('Warning: images will be centered at the user-provided values.')
-
-        if correct_mrs_chromatism and (filter_comb == 'S_MR'):
-            print('Warning: fine centering will be done anyway to correct for MRS chromatism')
+            print('Warning: images will be centered using the user-provided center ({},{})'.format(*manual_center))
+            
+            manual_center = np.full((1024, 2), manual_center, dtype=np.float)
 
         #
         # OBJECT,FLUX
@@ -1736,7 +1786,17 @@ class SpectroReduction(object):
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+                
+                cfile = path.preproc / '{}_centers.fits'.format(fname)
+                if cfile.exists():
+                    centers = fits.getdata(cfile)
+                else:
+                    print('Warning: sph_ird_star_center() has not been executed. Images will be centered using default centers ({}, {})'.format(*default_center[:, 0]))
+                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1746,22 +1806,20 @@ class SpectroReduction(object):
                 for field_idx, img in enumerate(cube):
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
-
+                    
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         img = img.astype(np.float)
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
 
                             line = img[widx, :]
+                            
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
                             nimg = nimg / DIT
 
                             psf_cube[field_idx, file_idx, wave_idx] = nimg[:psf_dim]
                     else:
-                        if skip_center:
-                            cx = centers_default[field_idx]
-                        else:
-                            cx = centers[ciwave, field_idx].mean()
+                        cx = centers[ciwave, field_idx].mean()
 
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
@@ -1824,7 +1882,16 @@ class SpectroReduction(object):
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+                
+                # use manual center if explicitely requested
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
 
                 # DIT, angles, etc
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
@@ -1846,10 +1913,7 @@ class SpectroReduction(object):
 
                             cen_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
-                        if skip_center:
-                            cx = centers_default[field_idx]
-                        else:
-                            cx = centers[ciwave, field_idx].mean()
+                        cx = centers[ciwave, field_idx].mean()
 
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
@@ -1899,23 +1963,25 @@ class SpectroReduction(object):
             sci_cube   = np.zeros((2, nfiles, nwave, science_dim))
             sci_posang = np.zeros(nfiles)
 
-            # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
-            # in the sequence, but it would be better to be able to
-            # select which CENTER to use
-            starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-            if (len(starcen_files) == 0) or skip_center or (manual_center is not None):
-                print('Warning: no OBJECT,CENTER file in the data set. Images cannot be accurately centred. ' +
-                      'They will just be combined.')
-
-                # choose between manual center or default centers
-                if manual_center is not None:
-                    centers = manual_center
-                else:
-                    centers = centers_default
+            # use manual center if explicitely requested
+            if manual_center is not None:
+                centers = np.full((1024, 2), manual_center, dtype=np.float)
             else:
-                fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                centers = fits.getdata(path.preproc / fname)
+                # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
+                # in the sequence, but it would be better to be able to
+                # select which CENTER to use
+                starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+                if len(starcen_files) == 0:
+                    print('Warning: no OBJECT,CENTER file in the data set. Images will be centered using default center ({},{})'.format(*default_center[:, 0]))
+                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
+                else:
+                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                    centers = fits.getdata(path.preproc / fname)
 
+            # make sure we have only integers if user wants coarse centering
+            if coarse_centering:
+                centers = centers.astype(np.int)
+                    
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -1950,10 +2016,7 @@ class SpectroReduction(object):
 
                             sci_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
                     else:
-                        if skip_center:
-                            cx = centers_default[field_idx]
-                        else:
-                            cx = centers[ciwave, field_idx].mean()
+                        cx = centers[ciwave, field_idx].mean()
 
                         img  = img.astype(np.float)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
@@ -1980,7 +2043,7 @@ class SpectroReduction(object):
                     fits.writeto(path.products / 'science_posang={:06.2f}_cube.fits'.format(pa), sci_cube[:, ii], overwrite=True)
             else:
                 # save metadata
-                object_files.to_csv(path.products, 'science_posang=all_frames.csv')
+                object_files.to_csv(path.products / 'science_posang=all_frames.csv')
                 fits.writeto(path.products / 'science_posang=all_posang.fits', sci_posang, overwrite=True)
 
                 # save final cubes

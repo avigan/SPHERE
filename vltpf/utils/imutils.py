@@ -154,7 +154,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     elif isinstance(shift_value, (int, float)):
         shift_value = np.full(Ndim, shift_value)
     else:
-        raise ValueError('Shift value of type \'{0}\' is not allowed'.format(type(shift).__name__))    
+        raise ValueError('Shift value of type \'{0}\' is not allowed'.format(type(shift_value).__name__))    
 
     # check if shift values are int and automatically change method in case they are
     if (shift_value.dtype.kind == 'i'):
