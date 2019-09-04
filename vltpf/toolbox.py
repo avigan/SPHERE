@@ -230,7 +230,7 @@ def compute_angles(frames_info):
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
-    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
+    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset
     
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
