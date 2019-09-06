@@ -5,7 +5,7 @@ __license__ = 'MIT'
 import logging
 
 # define logging format for module
-logging.basicConfig(format='[%(levelname)-7s] %(message)s')
+logging.basicConfig(format='[%(name)s - %(levelname)-8s] %(message)s')
 _log = logging.getLogger(__name__)
 _log.setLevel(logging.DEBUG)
 _log.info('VLTPF init')

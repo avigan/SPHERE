@@ -11,7 +11,6 @@ reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/')
 reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'coadd'
 reduction.config['preproc_coadd_value']      = 2
-reduction.config['clean']                    = True
 reduction.show_config()
 
 #%% reduction
