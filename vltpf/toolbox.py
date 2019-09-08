@@ -21,7 +21,7 @@ global_cmap = 'inferno'
 _log = logging.getLogger(__name__)
 
 
-def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
+def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, logger=_log):
     '''
     Check execution of previous recipes for a given recipe.
 
@@ -273,7 +273,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     return bpm
 
 
-def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
+def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log):
     '''
     Collapse frame info to match the collapse operated on the data
 
@@ -299,7 +299,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         Collapsed data frame
     '''
 
-    _log.info('   ==> collapse frames information')
+    logger.info('   ==> collapse frames information')
 
     nfinfo = None
     if collapse_type == 'none':
@@ -400,7 +400,7 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -440,7 +440,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     # loop over images
     img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        _log.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -492,7 +492,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logger=_log):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -529,7 +529,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     nimg = len(cube)
     psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
-        _log.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
@@ -595,7 +595,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
 
 def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
                                       orientation_offset,  high_pass=False, center_offset=(0, 0), 
-                                      smooth=0, coro=True, save_path=None):
+                                      smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -678,7 +678,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
-        _log.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -812,7 +812,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_guess, pixel, high_pass=False,
-                                      save_path=None):
+                                      save_path=None, logger=_log):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
 
@@ -866,14 +866,14 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
     # subtract science cube if provided
     if cube_sci is not None:
-        _log.info(' ==> subtract science cube')
+        logger.info(' ==> subtract science cube')
         cube_cen -= cube_sci
 
     spot_centers = np.full((1024, 2, 2), np.nan)
     spot_dist    = np.full((1024, nimg), np.nan)
     img_centers  = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube_cen):
-        _log.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube_cen[fidx])

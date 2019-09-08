@@ -24,8 +24,6 @@ import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
 import vltpf.toolbox as toolbox
 
-_log = logging.getLogger(__name__)
-
 
 def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     '''
@@ -400,7 +398,7 @@ class Reduction(object):
                 logger.removeHandler(hdlr)
         
         handler = logging.FileHandler(self._path.products / 'reduction.log', mode='w', encoding='utf-8')
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)8s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s %(levelname)8s %(message)s')
         formatter.default_msec_format = '%s.%03d'        
         handler.setFormatter(formatter)
         logger.addHandler(handler)
@@ -1847,23 +1845,23 @@ class Reduction(object):
                         if collapse_center:
                             self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
                     elif (typ == 'OBJECT,FLUX'):
                         if collapse_psf:
                             self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
                     elif (typ == 'OBJECT'):
                         if collapse_science:
                             if collapse_type == 'mean':
                                 self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                                 img = np.mean(img, axis=0, keepdims=True)
 
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean')
+                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
                             elif collapse_type == 'coadd':
                                 if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                     raise TypeError('coadd_value must be an integer >1')
@@ -1884,11 +1882,11 @@ class Reduction(object):
                                     nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
                                 img = nimg
 
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value)
+                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value, logger=self._logger)
                             else:
                                 raise ValueError('Unknown collapse type {0}'.format(collapse_type))
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none')
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
 
                     # merge collapse collapsed frames_info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
@@ -2235,7 +2233,8 @@ class Reduction(object):
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
                                                         pixel, orientation_offset, high_pass=high_pass, 
-                                                        center_offset=offset, coro=coro, save_path=save_path)
+                                                        center_offset=offset, coro=coro, save_path=save_path, 
+                                                        logger=self._logger)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2423,7 +2422,8 @@ class Reduction(object):
                     save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, save_path=save_path)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, 
+                                                                    save_path=save_path, logger=self._logger)
 
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
@@ -2453,7 +2453,8 @@ class Reduction(object):
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
                                                                 pixel, orientation_offset, high_pass=high_pass, 
-                                                                center_offset=offset, save_path=save_path)
+                                                                center_offset=offset, save_path=save_path, 
+                                                                logger=self._logger)
 
                 # save
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
