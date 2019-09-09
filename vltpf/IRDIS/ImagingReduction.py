@@ -90,10 +90,13 @@ class ImagingReduction(object):
         
         self._logger = logger
         
+        self._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))        
+        
         # configuration
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
         try:
+            self._logger.debug('Read configuration')
             config.read(configfile)
 
             # instrument
@@ -243,6 +246,8 @@ class ImagingReduction(object):
         Sort files and frames, perform sanity check
         '''
 
+        self._logger.info('====> Init <====')
+        
         # make sure we have sub-directories
         self._path.create_subdirectories()
 
@@ -255,6 +260,8 @@ class ImagingReduction(object):
         '''
         Create static calibrations with esorex
         '''
+        
+        self._logger.info('====> Static calibrations <====')
 
         config = self._config
 
@@ -267,6 +274,8 @@ class ImagingReduction(object):
         Clean and collapse images
         '''
 
+        self._logger.info('====> Science pre-processing <====')
+        
         config = self._config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
@@ -284,6 +293,8 @@ class ImagingReduction(object):
         cubes, correct anamorphism and scale the images
         '''
 
+        self._logger.info('====> Science processing <====')
+        
         config = self._config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
@@ -305,6 +316,8 @@ class ImagingReduction(object):
         sub-directory
         '''
 
+        self._logger.info('====> Clean-up <====')
+        
         config = self._config
 
         if config['clean']:
@@ -318,6 +331,8 @@ class ImagingReduction(object):
         calibrations to the final (x,y,time,lambda) cubes
         '''
 
+        self._logger.info('====> Full reduction <====')
+        
         self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
@@ -342,6 +357,8 @@ class ImagingReduction(object):
             The data frame with all the information on science frames after pre-processing
         '''
 
+        self._logger.info('Read existing reduction information')
+        
         # path
         path = self._path
 
@@ -431,7 +448,7 @@ class ImagingReduction(object):
             Data frame with the information on raw files
         '''
 
-        self._logger.info('Sorting raw files')
+        self._logger.info('Sort raw files')
 
         # parameters
         path = self._path
@@ -515,7 +532,7 @@ class ImagingReduction(object):
             A data frame with the information on all frames
         '''
 
-        self._logger.info('Extracting frames information')
+        self._logger.info('Extract frames information')
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
@@ -614,7 +631,7 @@ class ImagingReduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
 
-        self._logger.info('Performing file association for calibrations')
+        self._logger.info('File association for calibrations')
 
         # parameters
         files_info = self._files_info
@@ -692,7 +709,7 @@ class ImagingReduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements)
 
-        self._logger.info('Creating darks and backgrounds')
+        self._logger.info('Darks and backgrounds')
 
         # parameters
         path = self._path
@@ -809,7 +826,7 @@ class ImagingReduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements)
 
-        self._logger.info('Creating flats')
+        self._logger.info('Instrument flats')
 
         # parameters
         path = self._path
@@ -946,7 +963,7 @@ class ImagingReduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements)
 
-        self._logger.info('Pre-processing science files')
+        self._logger.info('Pre-process science files')
 
         # parameters
         path = self._path

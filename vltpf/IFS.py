@@ -404,11 +404,14 @@ class Reduction(object):
         logger.addHandler(handler)
         
         self._logger = logger
+        
+        self._logger.info('Creating IFS reduction at path {}'.format(path))
 
         # configuration
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
         try:
+            self._logger.debug('Read configuration')
             config.read(configfile)
 
             # instrument
@@ -559,6 +562,8 @@ class Reduction(object):
         Sort files and frames, perform sanity check
         '''
 
+        self._logger.info('====> Init <====')
+        
         # make sure we have sub-directories
         self._path.create_subdirectories()
 
@@ -572,6 +577,8 @@ class Reduction(object):
         Create static calibrations, mainly with esorex
         '''
 
+        self._logger.info('====> Static calibrations <====')        
+        
         config = self._config
 
         self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
@@ -586,6 +593,8 @@ class Reduction(object):
         Collapse and correct raw IFU images
         '''
 
+        self._logger.info('====> Science pre-processing <====')
+        
         config = self._config
 
         self.sph_ifs_preprocess_science(subtract_background=config['preproc_subtract_background'],
@@ -606,6 +615,8 @@ class Reduction(object):
         center and combine cubes into final (x,y,time,lambda) cubes
         '''
 
+        self._logger.info('====> Science processing <====')
+        
         config = self._config
 
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
@@ -629,6 +640,8 @@ class Reduction(object):
         Clean the reduction directory
         '''
 
+        self._logger.info('====> Clean-up <====')
+        
         config = self._config
 
         if config['clean']:
@@ -641,6 +654,8 @@ class Reduction(object):
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
+        
+        self._logger.info('====> Full reduction <====')
 
         self.init_reduction()
         self.create_static_calibrations()
@@ -666,6 +681,8 @@ class Reduction(object):
             The data frame with all the information on science frames after pre-processing
         '''
 
+        self._logger.info('Read existing reduction information')
+        
         # path
         path = self._path
 
@@ -780,7 +797,7 @@ class Reduction(object):
             Data frame with the information on raw files
         '''
 
-        self._logger.info('Sorting raw files')
+        self._logger.info('Sort raw files')
 
         # parameters
         path = self._path
@@ -864,7 +881,7 @@ class Reduction(object):
             A data frame with the information on all frames
         '''
 
-        self._logger.info('Extracting frames information')
+        self._logger.info('Extract frames information')
 
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
@@ -963,7 +980,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
 
-        self._logger.info('Performing file association for calibrations')
+        self._logger.info('File association for calibrations')
 
         # parameters
         path = self._path
@@ -1195,7 +1212,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_dark', self.recipe_requirements)
 
-        self._logger.info('Creating darks and backgrounds')
+        self._logger.info('Darks and backgrounds')
 
         # parameters
         path = self._path
@@ -1301,7 +1318,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_detector_flat', self.recipe_requirements)
 
-        self._logger.info('Creating flats')
+        self._logger.info('Detector flats')
 
         # parameters
         path = self._path
@@ -1393,7 +1410,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_specpos', self.recipe_requirements)
 
-        self._logger.info('Creating specpos')
+        self._logger.info('Microspectra positions')
 
         # parameters
         path = self._path
@@ -1479,7 +1496,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_wave', self.recipe_requirements)
 
-        self._logger.info('Creating wavelength calibration')
+        self._logger.info('Wavelength calibration')
 
         # parameters
         path = self._path
@@ -1592,7 +1609,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_cal_ifu_flat', self.recipe_requirements)
 
-        self._logger.info('Creating IFU flat')
+        self._logger.info('Integral-field unit flat')
 
         # parameters
         path = self._path
@@ -1764,7 +1781,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_preprocess_science', self.recipe_requirements)
 
-        self._logger.info('Pre-processing science files')
+        self._logger.info('Pre-process science files')
 
         # parameters
         path = self._path
@@ -1956,7 +1973,7 @@ class Reduction(object):
         path = self._path
         files_info = self._files_info
 
-        self._logger.info('Pre-processing wavelength calibration file')
+        self._logger.info('Pre-process wavelength calibration file')
 
         # bpm
         bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
@@ -2022,7 +2039,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_science_cubes', self.recipe_requirements)
 
-        self._logger.info('Creating the (x,y,lambda) science cubes')
+        self._logger.info('Create science cubes')
 
         # parameters
         path = self._path
@@ -2169,7 +2186,7 @@ class Reduction(object):
         # check if recipe can be executed
         toolbox.check_recipe_execution(self._recipe_execution, 'sph_ifs_wavelength_recalibration', self.recipe_requirements)
 
-        self._logger.info('Recalibrating wavelength')
+        self._logger.info('Wavelength recalibration')
 
         # parameters
         path = self._path
