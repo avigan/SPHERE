@@ -129,7 +129,7 @@ class SpectroReduction(object):
                 logger.removeHandler(hdlr)
         
         handler = logging.FileHandler(self._path.products / 'reduction.log', mode='w', encoding='utf-8')
-        formatter = logging.Formatter('%(asctime)s %(levelname)8s %(message)s')
+        formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
         formatter.default_msec_format = '%s.%03d'        
         handler.setFormatter(formatter)
         logger.addHandler(handler)
