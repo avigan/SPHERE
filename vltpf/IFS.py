@@ -809,7 +809,7 @@ class Reduction(object):
         if len(files) == 0:
             raise ValueError('No raw FITS files in reduction path')
 
-        self._logger.info(' * found {0} FITS files in {1}'.format(len(files), path.raw))
+        self._logger.info(' * found {0} raw FITS files'.format(len(files)))
 
         # read list of keywords
         keywords = []
@@ -1190,9 +1190,11 @@ class Reduction(object):
                 self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction'.format(DIT))
 
         # error reporting
-        self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
         if error_flag:
+            self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
             raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+        else:
+            self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
 
         # save
         files_info.to_csv(path.preproc / 'files.csv')
@@ -2220,12 +2222,12 @@ class Reduction(object):
         #
         # star center
         #
-        self._logger.info(' * fitting satelitte spots')
+        self._logger.info(' * fitting satellite spots')
 
         # get first DIT of first OBJECT,CENTER in the sequence
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) == 0:
-            self._logger.info(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
+            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
             return
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
@@ -2417,7 +2419,7 @@ class Reduction(object):
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
             for file, idx in flux_files.index:
-                self._logger.info('  ==> OBJECT,FLUX: {0}'.format(file))
+                self._logger.info(' * OBJECT,FLUX: {0}'.format(file))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2449,7 +2451,7 @@ class Reduction(object):
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) != 0:
             for file, idx in starcen_files.index:
-                self._logger.info('  ==> OBJECT,CENTER: {0}'.format(file))
+                self._logger.info(' * OBJECT,CENTER: {0}'.format(file))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2652,7 +2654,7 @@ class Reduction(object):
                 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2740,7 +2742,7 @@ class Reduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2854,7 +2856,7 @@ class Reduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc_'.format(file, idx)
@@ -2948,11 +2950,11 @@ class Reduction(object):
         # raw
         if delete_raw:
             if path.raw.exists():
-                self._logger.warning('    ==> delete raw files')
+                self._logger.warning('   ==> delete raw files')
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
             if path.products.exists():
-                self._logger.warning('    ==> delete products')
+                self._logger.warning('   ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)

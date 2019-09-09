@@ -440,7 +440,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     # loop over images
     img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        logger.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -529,7 +529,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logge
     nimg = len(cube)
     psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
-        logger.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
@@ -678,7 +678,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
-        logger.info('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -866,14 +866,14 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
     # subtract science cube if provided
     if cube_sci is not None:
-        logger.info(' ==> subtract science cube')
+        logger.info('   ==> subtract science cube')
         cube_cen -= cube_sci
 
     spot_centers = np.full((1024, 2, 2), np.nan)
     spot_dist    = np.full((1024, nimg), np.nan)
     img_centers  = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube_cen):
-        logger.info('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube_cen[fidx])

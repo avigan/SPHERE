@@ -526,7 +526,7 @@ class SpectroReduction(object):
         if len(files) == 0:
             raise ValueError('No raw FITS files in reduction path')
 
-        self._logger.info(' * found {0} FITS files in {1}'.format(len(files), path.raw))
+        self._logger.info(' * found {0} raw FITS files'.format(len(files)))
 
         # read list of keywords
         keywords = []
@@ -778,9 +778,11 @@ class SpectroReduction(object):
                 self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction'.format(DIT))
 
         # error reporting
-        self._logger.info('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
         if error_flag:
+            self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
             raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+        else:
+            self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
 
         # save
         files_info.to_csv(path.preproc / 'files.csv')
@@ -1415,7 +1417,7 @@ class SpectroReduction(object):
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
             for file, idx in flux_files.index:
-                self._logger.info('  ==> OBJECT,FLUX: {0}'.format(file))
+                self._logger.info(' * OBJECT,FLUX: {0}'.format(file))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1439,7 +1441,7 @@ class SpectroReduction(object):
             starsci_files = frames_info[(frames_info['DPR TYPE'] == 'OBJECT') & (frames_info['DET SEQ1 DIT'].round(2) == DIT)]
 
             for file, idx in starcen_files.index:
-                self._logger.info('  ==> OBJECT,CENTER: {0}'.format(file))
+                self._logger.info(' * OBJECT,CENTER: {0}'.format(file))
 
                 # read center data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1531,7 +1533,7 @@ class SpectroReduction(object):
         # get spot distance from the first OBJECT,CENTER in the sequence
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) == 0:
-            self._logger.info(' ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
+            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
             return
 
         fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
@@ -1543,7 +1545,7 @@ class SpectroReduction(object):
         pix = np.arange(1024)
         wave_final = np.zeros((1024, 2))
         for fidx in range(2):
-            self._logger.info('  field {0:2d}/{1:2d}'.format(fidx+1, 2))
+            self._logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, 2))
 
             wave = wave_lin[fidx]
             dist = spot_dist[:, fidx]
@@ -2008,7 +2010,7 @@ class SpectroReduction(object):
             # make sure we have only integers if user wants coarse centering
             if coarse_centering:
                 centers = centers.astype(np.int)
-                    
+
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -2120,12 +2122,12 @@ class SpectroReduction(object):
         # raw
         if delete_raw:
             if path.raw.exists():
-                self._logger.warning('    ==> delete raw files')
+                self._logger.warning('   ==> delete raw files')
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
             if path.products.exists():
-                self._logger.warning('    ==> delete products')
+                self._logger.warning('   ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)
 
