@@ -1812,7 +1812,7 @@ class SpectroReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(flux_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1906,7 +1906,7 @@ class SpectroReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(starcen_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -2017,7 +2017,7 @@ class SpectroReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(object_files), file, idx))
+                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -2096,7 +2096,7 @@ class SpectroReduction(object):
             Delete science products. Default is False
         '''
 
-        self._logger.info('Cleaning')
+        self._logger.info('Clean reduction data')
         
         # parameters
         path = self._path
@@ -2120,9 +2120,12 @@ class SpectroReduction(object):
         # raw
         if delete_raw:
             if path.raw.exists():
+                self._logger.warning('    ==> delete raw files')
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
             if path.products.exists():
+                self._logger.warning('    ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)
+

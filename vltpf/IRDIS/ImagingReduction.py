@@ -1425,7 +1425,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(flux_files), file, idx))
+                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1508,7 +1508,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(starcen_files), file, idx))
+                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1628,7 +1628,7 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                self._logger.info('  ==> file {0}/{1}: {2}, DIT={3}'.format(file_idx+1, len(object_files), file, idx))
+                self._logger.info('  ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
 
                 # read data
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
@@ -1733,9 +1733,11 @@ class ImagingReduction(object):
         # raw
         if delete_raw:
             if path.raw.exists():
+                self._logger.warning('    ==> delete raw files')
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
             if path.products.exists():
+                self._logger.warning('    ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)
