@@ -2907,6 +2907,8 @@ class Reduction(object):
             Delete science products. Default is False
         '''
 
+        self._logger.info('Cleaning')
+        
         # parameters
         path = self._path
 
