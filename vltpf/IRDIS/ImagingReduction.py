@@ -1709,7 +1709,7 @@ class ImagingReduction(object):
             Delete science products. Default is False
         '''
 
-        self._logger.info('Cleaning')
+        self._logger.info('Clean reduction data')
         
         # parameters
         path = self._path
