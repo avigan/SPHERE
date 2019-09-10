@@ -5,7 +5,7 @@ import vltpf.IRDIS as IRDIS
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/', log_level='debug')
 
 #%% configuration
 reduction.config['combine_science_dim'] = 300
@@ -20,7 +20,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/', log_level='debug')
 
 #%% sorting
 reduction.sort_files()
@@ -45,4 +45,4 @@ reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300,
                                shift_method='fft', manual_center=None, coarse_centering=False)
 
 #%% cleaning
-reduction.sph_ird_clean(delete_raw=False, delete_products=True)
+reduction.sph_ird_clean(delete_raw=False, delete_products=False)

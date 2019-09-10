@@ -5,13 +5,12 @@ import vltpf.IFS as IFS
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/')
+reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='debug')
 
 #%% configuration
 reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'coadd'
 reduction.config['preproc_coadd_value']      = 2
-reduction.config['clean']                    = True
 reduction.show_config()
 
 #%% reduction
@@ -22,7 +21,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/')
+reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='debug')
 
 #%% sorting
 reduction.sort_files()
@@ -51,4 +50,4 @@ reduction.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_a
                                save_scaled=False)
 
 #%% cleaning
-reduction.sph_ifs_clean(delete_raw=False, delete_products=True)
+reduction.sph_ifs_clean(delete_raw=False, delete_products=False)

@@ -7,6 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
+import logging
 
 import vltpf.utils.aperture as aperture
 
@@ -17,8 +18,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 global_cmap = 'inferno'
 
+_log = logging.getLogger(__name__)
 
-def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
+
+def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, logger=_log):
     '''
     Check execution of previous recipes for a given recipe.
 
@@ -32,6 +35,9 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
 
     recipe_requirements : dict
         Dictionary providing the recipe requirements
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
 
     Returns
     -------
@@ -48,10 +54,10 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements):
             missing.append(r)
 
     if not execute_recipe:
-        raise ValueError('{0} cannot executed because some files have been '.format(recipe_name) +
-                         'removed from the reduction directory ' +
-                         'or the following recipes have not been executed: {0}. '.format(missing))
+        raise ValueError('{0} cannot executed because some files have been removed from the reduction directory or the following recipes have not been executed: {0}. '.format(recipe_name, missing))
 
+    logger.debug('> execution requirements check for {}: {}'.format(recipe_name, execute_recipe))
+    
     return execute_recipe
 
 
@@ -84,7 +90,7 @@ def parallatic_angle(ha, dec, geolat):
     return np.degrees(pa)
 
 
-def compute_times(frames_info):
+def compute_times(frames_info, logger=_log):
     '''
     Compute the various timestamps associated to frames
 
@@ -92,8 +98,14 @@ def compute_times(frames_info):
     ----------
     frames_info : dataframe
         The data frame with all the information on science frames
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     '''
 
+    logger.debug('> compute time stamps')
+    
     # get necessary values
     time_start = frames_info['DATE-OBS'].values
     time_end   = frames_info['DET FRAM UTC'].values
@@ -130,7 +142,7 @@ def compute_times(frames_info):
     frames_info['MJD END']    = mjd_end
 
 
-def compute_angles(frames_info):
+def compute_angles(frames_info, logger=_log):
     '''
     Compute the various angles associated to frames: RA, DEC, parang,
     pupil offset, final derotation angle
@@ -139,8 +151,14 @@ def compute_angles(frames_info):
     ----------
     frames_info : dataframe
         The data frame with all the information on science frames
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     '''
 
+    logger.debug('> compute angles')
+    
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
@@ -235,7 +253,7 @@ def compute_angles(frames_info):
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
 
 
-def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
+def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
     '''
     Compute a combined bad pixel map provided a list of files
 
@@ -247,7 +265,11 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     dtype : data type
         Data type for the final bpm
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
+    -------
     bpm : array_like
         Combined bad pixel map
     '''
@@ -256,6 +278,8 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     if len(bpm_files) == 0:
         raise ValueError('No bad pixel map files provided')
 
+    logger.debug('> compute master bad pixel map from {} files'.format(len(bpm_files)))
+    
     # get shape
     shape = fits.getdata(bpm_files[0]).shape
 
@@ -272,7 +296,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8):
     return bpm
 
 
-def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
+def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log):
     '''
     Collapse frame info to match the collapse operated on the data
 
@@ -292,21 +316,27 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         Number of consecutive frames to be coadded when collapse_type
         is coadd. Default is 2
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     nfinfo : dataframe
         Collapsed data frame
     '''
 
-    print('   ==> collapse frames information')
+    logger.info('   ==> collapse frames information')
 
     nfinfo = None
     if collapse_type == 'none':
         nfinfo = finfo
+        logger.debug('> type=none: copy input data frame')
     elif collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
         nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
 
+        logger.debug('> type=mean: extract min/max values')
+        
         # get min/max indices
         imin = finfo.index.get_level_values(1).min()
         imax = finfo.index.get_level_values(1).max()
@@ -320,14 +350,16 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
         nfinfo.loc[(fname, 0), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
         nfinfo.loc[(fname, 0), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
-
+        
         # recompute angles
-        compute_angles(nfinfo)
+        compute_angles(nfinfo, logger=logger)
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
         NDIT = len(finfo)
         NDIT_new = NDIT // coadd_value
 
+        logger.debug('> type=coadd: extract sub-groups of {} frames'.format(coadd_value))
+        
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
         nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
 
@@ -345,9 +377,9 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2):
             nfinfo.loc[(fname, f), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
             nfinfo.loc[(fname, f), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
                                              (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
-
+            
         # recompute angles
-        compute_angles(nfinfo)
+        compute_angles(nfinfo, logger=logger)
     else:
         raise ValueError('Unknown collapse type {0}'.format(collapse_type))
 
@@ -399,7 +431,7 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -417,6 +449,9 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
 
     Returns
     -------
@@ -439,7 +474,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     # loop over images
     img_centers = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube)):
-        print('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -491,7 +526,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None):
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logger=_log):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -509,6 +544,9 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
 
     Returns
     -------
@@ -528,7 +566,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
     nimg = len(cube)
     psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
-        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
@@ -594,7 +632,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None):
 
 def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
                                       orientation_offset,  high_pass=False, center_offset=(0, 0), 
-                                      smooth=0, coro=True, save_path=None):
+                                      smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -640,6 +678,9 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     spot_centers : array_like
@@ -677,7 +718,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
-        print('  wave {0:2d}/{1:2d} ({2:.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -811,7 +852,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_guess, pixel, high_pass=False,
-                                      save_path=None):
+                                      save_path=None, logger=_log):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
 
@@ -840,6 +881,9 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     spot_centers : array_like
@@ -865,14 +909,14 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
 
     # subtract science cube if provided
     if cube_sci is not None:
-        print(' ==> subtract science cube')
+        logger.info('   ==> subtract science cube')
         cube_cen -= cube_sci
 
     spot_centers = np.full((1024, 2, 2), np.nan)
     spot_dist    = np.full((1024, nimg), np.nan)
     img_centers  = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube_cen):
-        print('  field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
 
         # remove any NaN
         img = np.nan_to_num(cube_cen[fidx])

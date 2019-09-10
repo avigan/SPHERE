@@ -1,11 +1,8 @@
-'''
-VLT/SPHERE primary module
-'''
-
 import os
 import glob
 import shutil
 import math
+import logging
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as etree
@@ -15,6 +12,8 @@ import vltpf.IFS as IFS
 
 from astropy.io import fits
 from astropy.time import Time
+
+_log = logging.getLogger(__name__)
 
 
 def process_mainFiles(mainFiles, files, silent=True):
@@ -38,7 +37,7 @@ def process_mainFiles(mainFiles, files, silent=True):
         files.append(fname)
 
         if not silent:
-            print(' ==> {0}'.format(fname))
+            _log.info(' ==> {0}'.format(fname))
 
 
 def process_association(tree, files, silent=True):
@@ -59,25 +58,25 @@ def process_association(tree, files, silent=True):
     catg = tree.attrib['category']
 
     if not silent:
-        print(catg)
+        _log.info(catg)
 
     # skip unused calibrations
     if (catg == 'IFS_STD_ASTROM') or (catg == 'IFS_STD_PHOT') or \
        (catg == 'IFS_DIST') or (catg == 'IRD_CLI_PHOT') or \
        (catg == 'IRD_DIST'):
         if not silent:
-            print(' ==> skipping')
+            _log.info(' ==> skipping')
         return
 
     # process differently mainFiles from associatedFiles
     for elt in tree:
         if elt.tag == 'mainFiles':
             if not silent:
-                print('mainFiles')
+                _log.info('mainFiles')
             process_mainFiles(elt, files)
         elif elt.tag == 'associatedFiles':
             if not silent:
-                print('associatedFiles')
+                _log.info('associatedFiles')
             for nelt in elt:
                 process_association(nelt, files, silent=silent)
 
@@ -114,15 +113,15 @@ def sort_files_from_xml(path, silent=True):
 
     xml_files = glob.glob(path+'*.xml')
 
-    print('Sort data based on XML files (ESO automated calibration selection)')
-    print(' ==> {0} XML files\n'.format(len(xml_files)))
+    _log.info('Sort data based on XML files (ESO automated calibration selection)')
+    _log.info(' ==> {0} XML files\n'.format(len(xml_files)))
     
     # sort files
     for file in xml_files:
         tree = etree.parse(file)
         root = tree.getroot()            
 
-        print(os.path.basename(file))
+        _log.info(os.path.basename(file))
         
         # process only IFS and IRDIS science data
         catg = root.attrib['category']
@@ -138,7 +137,7 @@ def sort_files_from_xml(path, silent=True):
             filename = filename.replace(':', '_')
         
         if not os.path.exists(path+filename+'.fits'):
-            print(' ==> file {} does not exsist. Skipping'.format(filename))
+            _log.info(' ==> file {} does not exsist. Skipping'.format(filename))
             continue
 
         hdr = fits.getheader(path+filename+'.fits')
@@ -184,7 +183,7 @@ def sort_files_from_xml(path, silent=True):
             
             # check if file actually exists
             if not os.path.exists(fpath):
-                print(' ==> file {} does not exist. Skipping.'.format(fpath))
+                _log.info(' ==> file {} does not exist. Skipping.'.format(fpath))
                 continue
             
             # copy if needed
@@ -194,10 +193,9 @@ def sort_files_from_xml(path, silent=True):
 
         # print status
         if not silent:
-            print('{0} - id={1}'.format(target, obs_id))
-            print(' ==> found {0} files'.format(len(files)))
-            print(' ==> copied to {0}'.format(target_path))
-            print()
+            _log.info('{0} - id={1}'.format(target, obs_id))
+            _log.info(' ==> found {0} files'.format(len(files)))
+            _log.info(' ==> copied to {0}'.format(target_path))
 
     # move all files
     path_new = os.path.join(path, 'all_files')
@@ -237,8 +235,8 @@ def sort_files_from_fits(path, silent=True):
 
     fits_files = glob.glob(path+'*.fits')
 
-    print('Sort data based on FITS files')
-    print(' ==> {0} FITS files\n'.format(len(fits_files)))
+    _log.info('Sort data based on FITS files')
+    _log.info(' ==> {0} FITS files\n'.format(len(fits_files)))
 
     # sort files
     for file in fits_files:
@@ -277,9 +275,8 @@ def sort_files_from_fits(path, silent=True):
 
         # print status
         if not silent:
-            print('{0} - id={1}'.format(target, obs_id))
-            print(' ==> copied to {0}'.format(target_path))
-            print()
+            _log.info('{0} - id={1}'.format(target, obs_id))
+            _log.info(' ==> copied to {0}'.format(target_path))
 
     # move all files
     path_new = os.path.join(path, 'unsorted_files')
@@ -417,11 +414,9 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Initialization of {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Initialization of {0} reduction at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
             
             r.init_reduction()
 
@@ -432,11 +427,9 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Static calibrations for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Static calibrations for {0} at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
             
             r.create_static_calibrations()
 
@@ -447,11 +440,9 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Pre-process data for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Pre-process data for {0} at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
             
             r.preprocess_science()
 
@@ -463,11 +454,9 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Process data for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Process data for {0} at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
 
             r.process_science()
 
@@ -479,11 +468,9 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Clean {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Clean {0} reduction at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
 
             r.clean()
         
@@ -495,11 +482,9 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Full {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            _log.info('*')
+            _log.info('* Full {0} reduction at path {1}'.format(r.instrument, r.path))
+            _log.info('*')
             
             r.full_reduction()
 
@@ -512,7 +497,7 @@ class Dataset:
         Detect and create valid reductions in path
         '''
 
-        print('Create reductions from available data')
+        _log.info('Create reductions from available data')
 
         wpath = os.walk(self._path)
         for w in wpath:
@@ -534,7 +519,7 @@ class Dataset:
                             if mode == 'imaging':
                                 reduction  = IRDIS.ImagingReduction(reduction_path)
                             elif mode == 'polar':
-                                print('Warning: IRDIS DPI not supported yet')
+                                _log.info('Warning: IRDIS DPI not supported yet')
                             elif mode == 'spectro':
                                 reduction  = IRDIS.SpectroReduction(reduction_path)
                                 
@@ -548,9 +533,8 @@ class Dataset:
                     except:
                         continue
 
-                    print(reduction_path)
-                    print('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
-                    print()
+                    _log.info(reduction_path)
+                    _log.info('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
 
         # merge all reductions into a single list
         self._reductions = self._IFS_reductions + self._IRDIS_reductions
