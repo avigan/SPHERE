@@ -1777,6 +1777,7 @@ class ImagingReduction(object):
             fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
             fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
             if save_scaled:
+                self._logger.debug('> save scaled cubes')
                 fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
 
             # delete big cubes
