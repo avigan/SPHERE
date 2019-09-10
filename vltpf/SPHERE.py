@@ -513,14 +513,14 @@ class Dataset:
                 # if directory has a raw/ sub-directory, make sure it
                 # has FITS files and that they are from a valid
                 # sub-system
-                reduction_path = w[0]                
-                fits_files = glob.glob(os.path.join(reduction_path, 'raw', '*.fits'))
+                reduction_path = Path(w[0])
+                fits_files = list((reduction_path / 'raw').glob('*.fits'))
                 if len(fits_files) != 0:
                     hdr = fits.getheader(fits_files[0])
                     try:
                         arm = hdr['HIERARCH ESO SEQ ARM']
                         if arm == 'IRDIS':
-                            mode = classify_irdis_dataset(Path(reduction_path), logger=self._logger)
+                            mode = classify_irdis_dataset(reduction_path, logger=self._logger)
                             
                             if mode == 'imaging':
                                 self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
