@@ -1298,6 +1298,7 @@ class ImagingReduction(object):
 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
+                self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
                 if plot:
                     save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
                 else:
