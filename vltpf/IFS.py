@@ -24,8 +24,10 @@ import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
 import vltpf.toolbox as toolbox
 
+_log = logging.getLogger(__name__)
 
-def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
+
+def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True, logger=_log):
     '''
     Compute a master detector flat and associated bad pixel map
 
@@ -42,6 +44,9 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         vignetting. The areas of the detector that are vignetted are
         replaced by a value of 1 in the flats. Default is True
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     flat : array
@@ -54,9 +59,10 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     '''
 
     # read bad pixel maps
-    bpm_in = toolbox.compute_bad_pixel_map(bpm_files, dtype=np.uint8)
+    bpm_in = toolbox.compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=logger)
 
     # read data
+    logger.debug('> read data')
     ff0, hdr0 = fits.getdata(raw_flat_files[0], header=True)
     ff1, hdr1 = fits.getdata(raw_flat_files[1], header=True)
 
@@ -68,6 +74,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         ff1 = np.median(ff1, axis=0)
 
     # create master flat
+    logger.debug('> create master flat')
     DIT0 = hdr0['HIERARCH ESO DET SEQ1 DIT']
     DIT1 = hdr1['HIERARCH ESO DET SEQ1 DIT']
 
@@ -77,6 +84,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
         flat = ff1 - ff0
 
     # bad pixels correction
+    logger.debug('> bad pixels correction (1/2)')
     flat = imutils.fix_badpix(flat, bpm_in, npix=12, weight=True)
 
     # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
@@ -84,15 +92,18 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     flat = imutils.sigma_filter(flat, box=7, nsigma=3, iterate=True)
 
     # normalized flat
+    logger.debug('> normalize')
     flat = flat / np.median(flat)
 
-    # additional rounad of bad pixels correction
+    # additional round of bad pixels correction
+    logger.debug('> bad pixels correction (2/2)')
     bpm = (flat <= 0.9) | (flat >= 1.1)
     bpm = bpm.astype(np.uint8)
     flat = imutils.fix_badpix(flat, bpm, npix=12, weight=True)
     # flat = imutils.fix_badpix_vip(flat, bpm_in, box=5)
 
     # final products
+    logger.debug('> compute final flat')
     flat = flat / np.median(flat)
 
     bpm = (flat <= 0.9) | (flat >= 1.1)
@@ -101,13 +112,14 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True):
     # apply IFU mask to avoid "edge effects" in the final images,
     # where the the lenslets are vignetted
     if mask_vignetting:
+        logger.debug('> apply mask vignetting')
         ifu_mask = fits.getdata(Path(vltpf.__file__).parent / 'data' / 'ifu_mask.fits')
         flat[ifu_mask == 0] = 1
 
     return flat, bpm
 
 
-def sph_ifs_correct_spectral_xtalk(img):
+def sph_ifs_correct_spectral_xtalk(img, logger=_log):
     '''
     Corrects a IFS frame from the spectral crosstalk
 
@@ -135,6 +147,9 @@ def sph_ifs_correct_spectral_xtalk(img):
     img : array_like
         Input IFS science frame
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     img_corr : array_like
@@ -142,6 +157,8 @@ def sph_ifs_correct_spectral_xtalk(img):
 
     '''
 
+    logger.debug('> subtract IFS crosstalk')
+    
     # definition of the dimension of the matrix
     sepmax = 20
     dim    = sepmax*2+1
@@ -156,13 +173,15 @@ def sph_ifs_correct_spectral_xtalk(img):
     kernel[(np.abs(x) <= 1) & (np.abs(y) <= 1)] = 0
 
     # convolution and subtraction
+    logger.debug('> compute convolution')
     conv = ndimage.convolve(img, kernel, mode='reflect')
+    logger.debug('> subtract convolution')
     img_corr = img - conv
 
     return img_corr
 
 
-def sph_ifs_fix_badpix(img, bpm):
+def sph_ifs_fix_badpix(img, bpm, logger=_log):
     '''
     Clean the bad pixels in an IFU image
 
@@ -181,6 +200,9 @@ def sph_ifs_fix_badpix(img, bpm):
     bpm : array_like
         Bad pixel map
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     img_clean : array_like
@@ -188,6 +210,7 @@ def sph_ifs_fix_badpix(img, bpm):
     '''
 
     # copy the original image
+    logger.debug('> copy input image')
     img_clean = img.copy()
 
     # extension over which the good pixels will be looked for along
@@ -208,6 +231,7 @@ def sph_ifs_fix_badpix(img, bpm):
     idx_lh = np.arange(ext)+1
 
     # loop over bad pixels
+    logger.debug('> loop over bad pixels')
     badpix = np.where(bpm == 1)
     for y, x in zip(badpix[0], badpix[1]):
         # extract sub-region along the spectral direction
@@ -288,7 +312,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     return np.max(np.abs(diff))
 
 
-def fit_peak(x, y, display=False):
+def fit_peak(x, y, display=False, logger=_log):
     '''
     Fit a Gaussian (with linear trend)
 
@@ -303,6 +327,9 @@ def fit_peak(x, y, display=False):
     display : bool
         Display the result of the fit
 
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     Returns
     -------
     par
@@ -310,6 +337,8 @@ def fit_peak(x, y, display=False):
         stddev, line slope, line intercept
     '''
 
+    logger.debug('> fit Gaussian peak')
+    
     # fit: Gaussian + constant
     g_init = models.Gaussian1D(amplitude=y.max(), mean=x[np.argmax(y)]) + models.Linear1D(slope=0, intercept=0)
     fitter = fitting.LevMarLSQFitter()
@@ -1414,7 +1443,7 @@ class Reduction(object):
                 raise ValueError('There should be exactly 2 raw flat files. Found {0}.'.format(len(files)))
 
             # create the flat and bpm
-            flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True)
+            flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True, logger=self._logger)
 
             # products
             if wave == 0:
@@ -2003,7 +2032,7 @@ class Reduction(object):
                             # very aggressive sigma-filtering
                             frame = imutils.sigma_filter(frame, box=5, nsigma=5, iterate=True)
                             frame = imutils.sigma_filter(frame, box=7, nsigma=5, iterate=True)
-                            frame = sph_ifs_fix_badpix(frame, bpm)
+                            frame = sph_ifs_fix_badpix(frame, bpm, logger=self._logger)
                             img[f] = frame
 
                     # spectral crosstalk correction
@@ -2011,7 +2040,7 @@ class Reduction(object):
                         self._logger.info('   ==> correct spectral crosstalk')
                         for f in range(len(img)):
                             frame = img[f]
-                            frame = sph_ifs_correct_spectral_xtalk(frame)
+                            frame = sph_ifs_correct_spectral_xtalk(frame, logger=self._logger)
                             img[f] = frame
 
                     # check prensence of coordinates
@@ -2092,11 +2121,11 @@ class Reduction(object):
 
         # bad pixels correction
         self._logger.info('   ==> correct bad pixels')
-        img = sph_ifs_fix_badpix(img, bpm)
+        img = sph_ifs_fix_badpix(img, bpm, logger=self._logger)
 
         # spectral crosstalk correction
         self._logger.info('   ==> correct spectral crosstalk')
-        img = sph_ifs_correct_spectral_xtalk(img)
+        img = sph_ifs_correct_spectral_xtalk(img, logger=self._logger)
 
         # add fake coordinates
         self._logger.debug('> add fake coordinates')
@@ -2380,19 +2409,19 @@ class Reduction(object):
             # peak 1
             sub_idx  = wave_idx[0:11]
             sub_flux = wave_flux[0:11]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # peak 2
             sub_idx  = wave_idx[10:27]
             sub_flux = wave_flux[10:27]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # peak 3
             sub_idx  = wave_idx[26:]
             sub_flux = wave_flux[26:]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # wavelengths
@@ -2401,25 +2430,25 @@ class Reduction(object):
             # peak 1
             sub_idx  = wave_idx[0:8]
             sub_flux = wave_flux[0:8]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # peak 2
             sub_idx  = wave_idx[5:17]
             sub_flux = wave_flux[5:17]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # peak 3
             sub_idx  = wave_idx[14:26]
             sub_flux = wave_flux[14:26]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # peak 4
             sub_idx  = wave_idx[25:]
             sub_flux = wave_flux[25:]
-            par = fit_peak(sub_idx, sub_flux)
+            par = fit_peak(sub_idx, sub_flux, logger=self._logger)
             peak_position_lasers.append(par[1])
 
             # wavelengths
