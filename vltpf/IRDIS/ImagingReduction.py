@@ -133,7 +133,8 @@ class ImagingReduction(object):
             'sph_ird_cal_detector_flat': False,
             'sph_ird_preprocess_science': False,
             'sph_ird_star_center': False,
-            'sph_ird_combine_data': False
+            'sph_ird_combine_data': False,
+            'sph_ird_clean': False
         }
 
         # reload any existing data frames
@@ -575,7 +576,7 @@ class ImagingReduction(object):
             img.extend(list(np.arange(NDIT)))
 
         # create new dataframe
-        self._logger.debug('> create and fill frames_info data frame')
+        self._logger.debug('> create frames_info data frame')
         frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
@@ -1205,7 +1206,7 @@ class ImagingReduction(object):
                                      overwrite=True, output_verify='silentfix')
 
         # sort and save final dataframe
-        self._logger.debug('> save frames_preproc.csv')
+        self._logger.debug('> save frames_info_preproc.csv')
         frames_info_preproc.sort_values(by='TIME', inplace=True)
         frames_info_preproc.to_csv(path.preproc / 'frames_preproc.csv')
 
@@ -1274,6 +1275,7 @@ class ImagingReduction(object):
                                                                     save_path=save_path, logger=self._logger)
 
                 # save
+                self._logger.debug('> save centers')
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
 
         # then OBJECT,CENTER
@@ -1307,6 +1309,7 @@ class ImagingReduction(object):
                                                                 logger=self._logger)
 
                 # save
+                self._logger.debug('> save centers')
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
 
         # update recipe execution
