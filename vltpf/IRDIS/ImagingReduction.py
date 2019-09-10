@@ -96,7 +96,7 @@ class ImagingReduction(object):
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
         try:
-            self._logger.debug('Read configuration')
+            self._logger.debug('> read default configuration')
             config.read(configfile)
 
             # instrument
@@ -365,6 +365,8 @@ class ImagingReduction(object):
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
+            self._logger.debug('> read files.csv')
+            
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -386,6 +388,8 @@ class ImagingReduction(object):
 
         fname = path.preproc / 'frames.csv'
         if fname.exists():
+            self._logger.debug('> read frames.csv')
+            
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -403,6 +407,8 @@ class ImagingReduction(object):
 
         fname = path.preproc / 'frames_preproc.csv'
         if fname.exists():
+            self._logger.debug('> read frames_preproc.csv')
+            
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -429,6 +435,7 @@ class ImagingReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_preprocess_science'] = done
+            self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
 
             done = True
             files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
@@ -438,6 +445,7 @@ class ImagingReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             self._recipe_execution['sph_ird_star_center'] = done
+            self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
 
     def sort_files(self):
@@ -463,6 +471,7 @@ class ImagingReduction(object):
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
 
         # read list of keywords
+        self._logger.debug('> read keyword list')
         keywords = []
         file = open(Path(vltpf.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
@@ -473,6 +482,7 @@ class ImagingReduction(object):
         file.close()
 
         # short keywords
+        self._logger.debug('> translate into short keywords')
         keywords_short = keywords.copy()
         for idx in range(len(keywords_short)):
             key = keywords_short[idx]
@@ -480,8 +490,10 @@ class ImagingReduction(object):
                 keywords_short[idx] = key[13:]
 
         # files table
+        self._logger.debug('> create files_info data frame')
         files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
 
+        self._logger.debug('> read FITS keywords')
         for f in files:
             hdu = fits.open(path.raw / '{}.fits'.format(f))
             hdr = hdu[0].header
@@ -492,6 +504,7 @@ class ImagingReduction(object):
             hdu.close()
 
         # drop files that are not handled, based on DPR keywords
+        self._logger.debug('> drop unsupported file types')
         files_info.dropna(subset=['DPR TYPE'], inplace=True)
         files_info = files_info[(files_info['DPR CATG'] != 'ACQUISITION') & (files_info['DPR TYPE'] != 'OBJECT,AO')]
 
@@ -505,6 +518,7 @@ class ImagingReduction(object):
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
 
         # convert times
+        self._logger.debug('> convert times')
         files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
         files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
@@ -516,10 +530,12 @@ class ImagingReduction(object):
         files_info.sort_values(by='DATE-OBS', inplace=True)
 
         # save files_info
+        self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sort_files'] = True
 
 
@@ -535,7 +551,8 @@ class ImagingReduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements,
+                                       logger=self._logger)
 
         # parameters
         path = self._path
@@ -558,27 +575,31 @@ class ImagingReduction(object):
             img.extend(list(np.arange(NDIT)))
 
         # create new dataframe
+        self._logger.debug('> create and fill frames_info data frame')
         frames_info = pd.DataFrame(columns=sci_files.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
         frames_info = frames_info.align(files_info, level=0)[1]
 
         # compute timestamps
-        toolbox.compute_times(frames_info)
+        toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        toolbox.compute_angles(frames_info)
+        toolbox.compute_angles(frames_info, logger=self._logger)
 
         # save
+        self._logger.debug('> save frames.csv')
         frames_info.to_csv(path.preproc / 'frames.csv')
         self._frames_info = frames_info
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sort_frames'] = True
 
         #
         # print some info
         #
+        self._logger.debug('> print observation info')
         cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT']
         if len(cinfo) == 0:
             cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -629,7 +650,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements,
+                                       logger=self._logger)
 
         self._logger.info('File association for calibrations')
 
@@ -653,6 +675,7 @@ class ImagingReduction(object):
 
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
+        self._logger.debug('> select calib files')
         calibs = files_info[(files_info['DPR CATG'] == 'CALIB') |
                             ((files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] == 'SKY'))]
 
@@ -663,6 +686,7 @@ class ImagingReduction(object):
         warning_flag = 0
 
         # flat
+        self._logger.debug('> check instrument flat requirements')
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS COMB IFLT'] == filter_comb)]
         if len(cfiles) <= 1:
             error_flag += 1
@@ -672,10 +696,12 @@ class ImagingReduction(object):
         # static calibrations that depend on science DIT
         ##################################################
 
+        self._logger.debug('> select science files')
         obj = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'DPR TYPE'].apply(lambda s: s[0:6])
         DITs = files_info.loc[(files_info['DPR CATG'] == 'SCIENCE') & (obj == 'OBJECT'), 'DET SEQ1 DIT'].unique().round(2)
 
         # handle darks in a slightly different way because there might be several different DITs
+        self._logger.debug('> check dark/background requirements')
         for DIT in DITs:
             # instrumental backgrounds
             cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
@@ -691,11 +717,16 @@ class ImagingReduction(object):
                 self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction, especially in K-band'.format(DIT))
 
         # error reporting
+        self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
             raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
+        
+        # update recipe execution
+        self._logger.debug('> update recipe execution')        
+        self._recipe_execution['check_files_association'] = True
 
 
     def sph_ird_cal_dark(self, silent=True):
@@ -709,7 +740,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements,
+                                       logger=self._logger)
 
         self._logger.info('Darks and backgrounds')
 
@@ -742,6 +774,7 @@ class ImagingReduction(object):
                     self._logger.info(' * {0} in filter {1} with DIT={2:.2f} sec ({3} files)'.format(ctype, cfilt, DIT, len(cfiles)))
 
                     # create sof
+                    self._logger.debug('> create sof file')
                     sof = path.sof / 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT)
                     file = open(sof, 'w')
                     for f in files:
@@ -778,6 +811,7 @@ class ImagingReduction(object):
                         raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
 
                     # execute esorex
+                    self._logger.debug('> execute esorex')
                     if silent:
                         proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                     else:
@@ -787,6 +821,7 @@ class ImagingReduction(object):
                         raise ValueError('esorex process was not successful')
 
                     # store products
+                    self._logger.debug('> update files_info data frame')
                     files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
                     files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
                     files_info.loc[dark_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
@@ -809,9 +844,11 @@ class ImagingReduction(object):
                     files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_STATIC_BADPIXELMAP'
 
         # save
+        self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sph_ird_cal_dark'] = True
 
 
@@ -826,7 +863,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements,
+                                       logger=self._logger)
 
         self._logger.info('Instrument flats')
 
@@ -847,6 +885,7 @@ class ImagingReduction(object):
             self._logger.info(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
 
             # create sof
+            self._logger.debug('> create sof file')
             sof = path.sof / 'flat_filt={0}.sof'.format(cfilt)
             file = open(sof, 'w')
             for f in files:
@@ -872,6 +911,7 @@ class ImagingReduction(object):
                 raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
 
             # execute esorex
+            self._logger.debug('> execute esorex')
             if silent:
                 proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
             else:
@@ -881,6 +921,7 @@ class ImagingReduction(object):
                 raise ValueError('esorex process was not successful')
 
             # store products
+            self._logger.debug('> update files_info data frame')
             files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
             files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
             files_info.loc[flat_file, 'INS COMB IFLT'] = cfiles['INS COMB IFLT'][0]
@@ -903,9 +944,11 @@ class ImagingReduction(object):
             files_info.loc[bpm_file, 'PRO CATG']  = 'IRD_NON_LINEAR_BADPIXELMAP'
 
         # save
+        self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sph_ird_cal_detector_flat'] = True
 
 
@@ -963,7 +1006,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements, 
+                                       logger=self._logger)
 
         self._logger.info('Pre-process science files')
 
@@ -973,6 +1017,7 @@ class ImagingReduction(object):
         frames_info = self._frames_info
 
         # clean before we start
+        self._logger.debug('> remove old preproc files')
         files = path.preproc.glob('*_DIT???_preproc.fits')
         for file in files:
             file.unlink()
@@ -986,7 +1031,7 @@ class ImagingReduction(object):
                                    (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
 
-            bpm = toolbox.compute_bad_pixel_map(bpm_files)
+            bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
             # mask dead regions
             bpm[:15, :]      = 0
@@ -1003,6 +1048,7 @@ class ImagingReduction(object):
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
         # final dataframe
+        self._logger.debug('> create frames_info_preproc data frame')
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
         frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
 
@@ -1151,6 +1197,7 @@ class ImagingReduction(object):
                     img = nimg
 
                     # save DITs individually
+                    self._logger.debug('> save pre-processed images')
                     for f in range(len(img)):
                         frame = nimg[f, ...].squeeze()
                         hdr['HIERARCH ESO DET NDIT'] = 1
@@ -1158,12 +1205,14 @@ class ImagingReduction(object):
                                      overwrite=True, output_verify='silentfix')
 
         # sort and save final dataframe
+        self._logger.debug('> save frames_preproc.csv')
         frames_info_preproc.sort_values(by='TIME', inplace=True)
         frames_info_preproc.to_csv(path.preproc / 'frames_preproc.csv')
 
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sph_ird_preprocess_science'] = True
 
 
@@ -1188,7 +1237,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements,
+                                       logger=self._logger)
 
         self._logger.info('Star centers determination')
 
@@ -1211,6 +1261,7 @@ class ImagingReduction(object):
                 self._logger.info(' * OBJECT,FLUX: {0}'.format(file))
 
                 # read data
+                self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
@@ -1232,6 +1283,7 @@ class ImagingReduction(object):
                 self._logger.info(' * OBJECT,CENTER: {0}'.format(file))
 
                 # read data
+                self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
@@ -1258,6 +1310,7 @@ class ImagingReduction(object):
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sph_ird_star_center'] = True
 
 
@@ -1360,7 +1413,8 @@ class ImagingReduction(object):
         '''
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements)
+        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements,
+                                       logger=self._logger)
 
         self._logger.info('Combine science data')
 
@@ -1374,6 +1428,7 @@ class ImagingReduction(object):
         wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)
         wave = np.array(wave)
 
+        self._logger.debug('> save final wavelength')
         fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
 
         # max images size
@@ -1430,9 +1485,11 @@ class ImagingReduction(object):
                 self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
 
                 # read data
+                self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
                 
+                self._logger.debug('> read centers')
                 cfile = path.preproc / '{}_centers.fits'.format(fname)
                 if cfile.exists():
                     centers = fits.getdata(cfile)
@@ -1441,22 +1498,26 @@ class ImagingReduction(object):
                     centers = self._default_center
 
                 # make sure we have only integers if user wants coarse centering
-                if coarse_centering:
+                if coarse_centering:                    
                     centers = centers.astype(np.int)
 
                 # neutral density
+                self._logger.debug('> read neutral density information')
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
+                self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
                 psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
+                    self._logger.debug('> wave {}'.format(wave_idx))
                     cx, cy = centers[wave_idx, :]
 
+                    self._logger.debug('> shift and normalize')
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
@@ -1465,24 +1526,29 @@ class ImagingReduction(object):
 
                     # correct anamorphism
                     if correct_anamorphism:
+                        self._logger.debug('> correct anamorphism')
                         nimg = psf_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
                         psf_cube[wave_idx, file_idx] = nimg
 
                     # wavelength-scaled version
                     if save_scaled:
+                        self._logger.debug('> spatial scaling')
                         nimg = psf_cube[wave_idx, file_idx]
                         psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
+            self._logger.debug('> save final cubes and metadata')
             flux_files.to_csv(path.products / 'psf_frames.csv')
             fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
             fits.writeto(path.products / 'psf_parang.fits', psf_parang, overwrite=True)
             fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
             if save_scaled:
+                self._logger.debug('> save scaled cubes')
                 fits.writeto(path.products / 'psf_cube_scaled.fits', psf_cube_scaled, overwrite=True)
 
             # delete big cubes
+            self._logger.debug('> free memory')
             del psf_cube
             if save_scaled:
                 del psf_cube_scaled
@@ -1513,10 +1579,12 @@ class ImagingReduction(object):
                 self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
 
                 # read data
+                self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
 
                 # use manual center if explicitely requested
+                self._logger.debug('> read centers')
                 if manual_center is not None:
                     centers = manual_center
                 else:
@@ -1528,18 +1596,22 @@ class ImagingReduction(object):
                     centers = centers.astype(np.int)
                 
                 # neutral density
+                self._logger.debug('> read neutral density information')
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
+                self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 cen_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
                 cen_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
+                    self._logger.debug('> wave {}'.format(wave_idx))
                     cx, cy = centers[wave_idx, :]
 
+                    self._logger.debug('> shift and normalize')
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
@@ -1548,24 +1620,29 @@ class ImagingReduction(object):
 
                     # correct anamorphism
                     if correct_anamorphism:
+                        self._logger.debug('> correct anamorphism')
                         nimg = cen_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
                         cen_cube[wave_idx, file_idx] = nimg
 
                     # wavelength-scaled version
                     if save_scaled:
+                        self._logger.debug('> spatial scaling')
                         nimg = cen_cube[wave_idx, file_idx]
                         cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
+            self._logger.debug('> save final cubes and metadata')
             starcen_files.to_csv(path.products / 'starcenter_frames.csv')
             fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
             fits.writeto(path.products / 'starcenter_parang.fits', cen_parang, overwrite=True)
             fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
             if save_scaled:
+                self._logger.debug('> save scaled cubes')
                 fits.writeto(path.products / 'starcenter_cube_scaled.fits', cen_cube_scaled, overwrite=True)
 
             # delete big cubes
+            self._logger.debug('> free memory')
             del cen_cube
             if save_scaled:
                 del cen_cube_scaled
@@ -1583,6 +1660,7 @@ class ImagingReduction(object):
             dms_dy_ref = 0
             
             # use manual center if explicitely requested
+            self._logger.debug('> read centers')
             if manual_center is not None:
                 centers = manual_center
             else:
@@ -1633,21 +1711,25 @@ class ImagingReduction(object):
                 self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
 
                 # read data
+                self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 files = list(path.preproc.glob('{}*.fits'.format(fname)))
                 cube = fits.getdata(files[0])
 
                 # neutral density
+                self._logger.debug('> read neutral density information')
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
                 w, attenuation = transmission.transmission_nd(ND, wave=wave)
 
                 # DIT, angles, etc
+                self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
                 sci_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
                 sci_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
 
                 # Dithering Motion Stage for star center: value is in micron,
                 # and the pixel size is 18 micron
+                self._logger.debug('> read DMS position')
                 dms_dx = frames_info.loc[(file, idx), 'INS1 PAC X'] / 18
                 dms_dy = frames_info.loc[(file, idx), 'INS1 PAC Y'] / 18
 
@@ -1658,12 +1740,14 @@ class ImagingReduction(object):
                 
                 # center frames
                 for wave_idx, img in enumerate(cube):
+                    self._logger.debug('> wave {}'.format(wave_idx))
                     cx, cy = centers[wave_idx, :]
 
                     # DMS contribution
                     cx = cx + dms_dx_ref + dms_dx
                     cy = cy + dms_dy_ref + dms_dy
 
+                    self._logger.debug('> shift and normalize')
                     img  = img.astype(np.float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
@@ -1672,16 +1756,19 @@ class ImagingReduction(object):
 
                     # correct anamorphism
                     if correct_anamorphism:
+                        self._logger.debug('> correct anamorphism')
                         nimg = sci_cube[wave_idx, file_idx]
                         nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
                         sci_cube[wave_idx, file_idx] = nimg
 
                     # wavelength-scaled version
                     if save_scaled:
+                        self._logger.debug('> spatial scaling')
                         nimg = sci_cube[wave_idx, file_idx]
                         sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
             # save final cubes
+            self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
             fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
             fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
@@ -1690,11 +1777,13 @@ class ImagingReduction(object):
                 fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
 
             # delete big cubes
+            self._logger.debug('> free memory')
             del sci_cube
             if save_scaled:
                 del sci_cube_scaled
 
         # update recipe execution
+        self._logger.debug('> update recipe execution')
         self._recipe_execution['sph_ird_combine_data'] = True
 
 
@@ -1718,28 +1807,38 @@ class ImagingReduction(object):
 
         # tmp
         if path.tmp.exists():
+            self._logger.debug('> remove {}'.format(path.tmp))
             shutil.rmtree(path.tmp, ignore_errors=True)
 
         # sof
         if path.sof.exists():
+            self._logger.debug('> remove {}'.format(path.sof))
             shutil.rmtree(path.sof, ignore_errors=True)
 
         # calib
         if path.calib.exists():
+            self._logger.debug('> remove {}'.format(path.calib))
             shutil.rmtree(path.calib, ignore_errors=True)
 
         # preproc
         if path.preproc.exists():
+            self._logger.debug('> remove {}'.format(path.preproc))
             shutil.rmtree(path.preproc, ignore_errors=True)
 
         # raw
         if delete_raw:
             if path.raw.exists():
+                self._logger.debug('> remove {}'.format(path.raw))
                 self._logger.warning('   ==> delete raw files')
                 shutil.rmtree(path.raw, ignore_errors=True)
 
         # products
         if delete_products:
             if path.products.exists():
+                self._logger.debug('> remove {}'.format(path.products))
                 self._logger.warning('   ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)
+
+        # update recipe execution
+        self._logger.debug('> update recipe execution')
+        self._recipe_execution['sph_ird_clean'] = True
