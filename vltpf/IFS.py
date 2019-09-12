@@ -391,6 +391,26 @@ class Reduction(object):
     # Constructor
     ##################################################
 
+    def __new__(cls, path, log_level='info'):
+        '''Custom instantiation for the class
+
+        The customized instantiation enables to check that the
+        provided path is a valid reduction path. If not None will be
+        returned for the reduction being created
+        '''
+        
+        # expand path
+        path = Path(path).expanduser().resolve()
+
+        # zeroth-order reduction validation
+        raw = path / 'raw'
+        if not raw.exists():
+            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
+            return None
+        else:
+            return super(Reduction, cls).__new__(cls)
+    
+
     def __init__(self, path, log_level='info'):
         '''
         Initialization of the IFSReduction
@@ -491,7 +511,8 @@ class Reduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        if self is not None:
+            return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
 
     def __format__(self):
         return self.__repr__()

@@ -19,6 +19,8 @@ import vltpf.utils.aperture as aperture
 import vltpf.transmission as transmission
 import vltpf.toolbox as toolbox
 
+_log = logging.getLogger(__name__)
+
 
 class ImagingReduction(object):
     '''
@@ -48,6 +50,26 @@ class ImagingReduction(object):
     # Constructor
     ##################################################
 
+    def __new__(cls, path, log_level='info'):
+        '''Custom instantiation for the class
+
+        The customized instantiation enables to check that the
+        provided path is a valid reduction path. If not None will be
+        returned for the reduction being created
+        '''
+        
+        # expand path
+        path = Path(path).expanduser().resolve()
+
+        # zeroth-order reduction validation
+        raw = path / 'raw'
+        if not raw.exists():
+            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
+            return None
+        else:
+            return super(ImagingReduction, cls).__new__(cls)
+
+    
     def __init__(self, path, log_level='info'):
         '''Initialization of the ImagingReduction instances
 
