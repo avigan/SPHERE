@@ -427,11 +427,6 @@ class Reduction(object):
         # expand path
         path = Path(path).expanduser().resolve()
 
-        # zeroth-order reduction validation
-        raw = path / 'raw'
-        if not raw.exists():
-            raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
-
         # init path and name
         self._path = utils.ReductionPath(path)
         self._instrument = 'IFS'
