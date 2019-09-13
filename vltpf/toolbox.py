@@ -9,6 +9,7 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import logging
 
+import vltpf
 import vltpf.utils.aperture as aperture
 
 from astropy.io import fits
@@ -44,17 +45,23 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, l
     execute_recipe : bool
         Current recipe can be executed safely
     '''
+    
+    recipes = recipe_execution.keys()
     requirements = recipe_requirements[recipe_name]
-
+    
     execute_recipe = True
     missing = []
     for r in requirements:
-        if not recipe_execution[r]:
+        if r not in recipes:
+            execute_recipe = False
+            missing.append(r)
+        elif recipe_execution[r] != vltpf.SUCCESS:
             execute_recipe = False
             missing.append(r)
 
     if not execute_recipe:
-        raise ValueError('{0} cannot executed because some files have been removed from the reduction directory or the following recipes have not been executed: {0}. '.format(recipe_name, missing))
+        logger.error('{} cannot executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe_name, missing))
+        recipe_execution[recipe_name] = vltpf.ERROR
 
     logger.debug('> execution requirements check for {}: {}'.format(recipe_name, execute_recipe))
     

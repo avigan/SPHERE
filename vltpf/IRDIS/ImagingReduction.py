@@ -44,7 +44,8 @@ class ImagingReduction(object):
         'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
+        'sph_ird_clean': []
     }
 
     ##################################################
@@ -52,27 +53,13 @@ class ImagingReduction(object):
     ##################################################
 
     def __new__(cls, path, log_level='info'):
-        '''Custom instantiation for the class
+        '''Custom instantiation for the class and initialization for the
+           instances
 
         The customized instantiation enables to check that the
-        provided path is a valid reduction path. If not None will be
-        returned for the reduction being created
-        '''
-        
-        # expand path
-        path = Path(path).expanduser().resolve()
-
-        # zeroth-order reduction validation
-        raw = path / 'raw'
-        if not raw.exists():
-            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
-            return None
-        else:
-            return super(ImagingReduction, cls).__new__(cls)
-
-    
-    def __init__(self, path, log_level='info'):
-        '''Initialization of the ImagingReduction instances
+        provided path is a valid reduction path. If not, None will be
+        returned for the reduction being created. Otherwise, an
+        instance is created and returned at the end.
 
         Parameters
         ----------
@@ -81,19 +68,35 @@ class ImagingReduction(object):
 
         level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
+
         '''
+        
+        #
+        # make sure we are dealing with a proper reduction directory
+        #
+        
+        # init path
+        path = Path(path).expanduser().resolve()
+
+        # zeroth-order reduction validation
+        raw = path / 'raw'
+        if not raw.exists():
+            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
+            return None
+        else:
+            # it's all good: create instance!
+            reduction = super(ImagingReduction, cls).__new__(cls)
 
         #
         # basic init
         #
 
         # init path
-        path = Path(path).expanduser().resolve()
-        self._path = utils.ReductionPath(path)
+        reduction._path = utils.ReductionPath(path)
 
         # instrument and mode
-        self._instrument = 'IRDIS'
-        self._mode = 'Unknown'
+        reduction._instrument = 'IRDIS'
+        reduction._mode = 'Unknown'
 
         #
         # logging
@@ -104,65 +107,62 @@ class ImagingReduction(object):
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
         
-        handler = logging.FileHandler(self._path.products / 'reduction.log', mode='w', encoding='utf-8')
+        handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
         formatter.default_msec_format = '%s.%03d'        
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         
-        self._logger = logger
+        reduction._logger = logger
         
-        self._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))        
+        reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))        
         
         #
         # configuration
         #
-        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
+        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
         config = configparser.ConfigParser()
         
-        self._logger.debug('> read default configuration')
+        reduction._logger.debug('> read default configuration')
         config.read(configfile)
 
         # instrument
-        self._pixel = float(config.get('instrument', 'pixel'))
-        self._nwave = 2
+        reduction._pixel = float(config.get('instrument', 'pixel'))
+        reduction._nwave = 2
 
         # calibration
-        self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
 
         # imaging calibration
-        self._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
-        self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
+        reduction._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
+        reduction._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
 
         # reduction parameters
-        self._config = {}
+        reduction._config = {}
         for group in ['reduction', 'reduction-imaging']:
             items = dict(config.items(group))
-            self._config.update(items)
+            reduction._config.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)
                 except NameError:
                     val = value
-                self._config[key] = val
+                reduction._config[key] = val
 
         #
         # reduction status
         #
-        self._recipe_execution = collections.OrderedDict(
-            [('sort_files', False),
-             ('sort_frames', False),
-             ('check_files_association', False),
-             ('sph_ird_cal_dark', False),
-             ('sph_ird_cal_detector_flat', False),
-             ('sph_ird_preprocess_science', False),
-             ('sph_ird_star_center', False),
-             ('sph_ird_combine_data', False),
-             ('sph_ird_clean', False)]
-        )
+        reduction._recipe_execution = collections.OrderedDict()
+        reduction._recipe_status    = vltpf.NOTSET
+        # reduction._reduction_status = vltpf.INIT
 
         # reload any existing data frames
-        self._read_info()
+        reduction._read_info()
+        
+        #
+        # return instance
+        #
+        return reduction
 
     ##################################################
     # Representation
@@ -403,11 +403,11 @@ class ImagingReduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
             # update recipe execution
-            self._recipe_execution['sort_files'] = True
+            self._update_execution('sort_files', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
-                self._recipe_execution['sph_ird_cal_dark'] = True
+                self._update_execution('sph_ird_cal_dark', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
-                self._recipe_execution['sph_ird_cal_detector_flat'] = True
+                self._update_execution('sph_ird_cal_detector_flat', vltpf.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
@@ -429,7 +429,7 @@ class ImagingReduction(object):
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
             # update recipe execution
-            self._recipe_execution['sort_frames'] = True
+            self._update_execution('sort_frames', vltpf.SUCCESS)
         else:
             frames_info = None
 
@@ -462,7 +462,8 @@ class ImagingReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
-            self._recipe_execution['sph_ird_preprocess_science'] = done
+            if done:
+                self._update_execution('sph_ird_preprocess_science', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
 
             done = True
@@ -472,9 +473,28 @@ class ImagingReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
-            self._recipe_execution['sph_ird_star_center'] = done
+            if done:
+                self._update_execution('sph_ird_star_center', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
+            
+    def _update_execution(self, recipe, recipe_status):
+        '''Update execution status for reduction and recipe
+
+        Parameters
+        ----------
+        recipe : str
+            Recipe name
+
+        recipe_status : vltpf status (int)
+            Status of the recipe. Can be either one of vltpf.NOTSET,
+            vltpf.SUCCESS or vltpf.ERROR
+        '''
+        
+        self._logger.debug('> update recipe execution')
+        
+        self._recipe_execution[recipe] = recipe_status
+        self._recipe_execution.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
@@ -490,6 +510,9 @@ class ImagingReduction(object):
 
         self._logger.info('Sort raw files')
 
+        # update recipe execution
+        self._update_execution('sort_files', vltpf.NOTSET)
+        
         # parameters
         path = self._path
 
@@ -498,7 +521,9 @@ class ImagingReduction(object):
         files = [f.stem for f in files]
 
         if len(files) == 0:
-            raise ValueError('No raw FITS files in reduction path')
+            self._logger.error('No raw FITS files in reduction path')
+            self._update_execution('sort_files', vltpf.ERROR)
+            return
 
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
 
@@ -543,7 +568,9 @@ class ImagingReduction(object):
         # check instruments
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
-            raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+            self._logger.error('Sequence is mixing different instruments: {0}'.format(instru))
+            self._update_execution('sort_files', vltpf.ERROR)
+            return
 
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
@@ -567,8 +594,7 @@ class ImagingReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sort_files'] = True
+        self._update_execution('sort_files', vltpf.SUCCESS)
 
 
     def sort_frames(self):
@@ -583,8 +609,9 @@ class ImagingReduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements,
-                                       logger=self._logger)
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -595,7 +622,9 @@ class ImagingReduction(object):
 
         # raise error when no science frames are present
         if len(sci_files) == 0:
-            raise ValueError('This dataset contains no science frame. There should be at least one!')
+            self._logger.error('This dataset contains no science frame. There should be at least one!')
+            self._update_execution('sort_frames', vltpf.ERROR)
+            return
 
         # build indices
         files = []
@@ -623,10 +652,6 @@ class ImagingReduction(object):
         self._logger.debug('> save frames.csv')
         frames_info.to_csv(path.preproc / 'frames.csv')
         self._frames_info = frames_info
-
-        # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sort_frames'] = True
 
         #
         # print some info
@@ -671,6 +696,9 @@ class ImagingReduction(object):
         self._logger.info(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
         self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
+        
+        # update recipe execution
+        self._update_execution('sort_frames', vltpf.SUCCESS)        
 
 
     def check_files_association(self):
@@ -681,11 +709,12 @@ class ImagingReduction(object):
         interupted in case of error.
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('File association for calibrations')
+
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         files_info = self._files_info
@@ -693,16 +722,22 @@ class ImagingReduction(object):
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
-            raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
+            self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
+            self._update_execution('check_files_association', vltpf.ERROR)
+            return
 
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
-            raise ValueError('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._logger.error('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._update_execution('check_files_association', vltpf.ERROR)
+            return
 
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
-            raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+            self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+            self._update_execution('check_files_association', vltpf.ERROR)
+            return
         filter_comb = filter_combs[0]
 
         # specific data frame for calibrations
@@ -752,13 +787,13 @@ class ImagingReduction(object):
         self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-            raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+            self._update_execution('check_files_association', vltpf.ERROR)
+            return
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
         
         # update recipe execution
-        self._logger.debug('> update recipe execution')        
-        self._recipe_execution['check_files_association'] = True
+        self._update_execution('sort_frames', vltpf.SUCCESS)
 
 
     def sph_ird_cal_dark(self, silent=True):
@@ -771,11 +806,12 @@ class ImagingReduction(object):
             Suppress esorex output. Default is True
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Darks and backgrounds')
+
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -840,7 +876,9 @@ class ImagingReduction(object):
 
                     # check esorex
                     if shutil.which('esorex') is None:
-                        raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                        self._update_execution('sph_ird_cal_dark', vltpf.ERROR)
+                        return
 
                     # execute esorex
                     self._logger.debug('> execute esorex')
@@ -850,7 +888,9 @@ class ImagingReduction(object):
                         proc = subprocess.run(args, cwd=path.tmp)
 
                     if proc.returncode != 0:
-                        raise ValueError('esorex process was not successful')
+                        self._logger.error('esorex process was not successful')
+                        self._update_execution('sph_ird_cal_dark', vltpf.ERROR)
+                        return
 
                     # store products
                     self._logger.debug('> update files_info data frame')
@@ -880,8 +920,7 @@ class ImagingReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_cal_dark'] = True
+        self._update_execution('sph_ird_cal_dark', vltpf.SUCCESS)
 
 
     def sph_ird_cal_detector_flat(self, silent=True):
@@ -894,11 +933,12 @@ class ImagingReduction(object):
             Suppress esorex output. Default is True
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Instrument flats')
+
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -940,7 +980,9 @@ class ImagingReduction(object):
 
             # check esorex
             if shutil.which('esorex') is None:
-                raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                self._update_execution('sph_ird_cal_detector_flat', vltpf.ERROR)
+                return
 
             # execute esorex
             self._logger.debug('> execute esorex')
@@ -950,7 +992,9 @@ class ImagingReduction(object):
                 proc = subprocess.run(args, cwd=path.tmp)
 
             if proc.returncode != 0:
-                raise ValueError('esorex process was not successful')
+                self._logger.error('esorex process was not successful')
+                self._update_execution('sph_ird_cal_detector_flat', vltpf.ERROR)
+                return
 
             # store products
             self._logger.debug('> update files_info data frame')
@@ -980,8 +1024,7 @@ class ImagingReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_cal_detector_flat'] = True
+        self._update_execution('sph_ird_cal_detector_flat', vltpf.SUCCESS)
 
 
     def sph_ird_preprocess_science(self,
@@ -1037,11 +1080,12 @@ class ImagingReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements, 
-                                       logger=self._logger)
-
         self._logger.info('Pre-process science files')
+
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -1076,7 +1120,9 @@ class ImagingReduction(object):
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
-            raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+            self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+            self._update_execution('sph_ird_preprocess_science', vltpf.ERROR)
+            return
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
         # final dataframe
@@ -1119,7 +1165,9 @@ class ImagingReduction(object):
                         bkg = fits.getdata(path.calib / '{}.fits'.format(dfiles.index[0]))
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
-                        raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
+                        self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
+                        self._update_execution('sph_ird_preprocess_science', vltpf.ERROR)
+                        return
 
                 # process files
                 for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
@@ -1167,7 +1215,9 @@ class ImagingReduction(object):
                                 frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
                             elif collapse_type == 'coadd':
                                 if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
-                                    raise TypeError('coadd_value must be an integer >1')
+                                    self._logger.error('coadd_value must be an integer >1')
+                                    self._update_execution('sph_ird_preprocess_science', vltpf.ERROR)
+                                    return
 
                                 coadd_value = int(coadd_value)
                                 NDIT = len(img)
@@ -1175,7 +1225,9 @@ class ImagingReduction(object):
                                 dropped = NDIT % coadd_value
 
                                 if coadd_value > NDIT:
-                                    raise ValueError('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
+                                    self._logger.error('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
+                                    self._update_execution('sph_ird_preprocess_science', vltpf.ERROR)
+                                    return
 
                                 self._logger.info('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
 
@@ -1187,7 +1239,9 @@ class ImagingReduction(object):
 
                                 frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value, logger=self._logger)
                             else:
-                                raise ValueError('Unknown collapse type {0}'.format(collapse_type))
+                                self._logger.error('Unknown collapse type {0}'.format(collapse_type))
+                                self._update_execution('sph_ird_preprocess_science', vltpf.ERROR)
+                                return
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
 
@@ -1244,8 +1298,7 @@ class ImagingReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_preprocess_science'] = True
+        self._update_execution('sph_ird_preprocess_science', vltpf.SUCCESS)
 
 
     def sph_ird_star_center(self, high_pass=False, offset=(0, 0), plot=True):
@@ -1268,12 +1321,13 @@ class ImagingReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Star centers determination')
 
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         pixel = self._pixel
@@ -1345,8 +1399,7 @@ class ImagingReduction(object):
                 fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_star_center'] = True
+        self._update_execution('sph_ird_star_center', vltpf.SUCCESS)
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
@@ -1447,12 +1500,13 @@ class ImagingReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Combine science data')
 
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         nwave = self._nwave
@@ -1487,7 +1541,9 @@ class ImagingReduction(object):
             manual_center = np.array(manual_center)
             
             if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
-                raise ValueError('manual_center does not have the right number of dimensions.')
+                self._logger.error('manual_center does not have the right number of dimensions.')
+                self._update_execution('sph_ird_combine_data', vltpf.ERROR)
+                return
 
             if manual_center.shape == (2,):
                 manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
@@ -1819,8 +1875,7 @@ class ImagingReduction(object):
                 del sci_cube_scaled
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_combine_data'] = True
+        self._update_execution('sph_ird_combine_data', vltpf.SUCCESS)
 
 
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
@@ -1837,6 +1892,11 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('Clean reduction data')
+        
+        # check if recipe can be executed
+        if not toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_clean', 
+                                              self.recipe_requirements, logger=self._logger):
+            return
         
         # parameters
         path = self._path
@@ -1876,5 +1936,4 @@ class ImagingReduction(object):
                 shutil.rmtree(path.products, ignore_errors=True)
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_clean'] = True
+        self._update_execution('sph_ird_clean', vltpf.SUCCESS)
