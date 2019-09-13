@@ -13,8 +13,12 @@ _log.info('VLTPF init')
 # reduction status
 SUCCESS    =  0
 ERROR      =  1
+
 INIT       = -1
 INCOMPLETE = -2
+COMPLETED  = -3
+
+NOTSET     = -1000
 
 
 # log level
