@@ -10,7 +10,14 @@ _log = logging.getLogger(__name__)
 _log.setLevel(logging.DEBUG)
 _log.info('VLTPF init')
 
+# reduction status
+SUCCESS    =  0
+ERROR      =  1
+INIT       = -1
+INCOMPLETE = -2
 
+
+# log level
 def set_loglevel(level):
     '''
     Set the logging level for the module
