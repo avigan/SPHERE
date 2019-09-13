@@ -153,7 +153,6 @@ class ImagingReduction(object):
         # reduction status
         #
         reduction._recipes_status = collections.OrderedDict()
-        # reduction._reduction_status = vltpf.INIT
 
         # reload any existing data frames
         reduction._read_info()
@@ -792,7 +791,7 @@ class ImagingReduction(object):
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
         
         # update recipe execution
-        self._update_recipe_status('sort_frames', vltpf.SUCCESS)
+        self._update_recipe_status('check_files_association', vltpf.SUCCESS)
 
 
     def sph_ird_cal_dark(self, silent=True):
