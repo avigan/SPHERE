@@ -423,18 +423,25 @@ class Reduction(object):
         level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
         '''
+
+        #
+        # basic init
+        #
         
-        # expand path
-        path = Path(path).expanduser().resolve()
-
+        # set status of reduction
+        self._status = vltpf.INIT
+        
         # init path and name
+        path = Path(path).expanduser().resolve()
         self._path = utils.ReductionPath(path)
+        
+        # instrument and mode
         self._instrument = 'IFS'
-
-        # instrument mode
         self._mode = 'Unknown'
 
-        # configure logging
+        #
+        # logging
+        #
         logger = logging.getLogger(str(path))
         logger.setLevel(log_level.upper())
         if logger.hasHandlers():
@@ -451,35 +458,37 @@ class Reduction(object):
         
         self._logger.info('Creating IFS reduction at path {}'.format(path))
 
+        #
         # configuration
+        #
         self._logger.debug('> read default configuration')
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
-        try:
-            self._logger.debug('Read configuration')
-            config.read(configfile)
 
-            # instrument
-            self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = int(config.get('instrument', 'nwave'))
+        self._logger.debug('Read configuration')
+        config.read(configfile)
 
-            # calibration
-            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
-            self._default_center = np.array(eval(config.get('calibration', 'default_center')))
-            self._orientation_offset = eval(config.get('calibration', 'orientation_offset'))            
+        # instrument
+        self._pixel = float(config.get('instrument', 'pixel'))
+        self._nwave = int(config.get('instrument', 'nwave'))
 
-            # reduction parameters
-            self._config = dict(config.items('reduction'))
-            for key, value in self._config.items():
-                try:
-                    val = eval(value)
-                except NameError:
-                    val = value
-                self._config[key] = val
-        except configparser.Error as e:
-            raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
+        # calibration
+        self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        self._default_center = np.array(eval(config.get('calibration', 'default_center')))
+        self._orientation_offset = eval(config.get('calibration', 'orientation_offset'))            
 
+        # reduction parameters
+        self._config = dict(config.items('reduction'))
+        for key, value in self._config.items():
+            try:
+                val = eval(value)
+            except NameError:
+                val = value
+            self._config[key] = val
+
+        #
         # execution of recipes
+        #
         self._recipe_execution = {
             'sort_files': False,
             'sort_frames': False,
@@ -506,8 +515,18 @@ class Reduction(object):
     ##################################################
 
     def __repr__(self):
-        if self is not None:
-            return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        if self._status == vltpf.INIT:
+            status = 'INIT'
+        elif self._status == vltpf.INCOMPLETE:
+            status = 'INCOMPLETE'
+        elif self._status == vltpf.ERROR:
+            status = 'ERROR'
+        elif self._status == vltpf.SUCCESS:
+            status = 'SUCCESS'
+        else:
+            status = 'UNKNOWN'
+            
+        return '<Reduction, instrument={}, mode={}, path={}, status={}>'.format(self._instrument, self._mode, self._path, status)
 
     def __format__(self):
         return self.__repr__()
@@ -556,6 +575,10 @@ class Reduction(object):
     def mode(self):
         return self._mode
 
+    @property
+    def status(self):
+        return self._status
+    
     ##################################################
     # Generic class methods
     ##################################################

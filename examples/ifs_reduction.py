@@ -5,7 +5,7 @@ import vltpf.IFS as IFS
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='debug')
+reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='info')
 
 #%% configuration
 reduction.config['preproc_collapse_science'] = True
@@ -21,7 +21,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='debug')
+reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='info')
 
 #%% sorting
 reduction.sort_files()
