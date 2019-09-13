@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 import configparser
+import collections
 
 from pathlib import Path
 from astropy.io import fits
@@ -427,10 +428,7 @@ class Reduction(object):
         #
         # basic init
         #
-        
-        # set status of reduction
-        self._status = vltpf.INIT
-        
+
         # init path and name
         path = Path(path).expanduser().resolve()
         self._path = utils.ReductionPath(path)
@@ -487,7 +485,7 @@ class Reduction(object):
             self._config[key] = val
 
         #
-        # execution of recipes
+        # reduction status
         #
         self._recipe_execution = {
             'sort_files': False,
@@ -506,27 +504,19 @@ class Reduction(object):
             'sph_ifs_combine_data': False,
             'sph_ifs_clean': False
         }
+        
+        self._reduction_status = vltpf.INIT
+        self._recipe_status    = vltpf.NOTSET
 
         # reload any existing data frames
-        self.read_info()
+        self._read_info()
 
     ##################################################
     # Representation
     ##################################################
 
     def __repr__(self):
-        if self._status == vltpf.INIT:
-            status = 'INIT'
-        elif self._status == vltpf.INCOMPLETE:
-            status = 'INCOMPLETE'
-        elif self._status == vltpf.ERROR:
-            status = 'ERROR'
-        elif self._status == vltpf.SUCCESS:
-            status = 'SUCCESS'
-        else:
-            status = 'UNKNOWN'
-            
-        return '<Reduction, instrument={}, mode={}, path={}, status={}>'.format(self._instrument, self._mode, self._path, status)
+        return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
 
     def __format__(self):
         return self.__repr__()
@@ -575,10 +565,6 @@ class Reduction(object):
     def mode(self):
         return self._mode
 
-    @property
-    def status(self):
-        return self._status
-    
     ##################################################
     # Generic class methods
     ##################################################
@@ -734,10 +720,10 @@ class Reduction(object):
         self.clean()
 
     ##################################################
-    # SPHERE/IFS methods
+    # Private methods
     ##################################################
 
-    def read_info(self):
+    def _read_info(self):
         '''
         Read the files, calibs and frames information from disk
 
@@ -749,6 +735,9 @@ class Reduction(object):
 
         frames_info_preproc : dataframe
             The data frame with all the information on science frames after pre-processing
+
+        This function is not supposed to be called directly by the user.
+
         '''
 
         self._logger.info('Read existing reduction information')
@@ -870,6 +859,10 @@ class Reduction(object):
             self._recipe_execution['sph_ifs_star_center'] = done
             self._logger.debug('> sph_ifs_star_center status = {}'.format(done))
 
+    
+    ##################################################
+    # SPHERE/IFS methods
+    ##################################################
 
     def sort_files(self):
         '''
