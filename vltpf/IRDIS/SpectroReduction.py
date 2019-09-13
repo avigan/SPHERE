@@ -83,11 +83,11 @@ class SpectroReduction(object):
         'check_files_association': ['sort_files'],
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_wave_calib': ['sort_files', 'sph_ird_cal_detector_flat'],
+        'sph_ird_cal_wave': ['sort_files', 'sph_ird_cal_detector_flat'],
         'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
                                        'sph_ird_cal_detector_flat'],
-        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
-        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
+        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
+        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
         'sph_ird_clean': []
     }
@@ -345,7 +345,7 @@ class SpectroReduction(object):
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
-        self.sph_ird_wave_calib(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_wave(silent=config['misc_silent_esorex'])
 
 
     def preprocess_science(self):
@@ -461,8 +461,7 @@ class SpectroReduction(object):
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
                 self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
-                # FIXME: change wave_calib into cal_wave
-                self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_wave', vltpf.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
@@ -513,8 +512,8 @@ class SpectroReduction(object):
         if frames_info_preproc is not None:
             done = (path.preproc / 'wavelength_default.fits').exists()
             if done:
-                self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
-            self._logger.debug('> sph_ird_wave_calib status = {}'.format(done))
+                self._update_recipe_status('sph_ird_cal_wave', vltpf.SUCCESS)
+            self._logger.debug('> sph_ird_cal_wave status = {}'.format(done))
 
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
             if done:
@@ -1120,8 +1119,7 @@ class SpectroReduction(object):
         self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.SUCCESS)
 
 
-    # FIXME: change wave_calib into cal_wave
-    def sph_ird_wave_calib(self, silent=True):
+    def sph_ird_cal_wave(self, silent=True):
         '''
         Create the wavelength calibration
 
@@ -1134,7 +1132,7 @@ class SpectroReduction(object):
         self._logger.info('Wavelength calibration')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_wave_calib', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_wave', 
                                          self.recipe_requirements, logger=self._logger):
             return
         
@@ -1146,7 +1144,7 @@ class SpectroReduction(object):
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         DIT = wave_file['DET SEQ1 DIT'][0]
@@ -1154,20 +1152,20 @@ class SpectroReduction(object):
                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         filter_comb = wave_file['INS COMB IFLT'][0]
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
         if len(flat_file) == 0:
             self._logger.error('There should at least 1 flat file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
         if len(flat_file) == 0:
             self._logger.error('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         # products
@@ -1244,7 +1242,7 @@ class SpectroReduction(object):
         # check esorex
         if shutil.which('esorex') is None:
             self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         # execute esorex
@@ -1256,7 +1254,7 @@ class SpectroReduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
-            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', vltpf.ERROR)
             return
 
         # store products
@@ -1294,7 +1292,7 @@ class SpectroReduction(object):
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
         
         # update recipe execution
-        self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ird_cal_wave', vltpf.SUCCESS)
 
 
     def sph_ird_preprocess_science(self,
@@ -1927,7 +1925,7 @@ class SpectroReduction(object):
                 self._logger.warning('Using default wavelength calibration.')
                 wave = fits.getdata(wfile)
             else:
-                self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_wave_calib or sph_ird_wavelength_recalibration().')
+                self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_cal_wave or sph_ird_wavelength_recalibration().')
             self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
             return                
 
