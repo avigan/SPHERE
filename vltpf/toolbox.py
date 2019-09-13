@@ -22,13 +22,13 @@ global_cmap = 'inferno'
 _log = logging.getLogger(__name__)
 
 
-def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, logger=_log):
+def recipe_executable(recipes_status, recipe_name, recipe_requirements, logger=_log):
     '''
-    Check execution of previous recipes for a given recipe.
+    Check if a recipe is executabled given the status of other recipes
 
     Parameters
     ----------
-    recipe_execution : dict
+    recipes_status : dict
         Status of executed recipes
 
     recipe_name : str
@@ -46,7 +46,7 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, l
         Current recipe can be executed safely
     '''
     
-    recipes = recipe_execution.keys()
+    recipes = recipes_status.keys()
     requirements = recipe_requirements[recipe_name]
     
     execute_recipe = True
@@ -55,13 +55,13 @@ def check_recipe_execution(recipe_execution, recipe_name, recipe_requirements, l
         if r not in recipes:
             execute_recipe = False
             missing.append(r)
-        elif recipe_execution[r] != vltpf.SUCCESS:
+        elif recipes_status[r] != vltpf.SUCCESS:
             execute_recipe = False
             missing.append(r)
 
     if not execute_recipe:
         logger.error('{} cannot executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe_name, missing))
-        recipe_execution[recipe_name] = vltpf.ERROR
+        recipes_status[recipe_name] = vltpf.ERROR
 
     logger.debug('> execution requirements check for {}: {}'.format(recipe_name, execute_recipe))
     
