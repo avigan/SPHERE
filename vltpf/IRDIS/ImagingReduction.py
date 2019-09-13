@@ -618,7 +618,7 @@ class ImagingReduction(object):
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
 
-        # raise error when no science frames are present
+        # report error when no science frames are present
         if len(sci_files) == 0:
             self._logger.error('This dataset contains no science frame. There should be at least one!')
             self._update_recipe_status('sort_frames', vltpf.ERROR)
