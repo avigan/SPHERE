@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 import configparser
+import collections
 
 from pathlib import Path
 from astropy.io import fits
@@ -126,17 +127,21 @@ class SpectroReduction(object):
             The log level of the handler
         '''
 
-        # expand path
+        #
+        # basic init
+        #
+        
+        # init path
         path = Path(path).expanduser().resolve()
-
-        # init path and name
         self._path = utils.ReductionPath(path)
-        self._instrument = 'IRDIS'
 
-        # instrument mode
+        # instrument and mode
+        self._instrument = 'IRDIS'
         self._mode = 'Unknown'
 
-        # configure logging
+        #
+        # logging
+        #
         logger = logging.getLogger(str(path))
         logger.setLevel(log_level.upper())
         if logger.hasHandlers():
@@ -153,60 +158,62 @@ class SpectroReduction(object):
         
         self._logger.info('Creating IRDIS spectroscopy reduction at path {}'.format(path))
         
+        #
         # configuration
+        #
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
-        try:
-            self._logger.debug('> read configuration')
-            config.read(configfile)
+        
+        self._logger.debug('> read configuration')
+        config.read(configfile)
 
-            # instrument
-            self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = -1
+        # instrument
+        self._pixel = float(config.get('instrument', 'pixel'))
+        self._nwave = -1
 
-            # calibration
-            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
-            
-            # spectro calibration
-            self._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
-            self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
-            self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
+        # calibration
+        self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
 
-            self._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
-            self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
-            self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
+        # spectro calibration
+        self._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
+        self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
+        self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
 
-            # reduction parameters
-            self._config = {}
-            for group in ['reduction', 'reduction-spectro']:
-                items = dict(config.items(group))
-                self._config.update(items)
-                for key, value in items.items():
-                    try:
-                        val = eval(value)
-                    except NameError:
-                        val = value
-                    self._config[key] = val
-        except configparser.Error as e:
-            raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
+        self._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
+        self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
+        self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
 
-        # execution of recipes
-        self._recipe_execution = {
-            'sort_files': False,
-            'sort_frames': False,
-            'check_files_association': False,
-            'sph_ifs_cal_dark': False,
-            'sph_ifs_cal_detector_flat': False,
-            'sph_ird_wave_calib': False,
-            'sph_ird_preprocess_science': False,
-            'sph_ird_star_center': False,
-            'sph_ird_wavelength_recalibration': False,
-            'sph_ird_combine_data': False,
-            'sph_ird_clean': False
-        }
+        # reduction parameters
+        self._config = {}
+        for group in ['reduction', 'reduction-spectro']:
+            items = dict(config.items(group))
+            self._config.update(items)
+            for key, value in items.items():
+                try:
+                    val = eval(value)
+                except NameError:
+                    val = value
+                self._config[key] = val
+
+        #
+        # reduction status
+        #
+        self._recipe_execution = collections.OrderedDict(
+            [('sort_files', False),
+             ('sort_frames', False),
+             ('check_files_association', False),
+             ('sph_ifs_cal_dark', False),
+             ('sph_ifs_cal_detector_flat', False),
+             ('sph_ird_wave_calib', False),
+             ('sph_ird_preprocess_science', False),
+             ('sph_ird_star_center', False),
+             ('sph_ird_wavelength_recalibration', False),
+             ('sph_ird_combine_data', False),
+             ('sph_ird_clean', False)]
+        )
 
         # reload any existing data frames
-        self.read_info()
+        self._read_info()
 
     ##################################################
     # Representation
@@ -414,7 +421,7 @@ class SpectroReduction(object):
         self.clean()
 
     ##################################################
-    # SPHERE/IRDIS methods
+    # Private methods
     ##################################################
 
     def read_info(self):
@@ -429,6 +436,9 @@ class SpectroReduction(object):
 
         frames_info_preproc : dataframe
             The data frame with all the information on science frames after pre-processing
+
+        This function is not supposed to be called directly by the user.
+
         '''
 
         self._logger.info('Read existing reduction information')
@@ -532,6 +542,10 @@ class SpectroReduction(object):
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
 
+    ##################################################
+    # SPHERE/IRDIS methods
+    ##################################################
+    
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame

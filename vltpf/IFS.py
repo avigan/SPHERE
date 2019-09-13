@@ -429,7 +429,7 @@ class Reduction(object):
         # basic init
         #
 
-        # init path and name
+        # init path
         path = Path(path).expanduser().resolve()
         self._path = utils.ReductionPath(path)
         
@@ -487,27 +487,24 @@ class Reduction(object):
         #
         # reduction status
         #
-        self._recipe_execution = {
-            'sort_files': False,
-            'sort_frames': False,
-            'check_files_association': False,
-            'sph_ifs_cal_dark': False,
-            'sph_ifs_cal_detector_flat': False,
-            'sph_ifs_cal_specpos': False,
-            'sph_ifs_cal_wave': False,
-            'sph_ifs_cal_ifu_flat': False,
-            'sph_ifs_preprocess_science': False,
-            'sph_ifs_preprocess_wave': False,
-            'sph_ifs_science_cubes': False,
-            'sph_ifs_wavelength_recalibration': False,
-            'sph_ifs_star_center': False,
-            'sph_ifs_combine_data': False,
-            'sph_ifs_clean': False
-        }
+        self._recipe_execution = collections.OrderedDict(
+            [('sort_files', False),
+             ('sort_frames', False),
+             ('check_files_association', False),
+             ('sph_ifs_cal_dark', False),
+             ('sph_ifs_cal_detector_flat', False),
+             ('sph_ifs_cal_specpos', False),
+             ('sph_ifs_cal_wave', False),
+             ('sph_ifs_cal_ifu_flat', False),
+             ('sph_ifs_preprocess_science', False),
+             ('sph_ifs_preprocess_wave', False),
+             ('sph_ifs_science_cubes', False),
+             ('sph_ifs_wavelength_recalibration', False),
+             ('sph_ifs_star_center', False),
+             ('sph_ifs_combine_data', False),
+             ('sph_ifs_clean', False)]
+        )
         
-        self._reduction_status = vltpf.INIT
-        self._recipe_status    = vltpf.NOTSET
-
         # reload any existing data frames
         self._read_info()
 
@@ -823,8 +820,8 @@ class Reduction(object):
             self._logger.debug('> sph_ifs_preprocess_wave status = {}'.format(done))
 
             done = (path.preproc / 'wavelength_default.fits').exists()
-            self._recipe_execution['sph_ifs_wave_calib'] = done
-            self._logger.debug('> sph_ifs_wave_calib status = {}'.format(done))
+            self._recipe_execution['sph_ifs_cal_wave'] = done
+            self._logger.debug('> sph_ifs_cal_wave status = {}'.format(done))
             
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
             self._recipe_execution['sph_ifs_wavelength_recalibration'] = done

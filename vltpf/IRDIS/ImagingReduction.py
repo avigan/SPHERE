@@ -7,6 +7,7 @@ import scipy.interpolate as interp
 import scipy.optimize as optim
 import shutil
 import configparser
+import collections
 
 from pathlib import Path
 from astropy.io import fits
@@ -82,17 +83,21 @@ class ImagingReduction(object):
             The log level of the handler
         '''
 
-        # expand path
+        #
+        # basic init
+        #
+
+        # init path
         path = Path(path).expanduser().resolve()
-
-        # init path and name
         self._path = utils.ReductionPath(path)
-        self._instrument = 'IRDIS'
 
-        # instrument mode
+        # instrument and mode
+        self._instrument = 'IRDIS'
         self._mode = 'Unknown'
 
-        # configure logging
+        #
+        # logging
+        #
         logger = logging.getLogger(str(path))
         logger.setLevel(log_level.upper())
         if logger.hasHandlers():
@@ -109,53 +114,55 @@ class ImagingReduction(object):
         
         self._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))        
         
+        #
         # configuration
+        #
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
         config = configparser.ConfigParser()
-        try:
-            self._logger.debug('> read default configuration')
-            config.read(configfile)
+        
+        self._logger.debug('> read default configuration')
+        config.read(configfile)
 
-            # instrument
-            self._pixel = float(config.get('instrument', 'pixel'))
-            self._nwave = 2
+        # instrument
+        self._pixel = float(config.get('instrument', 'pixel'))
+        self._nwave = 2
 
-            # calibration
-            self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
-          
-            # imaging calibration
-            self._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
-            self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
+        # calibration
+        self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
 
-            # reduction parameters
-            self._config = {}
-            for group in ['reduction', 'reduction-imaging']:
-                items = dict(config.items(group))
-                self._config.update(items)
-                for key, value in items.items():
-                    try:
-                        val = eval(value)
-                    except NameError:
-                        val = value
-                    self._config[key] = val
-        except configparser.Error as e:
-            raise ValueError('Error reading configuration file for instrument {0}: {1}'.format(self._instrument, e.message))
+        # imaging calibration
+        self._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
+        self._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
 
-        # execution of recipes
-        self._recipe_execution = {
-            'sort_files': False,
-            'sort_frames': False,
-            'check_files_association': False,
-            'sph_ird_cal_dark': False,
-            'sph_ird_cal_detector_flat': False,
-            'sph_ird_preprocess_science': False,
-            'sph_ird_star_center': False,
-            'sph_ird_combine_data': False,
-            'sph_ird_clean': False
-        }
+        # reduction parameters
+        self._config = {}
+        for group in ['reduction', 'reduction-imaging']:
+            items = dict(config.items(group))
+            self._config.update(items)
+            for key, value in items.items():
+                try:
+                    val = eval(value)
+                except NameError:
+                    val = value
+                self._config[key] = val
+
+        #
+        # reduction status
+        #
+        self._recipe_execution = collections.OrderedDict(
+            [('sort_files', False),
+             ('sort_frames', False),
+             ('check_files_association', False),
+             ('sph_ird_cal_dark', False),
+             ('sph_ird_cal_detector_flat', False),
+             ('sph_ird_preprocess_science', False),
+             ('sph_ird_star_center', False),
+             ('sph_ird_combine_data', False),
+             ('sph_ird_clean', False)]
+        )
 
         # reload any existing data frames
-        self.read_info()
+        self._read_info()
 
     ##################################################
     # Representation
@@ -358,10 +365,10 @@ class ImagingReduction(object):
         self.clean()
 
     ##################################################
-    # SPHERE/IRDIS methods
+    # Private methods
     ##################################################
 
-    def read_info(self):
+    def _read_info(self):
         '''
         Read the files, calibs and frames information from disk
 
@@ -373,6 +380,9 @@ class ImagingReduction(object):
 
         frames_info_preproc : dataframe
             The data frame with all the information on science frames after pre-processing
+
+        This function is not supposed to be called directly by the user.
+
         '''
 
         self._logger.info('Read existing reduction information')
@@ -466,6 +476,10 @@ class ImagingReduction(object):
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
 
+    ##################################################
+    # SPHERE/IRDIS methods
+    ##################################################
+    
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
