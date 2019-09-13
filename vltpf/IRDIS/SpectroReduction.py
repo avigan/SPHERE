@@ -88,7 +88,8 @@ class SpectroReduction(object):
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
         'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_wave_calib'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']
+        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
+        'sph_ird_clean': []
     }
 
     ##################################################
@@ -96,14 +97,29 @@ class SpectroReduction(object):
     ##################################################
 
     def __new__(cls, path, log_level='info'):
-        '''Custom instantiation for the class
+        '''Custom instantiation for the class and initialization for the
+           instances
 
         The customized instantiation enables to check that the
-        provided path is a valid reduction path. If not None will be
-        returned for the reduction being created
+        provided path is a valid reduction path. If not, None will be
+        returned for the reduction being created. Otherwise, an
+        instance is created and returned at the end.
+
+        Parameters
+        ----------
+        path : str
+            Path to the directory containing the dataset
+
+        level : {'debug', 'info', 'warning', 'error', 'critical'}
+            The log level of the handler
+
         '''
         
-        # expand path
+        #
+        # make sure we are dealing with a proper reduction directory
+        #
+        
+        # init path
         path = Path(path).expanduser().resolve()
 
         # zeroth-order reduction validation
@@ -112,32 +128,19 @@ class SpectroReduction(object):
             _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
             return None
         else:
-            return super(SpectroReduction, cls).__new__(cls)
-
-    
-    def __init__(self, path, log_level='info'):
-        '''Initialization of the SpectroReduction instances
-
-        Parameters
-        ----------
-        path : str
-            Path to the directory containing the raw data
-
-        level : {'debug', 'info', 'warning', 'error', 'critical'}
-            The log level of the handler
-        '''
+            # it's all good: create instance!
+            reduction = super(SpectroReduction, cls).__new__(cls)
 
         #
         # basic init
         #
-        
+
         # init path
-        path = Path(path).expanduser().resolve()
-        self._path = utils.ReductionPath(path)
+        reduction._path = utils.ReductionPath(path)
 
         # instrument and mode
-        self._instrument = 'IRDIS'
-        self._mode = 'Unknown'
+        reduction._instrument = 'IRDIS'
+        reduction._mode = 'Unknown'
 
         #
         # logging
@@ -148,72 +151,65 @@ class SpectroReduction(object):
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
         
-        handler = logging.FileHandler(self._path.products / 'reduction.log', mode='w', encoding='utf-8')
+        handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
         formatter.default_msec_format = '%s.%03d'        
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         
-        self._logger = logger
+        reduction._logger = logger
         
-        self._logger.info('Creating IRDIS spectroscopy reduction at path {}'.format(path))
+        reduction._logger.info('Creating IRDIS spectroscopy reduction at path {}'.format(path))
         
         #
         # configuration
         #
-        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(self._instrument)
+        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
         config = configparser.ConfigParser()
         
-        self._logger.debug('> read configuration')
+        reduction._logger.debug('> read configuration')
         config.read(configfile)
 
         # instrument
-        self._pixel = float(config.get('instrument', 'pixel'))
-        self._nwave = -1
+        reduction._pixel = float(config.get('instrument', 'pixel'))
+        reduction._nwave = -1
 
         # calibration
-        self._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
 
         # spectro calibration
-        self._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
-        self._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
-        self._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
+        reduction._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
+        reduction._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
+        reduction._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
 
-        self._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
-        self._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
-        self._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
+        reduction._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
+        reduction._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
+        reduction._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
 
         # reduction parameters
-        self._config = {}
+        reduction._config = {}
         for group in ['reduction', 'reduction-spectro']:
             items = dict(config.items(group))
-            self._config.update(items)
+            reduction._config.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)
                 except NameError:
                     val = value
-                self._config[key] = val
+                reduction._config[key] = val
 
         #
         # reduction status
         #
-        self._recipe_execution = collections.OrderedDict(
-            [('sort_files', False),
-             ('sort_frames', False),
-             ('check_files_association', False),
-             ('sph_ifs_cal_dark', False),
-             ('sph_ifs_cal_detector_flat', False),
-             ('sph_ird_wave_calib', False),
-             ('sph_ird_preprocess_science', False),
-             ('sph_ird_star_center', False),
-             ('sph_ird_wavelength_recalibration', False),
-             ('sph_ird_combine_data', False),
-             ('sph_ird_clean', False)]
-        )
+        reduction._recipes_status = collections.OrderedDict()
 
         # reload any existing data frames
-        self._read_info()
+        reduction._read_info()
+        
+        #
+        # return instance
+        #
+        return reduction
 
     ##################################################
     # Representation
@@ -258,8 +254,8 @@ class SpectroReduction(object):
         return self._frames_info_preproc
 
     @property
-    def recipe_execution(self):
-        return self._recipe_execution
+    def recipes_status(self):
+        return self._recipes_status
 
     @property
     def config(self):
@@ -424,7 +420,7 @@ class SpectroReduction(object):
     # Private methods
     ##################################################
 
-    def read_info(self):
+    def _read_info(self):
         '''
         Read the files, calibs and frames information from disk
 
@@ -459,13 +455,14 @@ class SpectroReduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
             # update recipe execution
-            self._recipe_execution['sort_files'] = True
+            self._update_recipe_status('sort_files', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
-                self._recipe_execution['sph_ird_cal_dark'] = True
+                self._update_recipe_status('sph_ird_cal_dark', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
-                self._recipe_execution['sph_ird_cal_detector_flat'] = True
+                self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
-                self._recipe_execution['sph_ird_wave_calib'] = True
+                # FIXME: change wave_calib into cal_wave
+                self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
@@ -487,7 +484,7 @@ class SpectroReduction(object):
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
             # update recipe execution
-            self._recipe_execution['sort_frames'] = True
+            self._update_recipe_status('sort_frames', vltpf.SUCCESS)
         else:
             frames_info = None
 
@@ -515,11 +512,13 @@ class SpectroReduction(object):
         # additional checks to update recipe execution
         if frames_info_preproc is not None:
             done = (path.preproc / 'wavelength_default.fits').exists()
-            self._recipe_execution['sph_ird_wave_calib'] = done
+            if done:
+                self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_wave_calib status = {}'.format(done))
 
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
-            self._recipe_execution['sph_ird_wavelength_recalibration'] = done
+            if done:
+                self._update_recipe_status('sph_ird_wavelength_recalibration', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_wavelength_recalibration status = {}'.format(done))
 
             done = True
@@ -528,7 +527,8 @@ class SpectroReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
-            self._recipe_execution['sph_ird_preprocess_science'] = done
+            if done:
+                self._update_recipe_status('sph_ird_preprocess_science', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
 
             done = True
@@ -538,9 +538,28 @@ class SpectroReduction(object):
                 fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
-            self._recipe_execution['sph_ird_star_center'] = done
+            if done:
+                self._update_recipe_status('sph_ird_star_center', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
+
+    def _update_recipe_status(self, recipe, recipe_status):
+        '''Update execution status for reduction and recipe
+
+        Parameters
+        ----------
+        recipe : str
+            Recipe name
+
+        recipe_status : vltpf status (int)
+            Status of the recipe. Can be either one of vltpf.NOTSET,
+            vltpf.SUCCESS or vltpf.ERROR
+        '''
+        
+        self._logger.debug('> update recipe execution')
+        
+        self._recipes_status[recipe] = recipe_status
+        self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
@@ -556,6 +575,9 @@ class SpectroReduction(object):
 
         self._logger.info('Sort raw files')
 
+        # update recipe execution
+        self._update_recipe_status('sort_files', vltpf.NOTSET)
+        
         # parameters
         path = self._path
 
@@ -564,7 +586,9 @@ class SpectroReduction(object):
         files = [f.stem for f in files]
 
         if len(files) == 0:
-            raise ValueError('No raw FITS files in reduction path')
+            self._logger.error('No raw FITS files in reduction path')
+            self._update_recipe_status('sort_files', vltpf.ERROR)
+            return
 
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
 
@@ -609,7 +633,9 @@ class SpectroReduction(object):
         # check instruments
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
-            raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+            self._logger.error('Sequence is mixing different instruments: {0}'.format(instru))
+            self._update_recipe_status('sort_files', vltpf.ERROR)
+            return
 
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
@@ -633,8 +659,7 @@ class SpectroReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sort_files'] = True
+        self._update_recipe_status('sort_files', vltpf.SUCCESS)
 
 
     def sort_frames(self):
@@ -649,8 +674,9 @@ class SpectroReduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sort_frames', self.recipe_requirements,
-                                       logger=self._logger)
+        if not toolbox.recipe_executable(self._recipes_status, 'sort_frames', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -659,9 +685,11 @@ class SpectroReduction(object):
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
 
-        # raise error when no science frames are present
+        # report error when no science frames are present
         if len(sci_files) == 0:
-            raise ValueError('This dataset contains no science frame. There should be at least one!')
+            self._logger.error('This dataset contains no science frame. There should be at least one!')
+            self._update_recipe_status('sort_frames', vltpf.ERROR)
+            return        
 
         # build indices
         files = []
@@ -689,10 +717,6 @@ class SpectroReduction(object):
         self._logger.debug('> save frames.csv')
         frames_info.to_csv(path.preproc / 'frames.csv')
         self._frames_info = frames_info
-
-        # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sort_frames'] = True
 
         #
         # print some info
@@ -738,6 +762,9 @@ class SpectroReduction(object):
         self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
+        # update recipe execution
+        self._update_recipe_status('sort_frames', vltpf.SUCCESS)        
+        
 
     def check_files_association(self):
         '''
@@ -747,11 +774,12 @@ class SpectroReduction(object):
         interupted in case of error.
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'check_files_association', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('File association for calibrations')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'check_files_association', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -760,19 +788,28 @@ class SpectroReduction(object):
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
-            raise ValueError('Sequence is mixing different instruments: {0}'.format(arm))
+            self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
+            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            return
 
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
-            raise ValueError('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._logger.eror('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            return
 
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
-            raise ValueError('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+            self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            return
+            
         filter_comb = filter_combs[0]
         if (filter_comb != 'S_LR') and (filter_comb != 'S_MR'):
-            raise ValueError('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
+            self._logger.error('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
+            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            return
 
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
@@ -840,7 +877,8 @@ class SpectroReduction(object):
         self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-            raise ValueError('There is {0} errors that should be solved before proceeding'.format(error_flag))
+            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            return
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
 
@@ -849,8 +887,7 @@ class SpectroReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['check_files_association'] = True
+        self._update_recipe_status('check_files_association', vltpf.SUCCESS)
 
 
     def sph_ird_cal_dark(self, silent=True):
@@ -863,12 +900,13 @@ class SpectroReduction(object):
             Suppress esorex output. Default is True
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_dark', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Darks and backgrounds')
 
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_dark', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         files_info = self._files_info
@@ -932,7 +970,9 @@ class SpectroReduction(object):
 
                     # check esorex
                     if shutil.which('esorex') is None:
-                        raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                        self._update_recipe_status('sph_ird_cal_dark', vltpf.ERROR)
+                        return
 
                     # execute esorex
                     self._logger.debug('> execute esorex')
@@ -942,7 +982,9 @@ class SpectroReduction(object):
                         proc = subprocess.run(args, cwd=path.tmp)
 
                     if proc.returncode != 0:
-                        raise ValueError('esorex process was not successful')
+                        self._logger.error('esorex process was not successful')
+                        self._update_recipe_status('sph_ird_cal_dark', vltpf.ERROR)
+                        return
 
                     # store products
                     self._logger.debug('> update files_info data frame')
@@ -972,8 +1014,7 @@ class SpectroReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_cal_dark'] = True
+        self._update_recipe_status('sph_ird_cal_dark', vltpf.SUCCESS)
 
 
     def sph_ird_cal_detector_flat(self, silent=True):
@@ -986,12 +1027,13 @@ class SpectroReduction(object):
             Suppress esorex output. Default is True
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_cal_detector_flat', self.recipe_requirements, 
-                                       logger=self._logger)
-
         self._logger.info('Instrument flats')
 
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_detector_flat', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1031,7 +1073,9 @@ class SpectroReduction(object):
 
             # check esorex
             if shutil.which('esorex') is None:
-                raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+                self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.ERROR)
+                return
 
             # execute esorex
             self._logger.debug('> execute esorex')
@@ -1041,7 +1085,9 @@ class SpectroReduction(object):
                 proc = subprocess.run(args, cwd=path.tmp)
 
             if proc.returncode != 0:
-                raise ValueError('esorex process was not successful')
+                self._logger.error('esorex process was not successful')
+                self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.ERROR)
+                return
 
             # store products
             self._logger.debug('> update files_info data frame')
@@ -1071,10 +1117,10 @@ class SpectroReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_cal_detector_flat'] = True
+        self._update_recipe_status('sph_ird_cal_detector_flat', vltpf.SUCCESS)
 
 
+    # FIXME: change wave_calib into cal_wave
     def sph_ird_wave_calib(self, silent=True):
         '''
         Create the wavelength calibration
@@ -1085,12 +1131,13 @@ class SpectroReduction(object):
             Suppress esorex output. Default is True
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wave_calib', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Wavelength calibration')
 
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_wave_calib', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1098,22 +1145,30 @@ class SpectroReduction(object):
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
         if len(wave_file) != 1:
-            raise ValueError('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+            self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         DIT = wave_file['DET SEQ1 DIT'][0]
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_MASTER_DARK') &
                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(dark_file) == 0:
-            raise ValueError('There should at least 1 dark file for wavelength calibration. Found none.')
+            self._logger.error('There should at least 1 dark file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         filter_comb = wave_file['INS COMB IFLT'][0]
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
         if len(flat_file) == 0:
-            raise ValueError('There should at least 1 flat file for wavelength calibration. Found none.')
+            self._logger.error('There should at least 1 flat file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
         if len(flat_file) == 0:
-            raise ValueError('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
+            self._logger.error('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         # products
         wav_file = 'wave_calib'
@@ -1188,7 +1243,9 @@ class SpectroReduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            raise NameError('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         # execute esorex
         self._logger.debug('> execute esorex')
@@ -1198,7 +1255,9 @@ class SpectroReduction(object):
             proc = subprocess.run(args, cwd=path.tmp)
 
         if proc.returncode != 0:
-            raise ValueError('esorex process was not successful')
+            self._logger.error('esorex process was not successful')
+            self._update_recipe_status('sph_ird_wave_calib', vltpf.ERROR)
+            return
 
         # store products
         self._logger.debug('> update files_info data frame')
@@ -1235,8 +1294,7 @@ class SpectroReduction(object):
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
         
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_wave_calib'] = True
+        self._update_recipe_status('sph_ird_wave_calib', vltpf.SUCCESS)
 
 
     def sph_ird_preprocess_science(self,
@@ -1277,12 +1335,13 @@ class SpectroReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_preprocess_science', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Pre-process science files')
 
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_preprocess_science', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1316,7 +1375,9 @@ class SpectroReduction(object):
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
-            raise ValueError('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+            self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+            self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
+            return            
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
         # final dataframe
@@ -1359,7 +1420,9 @@ class SpectroReduction(object):
                         bkg = fits.getdata(path.calib / '{}.fits'.format(dfiles.index[0]))
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
-                        raise ValueError('Unexpected number of background files ({0})'.format(len(dfiles)))
+                        self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
+                        self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
+                        return            
 
                 # process files
                 for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
@@ -1460,8 +1523,7 @@ class SpectroReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_preprocess_science'] = True
+        self._update_recipe_status('sph_ird_preprocess_science', vltpf.SUCCESS)
 
 
     def sph_ird_star_center(self, high_pass=False, plot=True):
@@ -1479,12 +1541,13 @@ class SpectroReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_star_center', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Star centers determination')
 
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_star_center', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+        
         # parameters
         path = self._path
         pixel = self._pixel
@@ -1570,8 +1633,7 @@ class SpectroReduction(object):
                 fits.writeto(path.preproc / '{}_spot_distance.fits'.format(fname), spot_dist, overwrite=True)
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_star_center'] = True
+        self._update_recipe_status('sph_ird_star_center', vltpf.SUCCESS)
 
 
     def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
@@ -1596,11 +1658,12 @@ class SpectroReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_wavelength_recalibration', self.recipe_requirements, 
-                                       logger=self._logger)
-
         self._logger.info('Wavelength recalibration')
+        
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_wavelength_recalibration', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -1666,7 +1729,9 @@ class SpectroReduction(object):
             if filter_comb == 'S_LR':
                 # FIXME: implement smoothing of the scaling factor for
                 # LRS mode
-                raise ValueError('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
+                self._logger.error('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
+                self._update_recipe_status('sph_ird_wavelength_recalibration', vltpf.ERROR)
+                return            
             elif filter_comb == 'S_MR':
                 # linear fit with a 5-degree polynomial
                 good = np.where(np.isfinite(wave))
@@ -1731,8 +1796,7 @@ class SpectroReduction(object):
         fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_wavelength_recalibration'] = True
+        self._update_recipe_status('sph_ird_wavelength_recalibration', vltpf.SUCCESS)
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
@@ -1829,11 +1893,12 @@ class SpectroReduction(object):
 
         '''
 
-        # check if recipe can be executed
-        toolbox.check_recipe_execution(self._recipe_execution, 'sph_ird_combine_data', self.recipe_requirements,
-                                       logger=self._logger)
-
         self._logger.info('Combine science data')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_combine_data', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
 
         # parameters
         path = self._path
@@ -1862,7 +1927,9 @@ class SpectroReduction(object):
                 self._logger.warning('Using default wavelength calibration.')
                 wave = fits.getdata(wfile)
             else:
-                raise FileExistsError('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_wave_calib or sph_ird_wavelength_recalibration().')
+                self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_wave_calib or sph_ird_wavelength_recalibration().')
+            self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
+            return                
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field
@@ -1901,7 +1968,9 @@ class SpectroReduction(object):
             manual_center = np.array(manual_center)
             
             if manual_center.shape != (2,):
-                raise ValueError('manual_center does not have the right number of dimensions.')
+                self._logger.error('manual_center does not have the right number of dimensions.')
+                self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
+                return                
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center))
             
@@ -2226,8 +2295,7 @@ class SpectroReduction(object):
             del sci_cube
 
         # update recipe execution
-        self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_combine_data'] = True
+        self._update_recipe_status('sph_ird_combine_data', vltpf.SUCCESS)
 
 
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
@@ -2245,6 +2313,11 @@ class SpectroReduction(object):
 
         self._logger.info('Clean reduction data')
         
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_clean', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
         # parameters
         path = self._path
 
@@ -2284,4 +2357,7 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._logger.debug('> update recipe execution')
-        self._recipe_execution['sph_ird_clean'] = True
+        self._recipes_status['sph_ird_clean'] = True
+
+        # update recipe execution
+        self._update_recipe_status('sph_ird_clean', vltpf.SUCCESS)
