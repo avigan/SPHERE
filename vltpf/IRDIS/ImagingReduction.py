@@ -41,7 +41,7 @@ class ImagingReduction(object):
         'check_files_association': ['sort_files'],
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark', 
+        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
                                        'sph_ird_cal_detector_flat'],
         'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
@@ -70,11 +70,11 @@ class ImagingReduction(object):
             The log level of the handler
 
         '''
-        
+
         #
         # make sure we are dealing with a proper reduction directory
         #
-        
+
         # init path
         path = Path(path).expanduser().resolve()
 
@@ -106,23 +106,23 @@ class ImagingReduction(object):
         if logger.hasHandlers():
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
-        
+
         handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
-        formatter.default_msec_format = '%s.%03d'        
+        formatter.default_msec_format = '%s.%03d'
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
+
         reduction._logger = logger
-        
-        reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))        
-        
+
+        reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))
+
         #
         # configuration
         #
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
         config = configparser.ConfigParser()
-        
+
         reduction._logger.debug('> read default configuration')
         config.read(configfile)
 
@@ -156,7 +156,7 @@ class ImagingReduction(object):
 
         # reload any existing data frames
         reduction._read_info()
-        
+
         #
         # return instance
         #
@@ -270,7 +270,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('====> Init <====')
-        
+
         # make sure we have sub-directories
         self._path.create_subdirectories()
 
@@ -283,7 +283,7 @@ class ImagingReduction(object):
         '''
         Create static calibrations with esorex
         '''
-        
+
         self._logger.info('====> Static calibrations <====')
 
         config = self._config
@@ -298,7 +298,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('====> Science pre-processing <====')
-        
+
         config = self._config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
@@ -317,7 +317,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('====> Science processing <====')
-        
+
         config = self._config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
@@ -340,7 +340,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('====> Clean-up <====')
-        
+
         config = self._config
 
         if config['clean']:
@@ -355,7 +355,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('====> Full reduction <====')
-        
+
         self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
@@ -384,7 +384,7 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('Read existing reduction information')
-        
+
         # path
         path = self._path
 
@@ -392,7 +392,7 @@ class ImagingReduction(object):
         fname = path.preproc / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
-            
+
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -415,7 +415,7 @@ class ImagingReduction(object):
         fname = path.preproc / 'frames.csv'
         if fname.exists():
             self._logger.debug('> read frames.csv')
-            
+
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -434,7 +434,7 @@ class ImagingReduction(object):
         fname = path.preproc / 'frames_preproc.csv'
         if fname.exists():
             self._logger.debug('> read frames_preproc.csv')
-            
+
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -475,7 +475,7 @@ class ImagingReduction(object):
                 self._update_recipe_status('sph_ird_star_center', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
-            
+    # FIXME: move into toolbox
     def _update_recipe_status(self, recipe, recipe_status):
         '''Update execution status for reduction and recipe
 
@@ -488,16 +488,16 @@ class ImagingReduction(object):
             Status of the recipe. Can be either one of vltpf.NOTSET,
             vltpf.SUCCESS or vltpf.ERROR
         '''
-        
+
         self._logger.debug('> update recipe execution')
-        
+
         self._recipes_status[recipe] = recipe_status
         self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
     ##################################################
-    
+
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
@@ -510,7 +510,7 @@ class ImagingReduction(object):
 
         # update recipe execution
         self._update_recipe_status('sort_files', vltpf.NOTSET)
-        
+
         # parameters
         path = self._path
 
@@ -607,7 +607,7 @@ class ImagingReduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sort_frames', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sort_frames',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -694,9 +694,9 @@ class ImagingReduction(object):
         self._logger.info(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
         self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
-        
+
         # update recipe execution
-        self._update_recipe_status('sort_frames', vltpf.SUCCESS)        
+        self._update_recipe_status('sort_frames', vltpf.SUCCESS)
 
 
     def check_files_association(self):
@@ -710,7 +710,7 @@ class ImagingReduction(object):
         self._logger.info('File association for calibrations')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'check_files_association', 
+        if not toolbox.recipe_executable(self._recipes_status, 'check_files_association',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -789,7 +789,7 @@ class ImagingReduction(object):
             return
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-        
+
         # update recipe execution
         self._update_recipe_status('check_files_association', vltpf.SUCCESS)
 
@@ -807,7 +807,7 @@ class ImagingReduction(object):
         self._logger.info('Darks and backgrounds')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_dark', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_dark',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -934,7 +934,7 @@ class ImagingReduction(object):
         self._logger.info('Instrument flats')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_detector_flat', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_detector_flat',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1081,7 +1081,7 @@ class ImagingReduction(object):
         self._logger.info('Pre-process science files')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_preprocess_science', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_preprocess_science',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1322,16 +1322,16 @@ class ImagingReduction(object):
         self._logger.info('Star centers determination')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_star_center', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_star_center',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         pixel = self._pixel
         orientation_offset = self._orientation_offset
         center_guess = self._default_center
-        frames_info = self._frames_info_preproc        
+        frames_info = self._frames_info_preproc
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1354,7 +1354,7 @@ class ImagingReduction(object):
                     save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, 
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel,
                                                                     save_path=save_path, logger=self._logger)
 
                 # save
@@ -1388,8 +1388,8 @@ class ImagingReduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave, waffle_orientation, center_guess,
-                                                                pixel, orientation_offset, high_pass=high_pass, 
-                                                                center_offset=offset, coro=coro, save_path=save_path, 
+                                                                pixel, orientation_offset, high_pass=high_pass,
+                                                                center_offset=offset, coro=coro, save_path=save_path,
                                                                 logger=self._logger)
 
                 # save
@@ -1443,8 +1443,8 @@ class ImagingReduction(object):
           - no saving of the rescaled frames (save_scaled=False)
 
         This option is useful if the user wants to perform a
-        posteriori centering of the frames, e.g. to fully preserve 
-        photometry. 
+        posteriori centering of the frames, e.g. to fully preserve
+        photometry.
 
         If there was no OBJECT,CENTER acquired in the sequence, then
         the centering will be performed with respect to a default,
@@ -1501,10 +1501,10 @@ class ImagingReduction(object):
         self._logger.info('Combine science data')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_combine_data', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_combine_data',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         nwave = self._nwave
@@ -1537,7 +1537,7 @@ class ImagingReduction(object):
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
-            
+
             if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
                 self._logger.error('manual_center does not have the right number of dimensions.')
                 self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
@@ -1577,7 +1577,7 @@ class ImagingReduction(object):
                 self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                
+
                 self._logger.debug('> read centers')
                 cfile = path.preproc / '{}_centers.fits'.format(fname)
                 if cfile.exists():
@@ -1587,7 +1587,7 @@ class ImagingReduction(object):
                     centers = self._default_center
 
                 # make sure we have only integers if user wants coarse centering
-                if coarse_centering:                    
+                if coarse_centering:
                     centers = centers.astype(np.int)
 
                 # neutral density
@@ -1679,11 +1679,11 @@ class ImagingReduction(object):
                 else:
                     # otherwise read center data
                     centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
-                
+
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(np.int)
-                
+
                 # neutral density
                 self._logger.debug('> read neutral density information')
                 ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
@@ -1747,14 +1747,14 @@ class ImagingReduction(object):
             # null value for Dithering Motion Stage by default
             dms_dx_ref = 0
             dms_dy_ref = 0
-            
+
             # use manual center if explicitely requested
             self._logger.debug('> read centers')
             if manual_center is not None:
                 centers = manual_center
             else:
                 # otherwise, look whether we have an OBJECT,CENTER frame
-            
+
                 # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
                 # in the sequence, but it would be better to be able to
                 # select which CENTER to use
@@ -1767,7 +1767,7 @@ class ImagingReduction(object):
                     fpath = path.preproc / fname
                     if fpath.exists():
                         centers = fits.getdata(fpath)
-                    
+
                         # Dithering Motion Stage for star center: value is in micron,
                         # and the pixel size is 18 micron
                         dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
@@ -1826,7 +1826,7 @@ class ImagingReduction(object):
                 if coarse_centering:
                     dms_dx = np.int(dms_dx)
                     dms_dy = np.int(dms_dy)
-                
+
                 # center frames
                 for wave_idx, img in enumerate(cube):
                     self._logger.debug('> wave {}'.format(wave_idx))
@@ -1890,12 +1890,12 @@ class ImagingReduction(object):
         '''
 
         self._logger.info('Clean reduction data')
-        
+
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_clean', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_clean',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
 

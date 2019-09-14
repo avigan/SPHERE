@@ -114,11 +114,11 @@ class SpectroReduction(object):
             The log level of the handler
 
         '''
-        
+
         #
         # make sure we are dealing with a proper reduction directory
         #
-        
+
         # init path
         path = Path(path).expanduser().resolve()
 
@@ -150,23 +150,23 @@ class SpectroReduction(object):
         if logger.hasHandlers():
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
-        
+
         handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
-        formatter.default_msec_format = '%s.%03d'        
+        formatter.default_msec_format = '%s.%03d'
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
+
         reduction._logger = logger
-        
+
         reduction._logger.info('Creating IRDIS spectroscopy reduction at path {}'.format(path))
-        
+
         #
         # configuration
         #
         configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
         config = configparser.ConfigParser()
-        
+
         reduction._logger.debug('> read configuration')
         config.read(configfile)
 
@@ -205,7 +205,7 @@ class SpectroReduction(object):
 
         # reload any existing data frames
         reduction._read_info()
-        
+
         #
         # return instance
         #
@@ -325,7 +325,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('====> Init <====')
-        
+
         # make sure we have sub-directories
         self._path.create_subdirectories()
 
@@ -340,7 +340,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('====> Static calibrations <====')
-        
+
         config = self._config
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
@@ -354,7 +354,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('====> Science pre-processing <====')
-        
+
         config = self._config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
@@ -369,7 +369,7 @@ class SpectroReduction(object):
         Perform star center, combine cubes into final (x,y,time,lambda)
         cubes, correct anamorphism and scale the images
         '''
-        
+
         self._logger.info('====> Science processing <====')
 
         config = self._config
@@ -394,7 +394,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('====> Clean-up <====')
-        
+
         config = self._config
 
         if config['clean']:
@@ -409,7 +409,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('====> Full reduction <====')
-        
+
         self.init_reduction()
         self.create_static_calibrations()
         self.preprocess_science()
@@ -438,7 +438,7 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('Read existing reduction information')
-        
+
         # path
         path = self._path
 
@@ -446,7 +446,7 @@ class SpectroReduction(object):
         fname = path.preproc / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
-            
+
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -471,7 +471,7 @@ class SpectroReduction(object):
         fname = path.preproc / 'frames.csv'
         if fname.exists():
             self._logger.debug('> read frames.csv')
-            
+
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -490,7 +490,7 @@ class SpectroReduction(object):
         fname = path.preproc / 'frames_preproc.csv'
         if fname.exists():
             self._logger.debug('> read frames_preproc.csv')
-            
+
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -541,7 +541,7 @@ class SpectroReduction(object):
                 self._update_recipe_status('sph_ird_star_center', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
-
+    # FIXME: move into toolbox
     def _update_recipe_status(self, recipe, recipe_status):
         '''Update execution status for reduction and recipe
 
@@ -554,16 +554,16 @@ class SpectroReduction(object):
             Status of the recipe. Can be either one of vltpf.NOTSET,
             vltpf.SUCCESS or vltpf.ERROR
         '''
-        
+
         self._logger.debug('> update recipe execution')
-        
+
         self._recipes_status[recipe] = recipe_status
         self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
     ##################################################
-    
+
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
@@ -576,7 +576,7 @@ class SpectroReduction(object):
 
         # update recipe execution
         self._update_recipe_status('sort_files', vltpf.NOTSET)
-        
+
         # parameters
         path = self._path
 
@@ -673,7 +673,7 @@ class SpectroReduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sort_frames', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sort_frames',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -688,7 +688,7 @@ class SpectroReduction(object):
         if len(sci_files) == 0:
             self._logger.error('This dataset contains no science frame. There should be at least one!')
             self._update_recipe_status('sort_frames', vltpf.ERROR)
-            return        
+            return
 
         # build indices
         files = []
@@ -762,8 +762,8 @@ class SpectroReduction(object):
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
         # update recipe execution
-        self._update_recipe_status('sort_frames', vltpf.SUCCESS)        
-        
+        self._update_recipe_status('sort_frames', vltpf.SUCCESS)
+
 
     def check_files_association(self):
         '''
@@ -776,7 +776,7 @@ class SpectroReduction(object):
         self._logger.info('File association for calibrations')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'check_files_association', 
+        if not toolbox.recipe_executable(self._recipes_status, 'check_files_association',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -803,7 +803,7 @@ class SpectroReduction(object):
             self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
             self._update_recipe_status('check_files_association', vltpf.ERROR)
             return
-            
+
         filter_comb = filter_combs[0]
         if (filter_comb != 'S_LR') and (filter_comb != 'S_MR'):
             self._logger.error('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
@@ -902,10 +902,10 @@ class SpectroReduction(object):
         self._logger.info('Darks and backgrounds')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_dark', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_dark',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1029,10 +1029,10 @@ class SpectroReduction(object):
         self._logger.info('Instrument flats')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_detector_flat', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_detector_flat',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1132,10 +1132,10 @@ class SpectroReduction(object):
         self._logger.info('Wavelength calibration')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_wave', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_cal_wave',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1173,7 +1173,7 @@ class SpectroReduction(object):
 
         # laser wavelengths
         wave_lasers = self._wave_cal_lasers
-        
+
         # esorex parameters
         self._logger.debug('> filter combination is {}'.format(filter_comb))
         if filter_comb == 'S_LR':
@@ -1290,7 +1290,7 @@ class SpectroReduction(object):
 
         self._logger.debug('> save default wavelength calibration')
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
-        
+
         # update recipe execution
         self._update_recipe_status('sph_ird_cal_wave', vltpf.SUCCESS)
 
@@ -1336,10 +1336,10 @@ class SpectroReduction(object):
         self._logger.info('Pre-process science files')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_preprocess_science', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_preprocess_science',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         files_info = self._files_info
@@ -1375,7 +1375,7 @@ class SpectroReduction(object):
         if len(flat_file) != 1:
             self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
             self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
-            return            
+            return
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
         # final dataframe
@@ -1420,7 +1420,7 @@ class SpectroReduction(object):
                         # FIXME: handle cases when multiple backgrounds are found?
                         self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
                         self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
-                        return            
+                        return
 
                 # process files
                 for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
@@ -1542,10 +1542,10 @@ class SpectroReduction(object):
         self._logger.info('Star centers determination')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_star_center', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_star_center',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self._path
         pixel = self._pixel
@@ -1585,7 +1585,7 @@ class SpectroReduction(object):
                     save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path, 
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path,
                                                                     logger=self._logger)
 
                 # save
@@ -1622,7 +1622,7 @@ class SpectroReduction(object):
                     save_path = None
                 spot_centers, spot_dist, img_centers \
                     = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel,
-                                                                high_pass=high_pass, save_path=save_path, 
+                                                                high_pass=high_pass, save_path=save_path,
                                                                 logger=self._logger)
 
                 # save
@@ -1657,9 +1657,9 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('Wavelength recalibration')
-        
+
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_wavelength_recalibration', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_wavelength_recalibration',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1674,7 +1674,7 @@ class SpectroReduction(object):
         wfile = path.preproc / 'wavelength_recalibrated.fits'
         if wfile.exists():
             wfile.unlink()
-        
+
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
         if filter_comb == 'S_LR':
@@ -1729,7 +1729,7 @@ class SpectroReduction(object):
                 # LRS mode
                 self._logger.error('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
                 self._update_recipe_status('sph_ird_wavelength_recalibration', vltpf.ERROR)
-                return            
+                return
             elif filter_comb == 'S_MR':
                 # linear fit with a 5-degree polynomial
                 good = np.where(np.isfinite(wave))
@@ -1894,7 +1894,7 @@ class SpectroReduction(object):
         self._logger.info('Combine science data')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_combine_data', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_combine_data',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1927,7 +1927,7 @@ class SpectroReduction(object):
             else:
                 self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_cal_wave or sph_ird_wavelength_recalibration().')
             self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
-            return                
+            return
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field
@@ -1935,7 +1935,7 @@ class SpectroReduction(object):
         iwave0 = np.where(mask[:, 0])[0]
         iwave1 = np.where(mask[:, 1])[0]
         nwave  = np.min([iwave0.size, iwave1.size])
-        
+
         iwave = np.empty((nwave, 2), dtype=np.int)
         iwave[:, 0] = iwave0[:nwave]
         iwave[:, 1] = iwave1[:nwave]
@@ -1943,7 +1943,7 @@ class SpectroReduction(object):
         final_wave = np.empty((nwave, 2))
         final_wave[:, 0] = wave[iwave[:, 0], 0]
         final_wave[:, 1] = wave[iwave[:, 1], 1]
-    
+
         fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
 
         # max images size
@@ -1961,17 +1961,17 @@ class SpectroReduction(object):
             shift_method = 'roll'
             cpix = True
             correct_mrs_chromatism = False
-        
+
         if manual_center is not None:
             manual_center = np.array(manual_center)
-            
+
             if manual_center.shape != (2,):
                 self._logger.error('manual_center does not have the right number of dimensions.')
                 self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
-                return                
+                return
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center))
-            
+
             manual_center = np.full((1024, 2), manual_center, dtype=np.float)
 
         #
@@ -2000,7 +2000,7 @@ class SpectroReduction(object):
                 self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                
+
                 self._logger.debug('> read centers')
                 cfile = path.preproc / '{}_centers.fits'.format(fname)
                 if cfile.exists():
@@ -2023,7 +2023,7 @@ class SpectroReduction(object):
                     self._logger.debug('> field {}'.format(field_idx))
                     # wavelength solution for this field
                     ciwave = iwave[:, field_idx]
-                    
+
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         self._logger.debug('> correct MRS chromatism')
                         img = img.astype(np.float)
@@ -2032,7 +2032,7 @@ class SpectroReduction(object):
                             cx = centers[widx, field_idx]
 
                             line = img[widx, :]
-                            
+
                             nimg = imutils.shift(line, cc-cx, method=shift_method)
                             nimg = nimg / DIT
 
@@ -2105,7 +2105,7 @@ class SpectroReduction(object):
                 self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
                 cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
-                
+
                 # use manual center if explicitely requested
                 self._logger.debug('> read centers')
                 if manual_center is not None:
@@ -2310,9 +2310,9 @@ class SpectroReduction(object):
         '''
 
         self._logger.info('Clean reduction data')
-        
+
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_clean', 
+        if not toolbox.recipe_executable(self._recipes_status, 'sph_ird_clean',
                                          self.recipe_requirements, logger=self._logger):
             return
 
