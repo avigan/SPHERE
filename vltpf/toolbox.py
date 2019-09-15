@@ -22,7 +22,7 @@ global_cmap = 'inferno'
 _log = logging.getLogger(__name__)
 
 
-def recipe_executable(recipes_status, recipe, requirements, logger=_log):
+def recipe_executable(recipes_status, reduction_status, recipe, requirements, logger=_log):
     '''
     Check if a recipe is executabled given the status of other recipes
 
@@ -30,6 +30,9 @@ def recipe_executable(recipes_status, recipe, requirements, logger=_log):
     ----------
     recipes_status : dict
         Status of executed recipes
+
+    reduction_status : vltpf state
+        Overall status of the reduction
 
     recipe : str
         Name of the current recipe
@@ -46,6 +49,10 @@ def recipe_executable(recipes_status, recipe, requirements, logger=_log):
         Current recipe can be executed safely
     '''
     
+    if reduction_status == vltpf.FATAL:
+        logger.critical('   ==> reduction is in a FATAL state! See log file for details')
+        return False
+    
     recipes = recipes_status.keys()
     requirements = requirements[recipe]
     
@@ -60,7 +67,7 @@ def recipe_executable(recipes_status, recipe, requirements, logger=_log):
             missing.append(r)
 
     if not execute_recipe:
-        logger.error('{} cannot executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe, missing))
+        logger.error('{} cannot be executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe, missing))
         recipes_status[recipe] = vltpf.ERROR
 
     logger.debug('> execution requirements check for {}: {}'.format(recipe, execute_recipe))
