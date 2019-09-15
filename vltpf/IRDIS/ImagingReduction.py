@@ -52,7 +52,7 @@ class ImagingReduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info'):
+    def __new__(cls, path, log_level='info', sphere_handler=None):
         '''Custom instantiation for the class and initialization for the
            instances
 
@@ -68,6 +68,9 @@ class ImagingReduction(object):
 
         level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
+
+        sphere_handler : log handler
+            Higher-level SPHERE.Dataset log handler
 
         '''
 
@@ -113,6 +116,9 @@ class ImagingReduction(object):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
+        if sphere_handler:
+            logger.addHandler(sphere_handler)
+                
         reduction._logger = logger
 
         reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))

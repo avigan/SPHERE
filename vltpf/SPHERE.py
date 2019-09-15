@@ -394,6 +394,7 @@ class Dataset:
         logger.addHandler(handler)
         
         self._log_level = log_level
+        self._handler   = handler
         self._logger    = logger
         
         self._logger.info('Looking for SPHERE data sets at path {}'.format(path))
@@ -507,7 +508,9 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            self._logger.info('Full reduction: {}'.format(str(r)))
+            self._logger.info('###########################################################################')
+            self._logger.info('# Full reduction: {}'.format(str(r)))
+            self._logger.info('###########################################################################')
             
             r.full_reduction()
 
@@ -548,19 +551,22 @@ class Dataset:
                         
                         if mode == 'imaging':
                             self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
-                            reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level)
+                            reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level,
+                                                                sphere_handler=self._handler)
                         elif mode == 'polar':
                             self._logger.warning('IRDIS DPI not supported yet')
                         elif mode == 'spectro':
                             self._logger.info(' * IRDIS spectro <reduction at path {}'.format(reduction_path))
-                            reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level)
+                            reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level,
+                                                                sphere_handler=self._handler)
 
                         # save if reduction was successfully created
                         if reduction is not None:
                             self._IRDIS_reductions.append(reduction)
                     elif arm == 'IFS':
                         self._logger.info(' * IFS reduction at path {}'.format(reduction_path))
-                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level)
+                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level, 
+                                                   sphere_handler=self._handler)
 
                         # save if reduction was successfully created
                         if reduction is not None:

@@ -393,7 +393,7 @@ class Reduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info'):
+    def __new__(cls, path, log_level='info', sphere_handler=None):
         '''Custom instantiation for the class
 
         The customized instantiation enables to check that the
@@ -408,6 +408,9 @@ class Reduction(object):
 
         level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
+
+        sphere_handler : log handler
+            Higher-level SPHERE.Dataset log handler
 
         '''
         
@@ -451,6 +454,9 @@ class Reduction(object):
         formatter.default_msec_format = '%s.%03d'        
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+        
+        if sphere_handler:
+            logger.addHandler(sphere_handler)
         
         reduction._logger = logger
         
