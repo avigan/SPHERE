@@ -710,7 +710,10 @@ class SpectroReduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        toolbox.compute_angles(frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(frames_info, logger=self._logger)
+        if ret == vltpf.ERROR:
+            self._update_recipe_status('sort_frames', vltpf.ERROR)
+            return
 
         # save
         self._logger.debug('> save frames.csv')
@@ -1359,6 +1362,10 @@ class SpectroReduction(object):
             bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
                                    (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
+            if len(bpm_files) == 0:
+                self._logger.error('Could not fin any bad pixel maps')
+                self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
+                return
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
@@ -1468,6 +1475,13 @@ class SpectroReduction(object):
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
 
+                    # check for any error during collapse of frame information
+                    if frames_info_new is None:
+                        self._logger.error('An error occured when collapsing frames info')
+                        self._update_recipe_status('sph_ird_preprocess_science', vltpf.ERROR)
+                        return
+                    
+                    # merge frames info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
 
                     # background subtraction

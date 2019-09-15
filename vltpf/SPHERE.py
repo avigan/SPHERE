@@ -141,7 +141,8 @@ def sort_files_from_xml(path, logger=_log):
             logger.info('   ==> file {} does not exist. Skipping'.format(filename))
             continue
 
-        hdr = fits.getheader(path / '{}.fits'.format(filename))
+        fpath = path / '{}.fits'.format(filename)
+        hdr = fits.getheader(fpath)
         
         # target and arm
         target = hdr['HIERARCH ESO OBS NAME']
@@ -153,13 +154,16 @@ def sort_files_from_xml(path, logger=_log):
         else:
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
-                if arm == 'IRDIS':
-                    instrument = 'IRDIS'
-                elif arm == 'IFS':
-                    instrument = 'IFS'                
-                else:
-                    raise NameError('Unknown arm {0}'.format(arm))
-            except NameError:
+            except KeyError:
+                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fpath))
+                continue
+                
+            if arm == 'IRDIS':
+                instrument = 'IRDIS'
+            elif arm == 'IFS':
+                instrument = 'IFS'                
+            else:
+                logger.error('Unknown arm {0}'.format(arm))
                 continue
 
         # get files
@@ -250,7 +254,8 @@ def sort_files_from_fits(path, logger=_log):
             target = hdr['HIERARCH ESO OBS NAME']
             obs_id = hdr['HIERARCH ESO OBS ID']
             dpr_type = hdr['HIERARCH ESO DPR TYPE']
-        except:
+        except KeyError:
+            logger.error('Missing ESO HIERARCH keywords in {}'.format(file))
             continue
 
         if dpr_type == 'OBJECT,AO':
@@ -258,13 +263,16 @@ def sort_files_from_fits(path, logger=_log):
         else:
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
-                if arm == 'IRDIS':
-                    instrument = 'IRDIS'
-                elif arm == 'IFS':
-                    instrument = 'IFS'                
-                else:
-                    raise NameError('Unknown arm {0}'.format(arm))
-            except:
+            except KeyError:
+                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(file))
+                continue
+            
+            if arm == 'IRDIS':
+                instrument = 'IRDIS'
+            elif arm == 'IFS':
+                instrument = 'IFS'                
+            else:
+                logger.error('Unknown arm {0}'.format(arm))
                 continue
 
         # target path
@@ -302,12 +310,19 @@ def classify_irdis_dataset(path, logger=_log):
     logger : logHandler object
         Log handler for the reduction. Default is root logger
 
+    Returns
+    -------
+    mode : str
+        Generic string representing the name of the mode. None in case
+        of failure.
+
     '''
     
     # zeroth-order reduction validation
     raw = path / 'raw'
     if not raw.exists():
-        raise ValueError('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        logger.error('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        return None
 
     # list all fits files
     files = list(raw.glob('*.fits'))
@@ -433,7 +448,7 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            self._logger.info('Init: {}'.format(r))
+            self._logger.info('Init: {}'.format(str(r)))
             
             r.init_reduction()
 
@@ -444,7 +459,7 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            self._logger.info('Static calibrations: {}'.format(r))
+            self._logger.info('Static calibrations: {}'.format(str(r)))
             
             r.create_static_calibrations()
 
@@ -455,7 +470,7 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            self._logger.info('Science pre-processing: {}'.format(r))
+            self._logger.info('Science pre-processing: {}'.format(str(r)))
             
             r.preprocess_science()
 
@@ -467,7 +482,7 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            self._logger.info('Science processing: {}'.format(r))
+            self._logger.info('Science processing: {}'.format(str(r)))
 
             r.process_science()
 
@@ -479,7 +494,8 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            self._logger.info('Clean-up: {}'.format(r))
+            print(r)
+            self._logger.info('Clean-up: {}'.format(str(r)))
 
             r.clean()
         
@@ -491,7 +507,7 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            self._logger.info('Full {0} reduction at path {1}'.format(r.instrument, r.path))
+            self._logger.info('Full reduction: {}'.format(str(r)))
             
             r.full_reduction()
 
@@ -519,26 +535,38 @@ class Dataset:
                     hdr = fits.getheader(fits_files[0])
                     try:
                         arm = hdr['HIERARCH ESO SEQ ARM']
-                        if arm == 'IRDIS':
-                            mode = classify_irdis_dataset(reduction_path, logger=self._logger)
-                            
-                            if mode == 'imaging':
-                                self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
-                                reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level)
-                            elif mode == 'polar':
-                                self._logger.warning('IRDIS DPI not supported yet')
-                            elif mode == 'spectro':
-                                self._logger.info(' * IRDIS spectro reduction at path {}'.format(reduction_path))
-                                reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level)
-                                
+                    except KeyError:
+                        self._logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fits_files[0]))
+                        continue
+                        
+                    if arm == 'IRDIS':
+                        mode = classify_irdis_dataset(reduction_path, logger=self._logger)
+
+                        # an error occured in dataset classification
+                        if mode is None:
+                            continue
+                        
+                        if mode == 'imaging':
+                            self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
+                            reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level)
+                        elif mode == 'polar':
+                            self._logger.warning('IRDIS DPI not supported yet')
+                        elif mode == 'spectro':
+                            self._logger.info(' * IRDIS spectro <reduction at path {}'.format(reduction_path))
+                            reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level)
+
+                        # save if reduction was successfully created
+                        if reduction is not None:
                             self._IRDIS_reductions.append(reduction)
-                        elif arm == 'IFS':
-                            self._logger.info(' * IFS reduction at path {}'.format(reduction_path))
-                            reduction  = IFS.Reduction(reduction_path, log_level=self._log_level)
+                    elif arm == 'IFS':
+                        self._logger.info(' * IFS reduction at path {}'.format(reduction_path))
+                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level)
+
+                        # save if reduction was successfully created
+                        if reduction is not None:
                             self._IFS_reductions.append(reduction)
-                        else:
-                            raise NameError('Unknown arm {0}'.format(arm))
-                    except:
+                    else:
+                        self._logger.error('Unknown arm {0}'.format(arm))
                         continue
 
                     # self._logger.info(reduction_path)

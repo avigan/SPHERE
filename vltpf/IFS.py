@@ -1020,7 +1020,10 @@ class Reduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        toolbox.compute_angles(frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(frames_info, logger=self._logger)
+        if ret == vltpf.ERROR:
+            self._update_recipe_status('sort_frames', vltpf.ERROR)
+            return
 
         # save
         self._logger.debug('> save frames.csv')
@@ -1488,6 +1491,10 @@ class Reduction(object):
         # bpm files
         cfiles = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
         bpm_files = [path.calib / '{}.fits'.format(f) for f in cfiles]
+        if len(bpm_files) == 0:
+            self._logger.error('Could not fin any bad pixel maps')
+            self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.ERROR)
+            return
 
         # loop on wavelengths
         waves = [         0,        1020,        1230,        1300,        1550]
@@ -2012,6 +2019,11 @@ class Reduction(object):
             bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
 
+            if len(bpm_files) == 0:
+                self._logger.error('Could not fin any bad pixel maps')
+                self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                return
+    
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
         # final dataframe
@@ -2128,7 +2140,13 @@ class Reduction(object):
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
 
-                    # merge collapse collapsed frames_info
+                    # check for any error during collapse of frame information
+                    if frames_info_new is None:
+                        self._logger.error('An error occured when collapsing frames info')
+                        self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                        return
+                    
+                    # merge frames_info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
 
                     # background subtraction
@@ -2205,6 +2223,11 @@ class Reduction(object):
         # bpm
         bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
         bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
+        if len(bpm_files) == 0:
+            self._logger.error('Could not fin any bad pixel maps')
+            self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.ERROR)
+            return
+        
         bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
         # dark

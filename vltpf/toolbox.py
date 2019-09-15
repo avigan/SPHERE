@@ -234,17 +234,20 @@ def compute_angles(frames_info, logger=_log):
     #
     instru = frames_info['SEQ ARM'].unique()
     if len(instru) != 1:
-        raise ValueError('Sequence is mixing different instruments: {0}'.format(instru))
+        logger.error('Sequence is mixing different instruments: {0}'.format(instru))
+        return vltpf.ERROR
     if instru == 'IFS':
         instru_offset = -100.48
     elif instru == 'IRDIS':
         instru_offset = 0.0
     else:
-        raise ValueError('Unkown instrument {0}'.format(instru))
+        logger.error('Unkown instrument {0}'.format(instru))
+        return vltpf.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
     if len(drot_mode) != 1:
-        raise ValueError('Derotator mode has several values in the sequence')
+        logger.error('Derotator mode has several values in the sequence')
+        return vltpf.ERROR
     if drot_mode == 'ELEV':
         pupoff = 135.99
     elif drot_mode == 'SKY':
@@ -252,12 +255,15 @@ def compute_angles(frames_info, logger=_log):
     elif drot_mode == 'STAT':
         pupoff = -100.48
     else:
-        raise ValueError('Unknown derotator mode {0}'.format(drot_mode))
+        logger.error('Unknown derotator mode {0}'.format(drot_mode))
+        return vltpf.ERROR
 
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff
+    
+    return vltpf.SUCCESS
 
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
@@ -280,10 +286,6 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
     bpm : array_like
         Combined bad pixel map
     '''
-
-    # check that we have files
-    if len(bpm_files) == 0:
-        raise ValueError('No bad pixel map files provided')
 
     logger.debug('> compute master bad pixel map from {} files'.format(len(bpm_files)))
     
@@ -329,7 +331,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
     Returns
     -------
     nfinfo : dataframe
-        Collapsed data frame
+        Collapsed data frame, or None in case of error
     '''
 
     logger.info('   ==> collapse frames information')
@@ -359,7 +361,9 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
         
         # recompute angles
-        compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, logger=logger)
+        if ret == vltpf.ERROR:
+            return None
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
         NDIT = len(finfo)
@@ -386,9 +390,12 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                              (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
             
         # recompute angles
-        compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, logger=logger)
+        if ret == vltpf.ERROR:
+            return None
     else:
-        raise ValueError('Unknown collapse type {0}'.format(collapse_type))
+        logger.error('Unknown collapse type {0}'.format(collapse_type))
+        return None
 
     return nfinfo
 
