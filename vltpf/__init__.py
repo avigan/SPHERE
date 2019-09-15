@@ -10,7 +10,17 @@ _log = logging.getLogger(__name__)
 _log.setLevel(logging.DEBUG)
 _log.info('VLTPF init')
 
+# recipe execution status
+NOTSET     = -1
+SUCCESS    =  0
+ERROR      =  1
 
+# INIT       = -1
+# INCOMPLETE = -2
+# COMPLETED  = -3
+
+
+# log level
 def set_loglevel(level):
     '''
     Set the logging level for the module
