@@ -475,8 +475,7 @@ class ImagingReduction(object):
                 self._update_recipe_status('sph_ird_star_center', vltpf.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
-    # FIXME: move into toolbox
-    def _update_recipe_status(self, recipe, recipe_status):
+    def _update_recipe_status(self, recipe, status):
         '''Update execution status for reduction and recipe
 
         Parameters
@@ -484,14 +483,14 @@ class ImagingReduction(object):
         recipe : str
             Recipe name
 
-        recipe_status : vltpf status (int)
+        status : vltpf status (int)
             Status of the recipe. Can be either one of vltpf.NOTSET,
             vltpf.SUCCESS or vltpf.ERROR
         '''
 
         self._logger.debug('> update recipe execution')
 
-        self._recipes_status[recipe] = recipe_status
+        self._recipes_status[recipe] = status
         self._recipes_status.move_to_end(recipe)
 
     ##################################################
