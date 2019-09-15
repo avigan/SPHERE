@@ -14,10 +14,11 @@ _log.info('VLTPF init')
 NOTSET     = -1
 SUCCESS    =  0
 ERROR      =  1
+FATAL      =  2
 
-# INIT       = -1
-# INCOMPLETE = -2
-# COMPLETED  = -3
+COMPLETE   =   0
+INIT       = -10
+INCOMPLETE = -20
 
 
 # log level
