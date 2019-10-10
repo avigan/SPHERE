@@ -47,7 +47,7 @@ combinations = {
     'DP_0_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P0-90', 'Wavelength': (2091, 2091), 'Bandwidth': (34, 34)},
     'DP_0_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P0-90', 'Wavelength': (2266, 2266), 'Bandwidth': (32, 32)},
     'DP_0_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P0-90', 'Wavelength': (1642, 1642), 'Bandwidth': (24, 24)},
-    'DP_0_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P0-90', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},    
+    'DP_0_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P0-90', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},
     'DP_0_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P0-90', 'Wavelength': (1085, 1085), 'Bandwidth': (14, 14)},
     'DP_0_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P0-90', 'Wavelength': (1283, 1283), 'Bandwidth': (18, 18)},
 
@@ -63,7 +63,7 @@ combinations = {
     'DP_45_NB_ContK1': {'CFW': 'N_ContK1', 'DFW': 'P45-135', 'Wavelength': (2091, 2091), 'Bandwidth': (34, 34)},
     'DP_45_NB_ContK2': {'CFW': 'N_ContK2', 'DFW': 'P45-135', 'Wavelength': (2266, 2266), 'Bandwidth': (32, 32)},
     'DP_45_NB_FeII':   {'CFW': 'N_FeII',   'DFW': 'P45-135', 'Wavelength': (1642, 1642), 'Bandwidth': (24, 24)},
-    'DP_45_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P45-135', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},    
+    'DP_45_NB_H2':     {'CFW': 'N_H2',     'DFW': 'P45-135', 'Wavelength': (2124, 2124), 'Bandwidth': (31, 31)},
     'DP_45_NB_HeI':    {'CFW': 'N_HeI',    'DFW': 'P45-135', 'Wavelength': (1085, 1085), 'Bandwidth': (14, 14)},
     'DP_45_NB_PaB':    {'CFW': 'N_PaB',    'DFW': 'P45-135', 'Wavelength': (1283, 1283), 'Bandwidth': (18, 18)}
 }
@@ -84,10 +84,10 @@ def _reinterpolate(tr, wave, new_wave):
 
     wave : array_like
         Wavelengths vector, in nanometers
-    
+
     new_wave : array_like
         New wavelengths vector, in nanometers
-    
+
     Returns
     -------
     tr_regular : array_like
@@ -106,7 +106,7 @@ def _load(type, name):
 
     Parameters
     ----------
-    type : str    
+    type : str
         Type of transmission curve to read. Possible values are 'ndf',
         'cfw', 'dfw' and 'ird_ndf'.
 
@@ -122,7 +122,7 @@ def _load(type, name):
 
     if type == 'ndf':
         # transmission for NDF
-        
+
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
         filter_file = os.path.join(package_directory, 'data', 'SPHERE_CPI_ND.txt')
@@ -139,7 +139,7 @@ def _load(type, name):
         return transmissions[name]
     elif type == 'cfw':
         # transmission for CFW
-        
+
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
         filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_{0}.txt'.format(name))
@@ -150,28 +150,28 @@ def _load(type, name):
         # save for later calls
         transmissions[name] = _reinterpolate(cfw_tr[1], cfw_tr[0], wave_grid)
 
-        return transmissions[name]    
+        return transmissions[name]
     elif type == 'ird_ndf':
         # transmission for IRDIS ND
-        
+
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
         filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_ND.txt')
-        
+
         # load data
         ird_ndf_tr = np.loadtxt(filter_file, unpack=False).T
-        
+
         # save for later calls
         transmissions['IRD-ND'] = _reinterpolate(ird_ndf_tr[1], ird_ndf_tr[0], wave_grid)
-        
+
         return transmissions['IRD-ND']
     elif type == 'dfw':
         # transmission for DFW
-        
+
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
         filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_{0}.txt'.format(name))
-        
+
         # load data
         dfw_tr_tmp = np.loadtxt(filter_file, unpack=False).T
 
@@ -179,21 +179,21 @@ def _load(type, name):
         dfw_tr[0] = _reinterpolate(dfw_tr_tmp[1], dfw_tr_tmp[0], wave_grid)
         dfw_tr[1] = _reinterpolate(dfw_tr_tmp[2], dfw_tr_tmp[0], wave_grid)
 
-        # save for later calls            
+        # save for later calls
         transmissions[name] = dfw_tr
 
         return transmissions[name]
     else:
         raise ValueError('Unknown type {0}'.format(type))
-    
-    
+
+
 def irdis_nd(combination, nd_filter):
     '''
     Provides the IRDIS transmission for a given neutral density and
     filter combination
 
     Description
-    -----------    
+    -----------
     This function works for all the IRDIS broad-band (BB), dual-band
     (DB) and narrow-band (NB) filters. The names of the filter combinations
     are provided below.
@@ -231,15 +231,15 @@ def irdis_nd(combination, nd_filter):
     transmission curve of the CPI neutral density filter. The
     transmission of each filter is read from text files stored on
     disk.
-    
+
     Parameters
     ----------
-    combination : str    
+    combination : str
         Name of the filter combination. This parameter can be read
         directly from the header of any SPHERE/IRDIS raw file with the
         keyword 'HIERARCH ESO INS COMB IFLT'
 
-    nd_filter : str    
+    nd_filter : str
         Name of the neutral density filter. This parameter can be read
         directly from the header of any SPHERE/IRDIS raw file with the
         keyword 'HIERARCH ESO INS4 FILT2 NAME'
@@ -270,12 +270,12 @@ def irdis_nd(combination, nd_filter):
     ndf_tr = transmissions.get(ndf)
     if ndf_tr is None:
         ndf_tr = _load('ndf', ndf)
-    
+
     # transmissions for CFW
     cfw_tr = transmissions.get(cfw)
     if cfw_tr is None:
         cfw_tr = _load('cfw', cfw)
-    
+
     # transmission for IRDIS ND
     if cfw == 'B_ND-H':
         ird_ndf_tr = transmissions.get('IRD-ND')
@@ -283,7 +283,7 @@ def irdis_nd(combination, nd_filter):
             ird_ndf_tr = _load('ird_ndf', None)
     else:
         ird_ndf_tr = np.ones(wave_grid.size)
-    
+
     # get transmissions for DFW
     if dfw is not None:
         dfw_tr = transmissions.get(dfw)
@@ -310,16 +310,16 @@ def transmission_nd(nd_filter, wave=None):
     Provides the transmission for a given neutral density
 
     Description
-    -----------    
+    -----------
 
     The function provides the transmission curve of a given CPI
     neutral density filter. The user can provide an array of
     wavelengths.  It works for both IRDIS and IFS, within the range of
     wavalength covered by SPHERE (0.95-2.3 microns).
-    
+
     Parameters
     ----------
-    nd_filter : str    
+    nd_filter : str
         Name of the neutral density filter. This parameter can be read
         directly from the header of any SPHERE/IRDIS raw file with the
         keyword 'HIERARCH ESO INS4 FILT2 NAME'
@@ -327,13 +327,13 @@ def transmission_nd(nd_filter, wave=None):
     wave : array_like, optional
         Wavelengths at which the transmission is needed, in
         nanometers. Default is None
-    
+
     Returns
     -------
     wave : array_like
         Wavelength, in nanometers
-    
-    tr : array_like    
+
+    tr : array_like
         Transmission of the neutral density filter
 
     '''
@@ -350,10 +350,10 @@ def transmission_nd(nd_filter, wave=None):
         ndf_tr = _load('ndf', ndf)
 
     if wave is None:
-        wave = wave_grid    
+        wave = wave_grid
     else:
-        ndf_tr = _reinterpolate(ndf_tr, wave_grid, wave)    
-    
+        ndf_tr = _reinterpolate(ndf_tr, wave_grid, wave)
+
     return wave, ndf_tr
 
 
@@ -362,7 +362,7 @@ def transmission_filter(combination):
     Provides the IRDIS transmission curve for a given filter combination
 
     Description
-    -----------    
+    -----------
     This function works for all the IRDIS broad-band (BB), dual-band
     (DB) and narrow-band (NB) filters. The names of the filter combinations
     are provided below.
@@ -395,10 +395,10 @@ def transmission_filter(combination):
      - NB_Hel
      - NB_PaB
 
-    
+
     Parameters
     ----------
-    combination : str    
+    combination : str
         Name of the filter combination. This parameter can be read
         directly from the header of any SPHERE/IRDIS raw file with the
         keyword 'HIERARCH ESO INS COMB IFLT'
@@ -407,7 +407,7 @@ def transmission_filter(combination):
     -------
     wave : array_like
         Wavelength, in nanometers
-    
+
     tr_0, tr_1 : array_like
         The transmissions of the instrument on the left and right IRDIS
         fields of view
@@ -427,7 +427,7 @@ def transmission_filter(combination):
     cfw_tr = transmissions.get(cfw)
     if cfw_tr is None:
         cfw_tr = _load('cfw', cfw)
-    
+
     # transmission for IRDIS ND
     if cfw == 'B_ND-H':
         ird_ndf_tr = transmissions.get('IRD-ND')
@@ -435,7 +435,7 @@ def transmission_filter(combination):
             ird_ndf_tr = _load('ird_ndf', None)
     else:
         ird_ndf_tr = np.ones(wave_grid.size)
-    
+
     # get transmissions for DFW
     if dfw is not None:
         dfw_tr = transmissions.get(dfw)
@@ -444,7 +444,7 @@ def transmission_filter(combination):
     else:
         # if BB or NB mode, just use 1 for DBF
         dfw_tr = np.ones((2, wave_grid.size))
-    
+
     # integrated transmission value
     tr_0 = cfw_tr * dfw_tr[0] * ird_ndf_tr
     tr_1 = cfw_tr * dfw_tr[1] * ird_ndf_tr
@@ -458,7 +458,7 @@ def wavelength_bandwidth_filter(combination):
     combination
 
     Description
-    -----------    
+    -----------
     This function works for all the IRDIS broad-band (BB), dual-band
     (DB) and narrow-band (NB) filters. The names of the filter combinations
     are provided below.
@@ -491,10 +491,10 @@ def wavelength_bandwidth_filter(combination):
      - NB_Hel
      - NB_PaB
 
-    
+
     Parameters
     ----------
-    combination : str    
+    combination : str
         Name of the filter combination. This parameter can be read
         directly from the header of any SPHERE/IRDIS raw file with the
         keyword 'HIERARCH ESO INS COMB IFLT'
@@ -503,17 +503,16 @@ def wavelength_bandwidth_filter(combination):
     -------
     wave : array_like
         Tuple of central wavelengths, in nanometers
-    
+
     bandwidth : array_like
-        Tuple of bandwidth, in nanometers    
+        Tuple of bandwidth, in nanometers
     '''
 
     setup = combinations.get(combination)
     if setup is None:
         raise ValueError('Unknown filter combination {0}'.format(combination))
-    
+
     wave = setup['Wavelength']
     bandwidth = setup['Bandwidth']
 
     return wave, bandwidth
-

@@ -1,22 +1,23 @@
-'''
-VLT/SPHERE primary module
-'''
-
 import os
 import glob
 import shutil
 import math
+import logging
+import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as etree
 
 import vltpf.IRDIS as IRDIS
 import vltpf.IFS as IFS
 
+from pathlib import Path
 from astropy.io import fits
 from astropy.time import Time
 
+_log = logging.getLogger(__name__)
 
-def process_mainFiles(mainFiles, files, silent=True):
+
+def process_mainFiles(mainFiles, files, logger=_log):
     '''
     Process top-level file association XML from the ESO archive
 
@@ -28,19 +29,19 @@ def process_mainFiles(mainFiles, files, silent=True):
     files : list
         List where the files will be appended
 
-    silent : bool
-        Display the activity. Default is True
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     '''
     # append file names to the list
     for file in mainFiles:
         fname = file.attrib['name']
         files.append(fname)
 
-        if not silent:
-            print(' ==> {0}'.format(fname))
+        logger.debug(' ==> {0}'.format(fname))
+        
 
-
-def process_association(tree, files, silent=True):
+def process_association(tree, files, logger=_log):
     '''
     Process file association XML from the ESO archive
 
@@ -52,36 +53,33 @@ def process_association(tree, files, silent=True):
     files : list
         List where the files will be appended
 
-    silent : bool
-        Display the activity. Default is True
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
     '''
     catg = tree.attrib['category']
 
-    if not silent:
-        print(catg)
+    logger.debug(catg)
 
     # skip unused calibrations
     if (catg == 'IFS_STD_ASTROM') or (catg == 'IFS_STD_PHOT') or \
        (catg == 'IFS_DIST') or (catg == 'IRD_CLI_PHOT') or \
        (catg == 'IRD_DIST'):
-        if not silent:
-            print(' ==> skipping')
+        logger.debug(' ==> skipping')
         return
 
     # process differently mainFiles from associatedFiles
     for elt in tree:
         if elt.tag == 'mainFiles':
-            if not silent:
-                print('mainFiles')
+            logger.debug('mainFiles')
             process_mainFiles(elt, files)
         elif elt.tag == 'associatedFiles':
-            if not silent:
-                print('associatedFiles')
+            logger.debug('associatedFiles')
             for nelt in elt:
-                process_association(nelt, files, silent=silent)
+                process_association(nelt, files, logger=logger)
 
 
-def sort_files_from_xml(path, silent=True):
+def sort_files_from_xml(path, logger=_log):
     '''Sort files downloaded from the ESO archive with associated raw
        calibrations
 
@@ -106,22 +104,25 @@ def sort_files_from_xml(path, silent=True):
 
     Parameters
     ----------
-    silent : bool
-        Display some status of the execution. Default is to be silent
+    path : str
+        Path where to look for XML files
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
 
     '''
 
-    xml_files = glob.glob(path+'*.xml')
+    xml_files = list(path.glob('*.xml'))
 
-    print('Sort data based on XML files (ESO automated calibration selection)')
-    print(' ==> {0} XML files\n'.format(len(xml_files)))
+    logger.info('Sort data based on XML files (ESO automated calibration selection)')
+    logger.info(' * {0} XML files\n'.format(len(xml_files)))
     
     # sort files
     for file in xml_files:
         tree = etree.parse(file)
         root = tree.getroot()            
 
-        print(os.path.basename(file))
+        logger.info(' * {}'.format(file.name))
         
         # process only IFS and IRDIS science data
         catg = root.attrib['category']
@@ -133,14 +134,15 @@ def sort_files_from_xml(path, silent=True):
         filename = scifiles[0].attrib['name']
         
         # Mac OS X replaces : by _ in file names...
-        if not os.path.exists(path+filename+'.fits'):
+        if not (path / '{}.fits'.format(filename)).exists():
             filename = filename.replace(':', '_')
         
-        if not os.path.exists(path+filename+'.fits'):
-            print(' ==> file {} does not exsist. Skipping'.format(filename))
+        if not (path / '{}.fits'.format(filename)).exists():
+            logger.info('   ==> file {} does not exist. Skipping'.format(filename))
             continue
 
-        hdr = fits.getheader(path+filename+'.fits')
+        fpath = path / '{}.fits'.format(filename)
+        hdr = fits.getheader(fpath)
         
         # target and arm
         target = hdr['HIERARCH ESO OBS NAME']
@@ -152,68 +154,67 @@ def sort_files_from_xml(path, silent=True):
         else:
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
-                if arm == 'IRDIS':
-                    instrument = 'IRDIS'
-                elif arm == 'IFS':
-                    instrument = 'IFS'                
-                else:
-                    raise NameError('Unknown arm {0}'.format(arm))
-            except NameError:
+            except KeyError:
+                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fpath))
+                continue
+                
+            if arm == 'IRDIS':
+                instrument = 'IRDIS'
+            elif arm == 'IFS':
+                instrument = 'IFS'                
+            else:
+                logger.error('Unknown arm {0}'.format(arm))
                 continue
 
         # get files
         files = []
-        process_association(root, files, silent=True)
+        process_association(root, files, logger=logger)
 
         # target path
         directory = '{0}_id={1}'.format(target, obs_id)
         directory = '_'.join(directory.split())
-        target_path = os.path.join(path, directory, night, instrument, 'raw')
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
+        target_path = path / directory / night / instrument / 'raw'
+        target_path.mkdir(parents=True, exist_ok=True)
 
         # copy files
         for filename in files:
-            fpath = os.path.join(path, filename+'.fits')
+            fpath = path / '{}.fits'.format(filename)
             
             # Mac OS X replaces : by _ in file names...
-            if not os.path.exists(fpath):
+            if not fpath.exists():
                 filename = filename.replace(':', '_')
-                fpath  = os.path.join(path, filename+'.fits')
+                fpath  = path / '{}.fits'.format(filename)
             
             # check if file actually exists
-            if not os.path.exists(fpath):
-                print(' ==> file {} does not exist. Skipping.'.format(fpath))
+            if not fpath.exists():
+                logger.info(' ==> file {} does not exist. Skipping.'.format(fpath))
                 continue
             
             # copy if needed
-            nfpath = os.path.join(target_path, filename+'.fits')
-            if not os.path.exists(nfpath):
+            nfpath = target_path / '{}.fits'.format(filename)
+            if not nfpath.exists():
                 shutil.copy(fpath, nfpath)
 
         # print status
-        if not silent:
-            print('{0} - id={1}'.format(target, obs_id))
-            print(' ==> found {0} files'.format(len(files)))
-            print(' ==> copied to {0}'.format(target_path))
-            print()
+        logger.debug('{0} - id={1}'.format(target, obs_id))
+        logger.debug(' ==> found {0} files'.format(len(files)))
+        logger.debug(' ==> copied to {0}'.format(target_path))
 
     # move all files
-    path_new = os.path.join(path, 'all_files')
-    if not os.path.exists(path_new):
-        os.makedirs(path_new)
+    path_new = path / 'all_files'
+    path_new.mkdir(parents=True, exist_ok=True)
 
     files = []
-    files.extend(glob.glob(os.path.join(path+'*.fits')))
-    files.extend(glob.glob(os.path.join(path+'*.xml')))
-    files.extend(glob.glob(os.path.join(path+'*.txt')))        
+    files.extend(list(path.glob('*.fits')))
+    files.extend(list(path.glob('*.xml')))
+    files.extend(list(path.glob('*.txt')))
 
     if len(files) != 0:
         for file in files:
-            shutil.move(file, path_new)
+            file.rename(path_new / file.name)
 
 
-def sort_files_from_fits(path, silent=True):
+def sort_files_from_fits(path, logger=_log):
     '''Sort FITS files based only based on their headers
 
     Contrary to sort_files_from_xml(), this method is dumb in the
@@ -229,18 +230,23 @@ def sort_files_from_fits(path, silent=True):
 
     Parameters
     ----------
-    silent : bool
-        Display some status of the execution. Default is to be silent
+    path : str
+        Path where to look for FITS files
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
 
     '''
 
-    fits_files = glob.glob(path+'*.fits')
+    fits_files = list(path.glob('*.fits'))
 
-    print('Sort data based on FITS files')
-    print(' ==> {0} FITS files\n'.format(len(fits_files)))
+    logger.info('Sort data based on FITS files')
+    logger.info(' * {0} FITS files\n'.format(len(fits_files)))
 
     # sort files
     for file in fits_files:
+        logger.info(' * {}'.format(file.name))
+        
         # target and arm
         hdr = fits.getheader(file)
 
@@ -248,7 +254,8 @@ def sort_files_from_fits(path, silent=True):
             target = hdr['HIERARCH ESO OBS NAME']
             obs_id = hdr['HIERARCH ESO OBS ID']
             dpr_type = hdr['HIERARCH ESO DPR TYPE']
-        except:
+        except KeyError:
+            logger.error('Missing ESO HIERARCH keywords in {}'.format(file))
             continue
 
         if dpr_type == 'OBJECT,AO':
@@ -256,43 +263,97 @@ def sort_files_from_fits(path, silent=True):
         else:
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
-                if arm == 'IRDIS':
-                    instrument = 'IRDIS'
-                elif arm == 'IFS':
-                    instrument = 'IFS'                
-                else:
-                    raise NameError('Unknown arm {0}'.format(arm))
-            except:
+            except KeyError:
+                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(file))
+                continue
+            
+            if arm == 'IRDIS':
+                instrument = 'IRDIS'
+            elif arm == 'IFS':
+                instrument = 'IFS'                
+            else:
+                logger.error('Unknown arm {0}'.format(arm))
                 continue
 
         # target path
-        target_path = os.path.join(path, instrument, 'raw')
-        if not os.path.exists(target_path):
-            os.makedirs(target_path)
+        target_path = path / instrument / 'raw'
+        target_path.mkdir(parents=True, exist_ok=True)
 
         # move file
-        nfile = os.path.join(target_path, os.path.basename(file))
-        shutil.move(file, nfile)
+        file.rename(target_path / file.name)
 
         # print status
-        if not silent:
-            print('{0} - id={1}'.format(target, obs_id))
-            print(' ==> copied to {0}'.format(target_path))
-            print()
+        logger.debug('{0} - id={1}'.format(target, obs_id))
+        logger.debug(' ==> copied to {0}'.format(target_path))
 
     # move all files
-    path_new = os.path.join(path, 'unsorted_files')
-    if not os.path.exists(path_new):
-        os.makedirs(path_new)
+    path_new = path / 'unsorted_files'
+    path_new.mkdir(parents=True, exist_ok=True)
 
     files = []
-    files.extend(glob.glob(os.path.join(path+'*.fits')))
-    files.extend(glob.glob(os.path.join(path+'*.txt')))        
+    files.extend(list(path.glob('*.fits')))
+    files.extend(list(path.glob('*.txt')))
 
     if len(files) != 0:
         for file in files:
-            shutil.move(file, path_new)
+            file.rename(path_new / file.name)
 
+            
+def classify_irdis_dataset(path, logger=_log):
+    '''Classify an IRDIS dataset based on the science files
+
+    Parameters
+    ----------
+    path : str
+        Path to the directory containing the dataset
+
+    logger : logHandler object
+        Log handler for the reduction. Default is root logger
+
+    Returns
+    -------
+    mode : str
+        Generic string representing the name of the mode. None in case
+        of failure.
+
+    '''
+    
+    # zeroth-order reduction validation
+    raw = path / 'raw'
+    if not raw.exists():
+        logger.error('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        return None
+
+    # list all fits files
+    files = list(raw.glob('*.fits'))
+    if len(files) == 0:
+        return None
+
+    # search for science files
+    modes = []
+    for file in files:
+        hdr = fits.getheader(file)
+
+        dpr_catg = hdr.get('HIERARCH ESO DPR CATG')
+        mode     = hdr.get('HIERARCH ESO INS1 MODE')
+
+        if dpr_catg == 'SCIENCE':
+            modes.append(mode)
+
+    modes = np.array(modes)
+
+    n_imaging = (modes == 'NIROBS').sum() + (modes == 'EXT').sum() + \
+        (modes == 'DBI').sum() + (modes == 'CI').sum()
+    n_pola    = (modes == 'DPI').sum()
+    n_spectro = (modes == 'LSS').sum()
+
+    if (n_imaging >= n_pola) and (n_imaging >= n_spectro):
+        return 'imaging'
+    elif (n_pola >= n_imaging) and (n_pola >= n_spectro):
+        return 'pola'
+    else:
+        return 'spectro'
+                
 
 class Dataset:
     '''
@@ -302,7 +363,7 @@ class Dataset:
     ######################
     # Constructor
     ######################
-    def __init__(self, path):
+    def __init__(self, path, log_level='info'):
         '''
         Initialization code for a SPHERE dataset
 
@@ -316,22 +377,41 @@ class Dataset:
             raise ValueError('path must be a string')
         
         # path
-        path = os.path.expanduser(os.path.join(path, ''))
+        path = Path(path).expanduser().resolve()
         self._path = path
 
+        # configure logging
+        logger = logging.getLogger(str(path))
+        logger.setLevel(log_level.upper())
+        if logger.hasHandlers():
+            for hdlr in logger.handlers:
+                logger.removeHandler(hdlr)
+        
+        handler = logging.FileHandler(self._path / 'dataset.log', mode='w', encoding='utf-8')
+        formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
+        formatter.default_msec_format = '%s.%03d'        
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        
+        self._log_level = log_level
+        self._handler   = handler
+        self._logger    = logger
+        
+        self._logger.info('Looking for SPHERE data sets at path {}'.format(path))
+        
         # list of reductions
         self._IFS_reductions   = []
         self._IRDIS_reductions = []
 
         # search for data with calibrations downloaded from ESO archive
-        xml_files = glob.glob(os.path.join(path, '*.xml'))
+        xml_files = list(path.glob('*.xml'))
         if len(xml_files) != 0:
-            sort_files_from_xml(path)
+            sort_files_from_xml(path, logger=self._logger)
 
         # directly search for data
-        fits_files = glob.glob(os.path.join(path, '*.fits'))
+        fits_files = list(path.glob('*.fits'))
         if len(fits_files) != 0:
-            sort_files_from_fits(path)
+            sort_files_from_fits(path, logger=self._logger)
         
         # recursively look for valid reduction
         self._create_reductions()
@@ -369,11 +449,7 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Initialization of {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            self._logger.info('Init: {}'.format(str(r)))
             
             r.init_reduction()
 
@@ -384,11 +460,7 @@ class Dataset:
         '''
 
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Static calibrations for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            self._logger.info('Static calibrations: {}'.format(str(r)))
             
             r.create_static_calibrations()
 
@@ -399,11 +471,7 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Pre-process data for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            self._logger.info('Science pre-processing: {}'.format(str(r)))
             
             r.preprocess_science()
 
@@ -415,11 +483,7 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Process data for {0} at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            self._logger.info('Science processing: {}'.format(str(r)))
 
             r.process_science()
 
@@ -431,11 +495,8 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Clean {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            print(r)
+            self._logger.info('Clean-up: {}'.format(str(r)))
 
             r.clean()
         
@@ -447,15 +508,12 @@ class Dataset:
         '''
         
         for r in self._reductions:
-            print()
-            print('*')
-            print('* Full {0} reduction at path {1}'.format(r.instrument, r.path))
-            print('*')
-            print()
+            self._logger.info('###########################################################################')
+            self._logger.info('# Full reduction: {}'.format(str(r)))
+            self._logger.info('###########################################################################')
             
             r.full_reduction()
 
-            
     ##################################################
     # Class methods
     ##################################################
@@ -465,7 +523,7 @@ class Dataset:
         Detect and create valid reductions in path
         '''
 
-        print('Create reductions from available data')
+        self._logger.info('Create reductions from sorted data')
 
         wpath = os.walk(self._path)
         for w in wpath:
@@ -474,28 +532,51 @@ class Dataset:
                 # if directory has a raw/ sub-directory, make sure it
                 # has FITS files and that they are from a valid
                 # sub-system
-                reduction_path = w[0]                
-                fits_files = glob.glob(os.path.join(reduction_path, 'raw', '*.fits'))
+                reduction_path = Path(w[0])
+                fits_files = list((reduction_path / 'raw').glob('*.fits'))
                 if len(fits_files) != 0:
                     hdr = fits.getheader(fits_files[0])
                     try:
                         arm = hdr['HIERARCH ESO SEQ ARM']
-                        if arm == 'IRDIS':
-                            instrument = 'IRDIS'
-                            reduction  = IRDIS.ImagingReduction(reduction_path)
+                    except KeyError:
+                        self._logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fits_files[0]))
+                        continue
+                        
+                    if arm == 'IRDIS':
+                        mode = classify_irdis_dataset(reduction_path, logger=self._logger)
+
+                        # an error occured in dataset classification
+                        if mode is None:
+                            continue
+                        
+                        if mode == 'imaging':
+                            self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
+                            reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level,
+                                                                sphere_handler=self._handler)
+                        elif mode == 'polar':
+                            self._logger.warning('IRDIS DPI not supported yet')
+                        elif mode == 'spectro':
+                            self._logger.info(' * IRDIS spectro <reduction at path {}'.format(reduction_path))
+                            reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level,
+                                                                sphere_handler=self._handler)
+
+                        # save if reduction was successfully created
+                        if reduction is not None:
                             self._IRDIS_reductions.append(reduction)
-                        elif arm == 'IFS':
-                            instrument = 'IFS'
-                            reduction  = IFS.Reduction(reduction_path)
+                    elif arm == 'IFS':
+                        self._logger.info(' * IFS reduction at path {}'.format(reduction_path))
+                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level, 
+                                                   sphere_handler=self._handler)
+
+                        # save if reduction was successfully created
+                        if reduction is not None:
                             self._IFS_reductions.append(reduction)
-                        else:
-                            raise NameError('Unknown arm {0}'.format(arm))
-                    except:
+                    else:
+                        self._logger.error('Unknown arm {0}'.format(arm))
                         continue
 
-                    print(reduction_path)
-                    print('  ==> {0}, {1} files'.format(instrument, len(fits_files)))
-                    print()
+                    # self._logger.info(reduction_path)
+                    self._logger.info('   ==> {} files'.format(len(fits_files)))
 
         # merge all reductions into a single list
         self._reductions = self._IFS_reductions + self._IRDIS_reductions
