@@ -14,7 +14,7 @@ Credits
 The development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
 
 SPHERE:
- * general description: `Beuzit et al., 2019, submitted to A&A <https://ui.adsabs.harvard.edu/abs/2019arXiv190204080B/abstract>`_
+ * general description: `Beuzit et al., 2019, A&A <https://ui.adsabs.harvard.edu/abs/2019arXiv190204080B/abstract>`_
 
 IRDIS:
  * general description: `Dohlen et al., 2008, SPIE, 7014 <https://ui.adsabs.harvard.edu/#abs/2008SPIE.7014E..3LD/abstract>`_
