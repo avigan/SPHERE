@@ -466,7 +466,7 @@ class Reduction(object):
         # configuration
         #
         reduction._logger.debug('> read default configuration')
-        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
+        configfile = f'{Path(vltpf.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')

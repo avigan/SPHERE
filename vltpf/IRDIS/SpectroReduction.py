@@ -170,7 +170,7 @@ class SpectroReduction(object):
         #
         # configuration
         #
-        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
+        configfile = f'{Path(vltpf.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
         reduction._logger.debug('> read configuration')
@@ -1214,7 +1214,7 @@ class SpectroReduction(object):
             self._logger.debug('> create sof file')
             sof = path.sof / 'wave.sof'
             file = open(sof, 'w')
-            file.write('{0}/{1}.fits     {2}\n'.format(path.raw, wave_file, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.raw, wave_file.index[0], 'IRD_WAVECALIB_RAW'))
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
             file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
