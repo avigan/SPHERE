@@ -1073,6 +1073,15 @@ class SpectroReduction(object):
         filter_combs = calibs['INS COMB IFLT'].unique()
 
         for cfilt in filter_combs:
+            for i, dpr_tech in enumerate(calibs['DPR TECH']):
+                if dpr_tech != 'SPECTRUM':
+                    date_obs = calibs['DATE-OBS'][i]
+
+                    self._logger.warning(f'The \'DPR TECH\' value of the flat calibration '
+                                         f'obtained on {date_obs} is {dpr_tech}. It is '
+                                         f'recommended to use flat calibrations for which '
+                                         f'the \'DPR TECH\' is \'SPECTRUM\'.')
+
             cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
             files = cfiles.index
 
@@ -1982,8 +1991,8 @@ class SpectroReduction(object):
                 wave = fits.getdata(wfile)
             else:
                 self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_cal_wave or sph_ird_wavelength_recalibration().')
-            self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
-            return
+                self._update_recipe_status('sph_ird_combine_data', vltpf.ERROR)
+                return
 
         # wavelength solution: make sure we have the same number of
         # wave points in each field
