@@ -498,14 +498,25 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
         logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
 
         # remove any NaN
-        img = np.nan_to_num(img)
-
+        img = np.nan_to_num(img)        
+        
         # center guess
         cy, cx = np.unravel_index(np.argmax(img), img.shape)
 
+        # check if we are really too close to the edge
+        dim = img.shape
+        if (cx <= 0.1*dim[-1]) or (cx >= 0.9*dim[-1]) or (cy <= 0.1*dim[0]) or (cy >= 0.9*dim[0]):
+            nimg = img.copy()
+            nimg[:, :int(0.1*dim[-1])] = 0
+            nimg[:, int(0.9*dim[-1]):] = 0
+            nimg[:int(0.1*dim[0]), :]  = 0
+            nimg[int(0.9*dim[0]):, :]  = 0
+            
+            cy, cx = np.unravel_index(np.argmax(nimg), img.shape)
+        
         # sub-image
         sub = img[cy-box:cy+box, cx-box:cx+box]
-
+        
         # fit peak with Gaussian + constant
         imax = np.unravel_index(np.argmax(sub), sub.shape)
         g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
