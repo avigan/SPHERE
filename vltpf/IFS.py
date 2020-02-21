@@ -2706,7 +2706,10 @@ class Reduction(object):
             plt.xlabel(r'Wavelength [nm]')
             plt.xlim(wave_min-50, wave_max+50)
             plt.ylabel('Flux')
-            plt.legend(loc='upper right', fontsize='x-small')
+            if ifs_mode == 'OBS_YJ':
+                plt.legend(loc='upper right', fontsize='x-small')
+            elif ifs_mode == 'OBS_H':
+                plt.legend(loc='upper left', fontsize='x-small')
             plt.title('Wavelength calibration')
 
             plt.tight_layout()
