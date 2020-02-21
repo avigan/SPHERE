@@ -488,15 +488,11 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
 
-    # multi-page PDF to save result
-    if save_path is not None:
-        pdf = PdfPages(save_path)
-
     # loop over images
     img_centers    = np.zeros((nwave, 2))
     failed_centers = np.zeros(nwave, dtype=np.bool)
-    for idx, (wave, img) in enumerate(zip(wave, cube)):
-        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
+    for idx, (cwave, img) in enumerate(zip(wave, cube)):
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, cwave))
 
         # remove any NaN
         img = np.nan_to_num(img)        
@@ -533,28 +529,8 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
         img_centers[idx, 0] = cx_final
         img_centers[idx, 1] = cy_final
 
-        if save_path:
-            plt.figure('PSF center - imaging', figsize=(8.3, 8))
-            plt.clf()
-
-            plt.subplot(111)
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
-                       interpolation='nearest', cmap=global_cmap)
-            plt.plot([cx_final], [cy_final], marker='D', color='blue')
-            plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
-            plt.title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
-
-            ext = 1000 / pixel
-            plt.xlim(cx_final-ext, cx_final+ext)
-            plt.xlabel('x position [pix]')
-            plt.ylim(cy_final-ext, cy_final+ext)
-            plt.ylabel('y position [pix]')
-
-            plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
-
-            pdf.savefig()
-
     # look for outliers and replace by a linear fit to all good ones
+    # Ticket #81
     if nwave > 2:
         c_med = np.median(img_centers, axis=0)
         c_std = np.std(img_centers, axis=0)
@@ -577,7 +553,49 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
             pol = np.poly1d(lin)
             img_centers[ibad, 1] = pol(idx[ibad])
 
-    if save_path:
+    #
+    # Generate summary plot
+    #
+    
+    # multi-page PDF to save result
+    if save_path is not None:
+        pdf = PdfPages(save_path)
+    
+        for idx, (cwave, img) in enumerate(zip(wave, cube)):
+            cx_final = img_centers[idx, 0]
+            cy_final = img_centers[idx, 1]
+            
+            failed = (idx in ibad)
+            if failed:
+                mcolor = 'r'
+                bcolor = 'r'
+            else:
+                mcolor = 'b'
+                bcolor = 'w'
+            
+            plt.figure('PSF center - imaging', figsize=(8.3, 8))
+            plt.clf()
+
+            plt.subplot(111)
+            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+                       interpolation='nearest', cmap=global_cmap)
+            plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
+            plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
+            if failed:
+                plt.text(cx, cy+box, 'Fit failed', color='r', weight='bold', fontsize='x-small',
+                         ha='center', va='bottom')
+            plt.title(r'Image #{0} - {1:.0f} nm'.format(idx+1, cwave))
+
+            ext = 1000 / pixel
+            plt.xlim(cx_final-ext, cx_final+ext)
+            plt.xlabel('x position [pix]')
+            plt.ylim(cy_final-ext, cy_final+ext)
+            plt.ylabel('y position [pix]')
+
+            plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
+
+            pdf.savefig()
+        
         pdf.close()
 
     return img_centers
