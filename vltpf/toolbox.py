@@ -452,7 +452,8 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_log):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
+                                   save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -467,6 +468,10 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     pixel : float
         Pixel scale, in mas/pixel
 
+    exclude_fraction : float
+        Exclude a fraction of the image borders to avoid getting
+        biased by hot pixels close to the edges. Default is 10%
+
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
@@ -478,6 +483,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     -------
     img_centers : array_like
         The star center in each frame of the cube
+
     '''
 
     # standard parameters
@@ -502,13 +508,15 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
 
         # check if we are really too close to the edge
         dim = img.shape
-        if (cx <= 0.15*dim[-1]) or (cx >= 0.85*dim[-1]) or \
-           (cy <= 0.15*dim[0])  or (cy >= 0.85*dim[0]):
+        lf = exclude_fraction
+        hf = 1-exclude_fraction
+        if (cx <= lf*dim[-1]) or (cx >= hf*dim[-1]) or \
+           (cy <= lf*dim[0])  or (cy >= hf*dim[0]):
             nimg = img.copy()
-            nimg[:, :int(0.15*dim[-1])] = 0
-            nimg[:, int(0.85*dim[-1]):] = 0
-            nimg[:int(0.15*dim[0]), :]  = 0
-            nimg[int(0.85*dim[0]):, :]  = 0
+            nimg[:, :int(lf*dim[-1])] = 0
+            nimg[:, int(hf*dim[-1]):] = 0
+            nimg[:int(lf*dim[0]), :]  = 0
+            nimg[int(hf*dim[0]):, :]  = 0
 
             cy, cx = np.unravel_index(np.argmax(nimg), img.shape)
 
@@ -531,6 +539,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
 
     # look for outliers and replace by a linear fit to all good ones
     # Ticket #81
+    ibad = []
     if nwave > 2:
         c_med = np.median(img_centers, axis=0)
         c_std = np.std(img_centers, axis=0)
@@ -577,7 +586,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/np.nanmax(img), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
                        interpolation='nearest', cmap=global_cmap)
             plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
             plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
@@ -595,9 +604,9 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
             plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
 
             pdf.savefig()
-        
-        pdf.close()
 
+        pdf.close()
+    
     return img_centers
 
 

@@ -1402,6 +1402,7 @@ class ImagingReduction(object):
                 else:
                     save_path = None
                 img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel,
+                                                                    exclude_fraction=0.3,
                                                                     save_path=save_path, logger=self._logger)
 
                 # save

@@ -2785,7 +2785,8 @@ class Reduction(object):
                     save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, 
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel,
+                                                                    exclude_fraction=0.15,
                                                                     save_path=save_path, logger=self._logger)
 
                 # save
