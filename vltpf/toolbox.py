@@ -493,7 +493,8 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
         pdf = PdfPages(save_path)
 
     # loop over images
-    img_centers = np.zeros((nwave, 2))
+    img_centers    = np.zeros((nwave, 2))
+    failed_centers = np.zeros(nwave, dtype=np.bool)
     for idx, (wave, img) in enumerate(zip(wave, cube)):
         logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
 
@@ -505,15 +506,16 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
 
         # check if we are really too close to the edge
         dim = img.shape
-        if (cx <= 0.1*dim[-1]) or (cx >= 0.9*dim[-1]) or (cy <= 0.1*dim[0]) or (cy >= 0.9*dim[0]):
+        if (cx <= 0.15*dim[-1]) or (cx >= 0.85*dim[-1]) or \
+           (cy <= 0.15*dim[0])  or (cy >= 0.85*dim[0]):
             nimg = img.copy()
-            nimg[:, :int(0.1*dim[-1])] = 0
-            nimg[:, int(0.9*dim[-1]):] = 0
-            nimg[:int(0.1*dim[0]), :]  = 0
-            nimg[int(0.9*dim[0]):, :]  = 0
-            
+            nimg[:, :int(0.15*dim[-1])] = 0
+            nimg[:, int(0.85*dim[-1]):] = 0
+            nimg[:int(0.15*dim[0]), :]  = 0
+            nimg[int(0.85*dim[0]):, :]  = 0
+
             cy, cx = np.unravel_index(np.argmax(nimg), img.shape)
-        
+
         # sub-image
         sub = img[cy-box:cy+box, cx-box:cx+box]
         
@@ -524,7 +526,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
                                    models.Const2D(amplitude=sub.min())
         fitter = fitting.LevMarLSQFitter()
         par = fitter(g_init, xx, yy, sub)
-
+        
         cx_final = cx - box + par[0].x_mean
         cy_final = cy - box + par[0].y_mean
 
@@ -551,6 +553,29 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
             plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.95)
 
             pdf.savefig()
+
+    # look for outliers and replace by a linear fit to all good ones
+    if nwave > 2:
+        c_med = np.median(img_centers, axis=0)
+        c_std = np.std(img_centers, axis=0)
+        bad   = np.any(np.logical_or(img_centers < (c_med-3*c_std),
+                                     img_centers > (c_med+3*c_std)), axis=1)
+        ibad  = np.where(bad)[0]
+        igood = np.where(np.logical_not(bad))[0]
+        if len(ibad) != 0:
+            logger.info(f'Found {len(ibad)} outliers. Will replace them with a linear fit.')
+            
+            idx = np.arange(nwave)
+
+            # x
+            lin = np.polyfit(idx[igood], img_centers[igood, 0], 1)
+            pol = np.poly1d(lin)
+            img_centers[ibad, 0] = pol(idx[ibad])
+
+            # y
+            lin = np.polyfit(idx[igood], img_centers[igood, 1], 1)
+            pol = np.poly1d(lin)
+            img_centers[ibad, 1] = pol(idx[ibad])
 
     if save_path:
         pdf.close()
