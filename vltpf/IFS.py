@@ -466,7 +466,7 @@ class Reduction(object):
         # configuration
         #
         reduction._logger.debug('> read default configuration')
-        configfile = Path(vltpf.__file__).parent / 'instruments' / '{}.ini'.format(reduction._instrument)
+        configfile = f'{Path(vltpf.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')
@@ -834,7 +834,7 @@ class Reduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_preprocess_science', vltpf.SUCCESS)
             self._logger.debug('> sph_ifs_preprocess_science status = {}'.format(done))
             
             done = True
