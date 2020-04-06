@@ -1,4 +1,4 @@
-import pysphere.IRDIS as IRDIS
+import sphere.IRDIS as IRDIS
 
 ####################################################@
 # full reduction
