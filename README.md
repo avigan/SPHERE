@@ -31,6 +31,11 @@ cd SPHERE-master/
 python setup.py install
 ```
 
+Examples
+--------
+
+The package is not fully documented, but [examples are provided](https://github.com/avigan/SPHERE/tree/master/examples).
+
 Credits
 -------
 
