@@ -13,16 +13,18 @@ Requirements
 
 The pipeline requires official [ESO pipeline for SPHERE](https://www.eso.org/sci/software/pipelines/) to be installed and in your path. If the `esorex` command is not available the pipeline will output an error.
 
+The package also relies on usual packages for data science and astronomy: `numpy`, `scipy`, `pandas`, `matplotlib` and `astropy`.
+
 Installation
 ------------
 
-For an easy install, you can use `pip`:
+The easiest is to install `pysphere` using `pip`:
 
 ```bash
 pip install pysphere-vlt
 ```
 
-Otherwise your can download the current repository 
+Otherwise your can download the current repository and install the package manually:
 
 ```bash
 cd SPHERE-master/
