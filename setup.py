@@ -8,7 +8,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 # setup
 setup(
-    name='pysphere-vlt',
+    name='vlt-sphere',
     version='1.1',
     description='Reduction and analysis code for the VLT/SPHERE instrument',
     long_description=long_description,
@@ -25,14 +25,14 @@ setup(
         'License :: OSI Approved :: MIT License'
     ],
     keywords='vlt sphere ifs irdis reduction exoplanet pipeline',
-    packages=['pysphere', 'pysphere.utils', 'pysphere.IRDIS'],
+    packages=['sphere', 'sphere.utils', 'sphere.IRDIS'],
     install_requires=[
         'numpy', 'scipy', 'astropy', 'pandas', 'matplotlib'
     ],
     include_package_data=True,
     package_data={
-        'pysphere': ['data/*.txt', 'data/*.dat', 'data/*.fits',
-                     'instruments/*.ini', 'instruments/*.dat'],
+        'sphere': ['data/*.txt', 'data/*.dat', 'data/*.fits',
+                   'instruments/*.ini', 'instruments/*.dat'],
     },
     zip_safe=False
 )

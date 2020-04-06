@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as etree
 
-import pysphere.IRDIS as IRDIS
-import pysphere.IFS as IFS
+import sphere.IRDIS as IRDIS
+import sphere.IFS as IFS
 
 from pathlib import Path
 from astropy.io import fits

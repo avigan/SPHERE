@@ -6,28 +6,70 @@ import scipy.ndimage as ndimage
 import scipy.interpolate as interp
 import scipy.optimize as optim
 import shutil
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.colors as colors
 import configparser
 import collections
 
 from pathlib import Path
 from astropy.io import fits
 from astropy.modeling import models, fitting
+from matplotlib.backends.backend_pdf import PdfPages
 
-import pysphere
-import pysphere.utils as utils
-import pysphere.utils.imutils as imutils
-import pysphere.utils.aperture as aperture
-import pysphere.transmission as transmission
-import pysphere.toolbox as toolbox
+import sphere
+import sphere.utils as utils
+import sphere.utils.imutils as imutils
+import sphere.utils.aperture as aperture
+import sphere.transmission as transmission
+import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
 
-class ImagingReduction(object):
+def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
     '''
-    SPHERE/IRDIS imaging reduction class. It handles both the
-    dual-band imaging (DBI) and classical imaging (CI) observing
-    modes.
+    Return the linear wavelength calibration for each IRDIS field
+
+    Parameters
+    ----------
+    wave_calib : array
+        Wavelength calibration data computed by esorex recipe
+
+    centers : tuple
+        Center of each field
+
+    wave_min : float
+        Minimal usable wavelength
+
+    wave_max : float
+        Maximal usable wavelength
+
+    Returns
+    -------
+    wave_lin : array
+        Array with the linear calibration for each field, as a function
+        of pixel coordinate
+    '''
+    wave_map = np.zeros((2, 1024, 1024))
+    wave_map[0] = wave_calib[:, 0:1024]
+    wave_map[1] = wave_calib[:, 1024:]
+    wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
+
+    wave_ext = 10
+    wave_lin = np.zeros((2, 1024))
+
+    wave_lin[0] = np.mean(wave_map[0, :, centers[0, 0]-wave_ext:centers[0, 0]+wave_ext], axis=1)
+    wave_lin[1] = np.mean(wave_map[1, :, centers[1, 0]-wave_ext:centers[1, 0]+wave_ext], axis=1)
+
+    return wave_lin
+
+
+class SpectroReduction(object):
+    '''
+    SPHERE/IRDIS long-slit spectroscopy reduction class. It handles
+    both the low and medium resolution modes (LRS, MRS)
     '''
 
     ##################################################
@@ -41,9 +83,11 @@ class ImagingReduction(object):
         'check_files_association': ['sort_files'],
         'sph_ird_cal_dark': ['sort_files'],
         'sph_ird_cal_detector_flat': ['sort_files'],
+        'sph_ird_cal_wave': ['sort_files', 'sph_ird_cal_detector_flat'],
         'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
                                        'sph_ird_cal_detector_flat'],
-        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
+        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
+        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
         'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
         'sph_ird_clean': []
     }
@@ -88,7 +132,7 @@ class ImagingReduction(object):
             return None
         else:
             # it's all good: create instance!
-            reduction = super(ImagingReduction, cls).__new__(cls)
+            reduction = super(SpectroReduction, cls).__new__(cls)
 
         #
         # basic init
@@ -118,34 +162,39 @@ class ImagingReduction(object):
 
         if sphere_handler:
             logger.addHandler(sphere_handler)
-                
+        
         reduction._logger = logger
 
-        reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))
+        reduction._logger.info('Creating IRDIS spectroscopy reduction at path {}'.format(path))
 
         #
         # configuration
         #
-        configfile = f'{Path(pysphere.__file__).parent}/instruments/{reduction._instrument}.ini'
+        configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
-        reduction._logger.debug('> read default configuration')
+        reduction._logger.debug('> read configuration')
         config.read(configfile)
 
         # instrument
         reduction._pixel = float(config.get('instrument', 'pixel'))
-        reduction._nwave = 2
+        reduction._nwave = -1
 
         # calibration
         reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
 
-        # imaging calibration
-        reduction._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
-        reduction._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
+        # spectro calibration
+        reduction._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
+        reduction._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
+        reduction._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
+
+        reduction._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
+        reduction._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
+        reduction._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
 
         # reduction parameters
         reduction._config = {}
-        for group in ['reduction', 'reduction-imaging']:
+        for group in ['reduction', 'reduction-spectro']:
             items = dict(config.items(group))
             reduction._config.update(items)
             for key, value in items.items():
@@ -158,7 +207,7 @@ class ImagingReduction(object):
         #
         # reduction status
         #
-        reduction._status = pysphere.INIT
+        reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
 
         # reload any existing data frames
@@ -174,7 +223,7 @@ class ImagingReduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<ImagingReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        return '<SpectroReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
 
     def __format__(self):
         return self.__repr__()
@@ -255,6 +304,12 @@ class ImagingReduction(object):
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
 
+        # wave
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('wave')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
         # combining
         print('-'*35)
         keys = [key for key in dico if key.startswith('combine')]
@@ -297,6 +352,7 @@ class ImagingReduction(object):
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
+        self.sph_ird_cal_wave(silent=config['misc_silent_esorex'])
 
 
     def preprocess_science(self):
@@ -311,8 +367,6 @@ class ImagingReduction(object):
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
                                         collapse_science=config['preproc_collapse_science'],
-                                        collapse_type=config['preproc_collapse_type'],
-                                        coadd_value=config['preproc_coadd_value'],
                                         collapse_psf=config['preproc_collapse_psf'],
                                         collapse_center=config['preproc_collapse_center'])
 
@@ -328,17 +382,17 @@ class ImagingReduction(object):
         config = self._config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
-                                 offset=config['center_offset'],
                                  plot=config['misc_plot'])
+        self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'],
+                                              plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
                                   science_dim=config['combine_science_dim'],
-                                  correct_anamorphism=config['combine_correct_anamorphism'],
-                                  manual_center=config['combine_manual_center'],
-                                  coarse_centering=config['combine_coarse_centering'],
+                                  correct_mrs_chromatism=config['combine_correct_mrs_chromatism'],
+                                  split_posang=config['combine_split_posang'],
                                   shift_method=config['combine_shift_method'],
-                                  save_scaled=config['combine_save_scaled'])
-
+                                  manual_center=config['combine_manual_center'],
+                                  coarse_centering=config['combine_coarse_centering'])
 
     def clean(self):
         '''
@@ -407,12 +461,14 @@ class ImagingReduction(object):
             files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
-            # recipe execution status
-            self._update_recipe_status('sort_files', pysphere.SUCCESS)
+            # update recipe execution
+            self._update_recipe_status('sort_files', sphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
-                self._update_recipe_status('sph_ird_cal_dark', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_dark', sphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.SUCCESS)
+            if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
+                self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
@@ -433,8 +489,8 @@ class ImagingReduction(object):
             frames_info['TIME'] = pd.to_datetime(frames_info['TIME'], utc=False)
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
-            # recipe execution status
-            self._update_recipe_status('sort_frames', pysphere.SUCCESS)
+            # update recipe execution
+            self._update_recipe_status('sort_frames', sphere.SUCCESS)
         else:
             frames_info = None
 
@@ -459,8 +515,18 @@ class ImagingReduction(object):
         self._frames_info = frames_info
         self._frames_info_preproc = frames_info_preproc
 
-        # additional checks to recipe execution status
+        # additional checks to update recipe execution
         if frames_info_preproc is not None:
+            done = (path.preproc / 'wavelength_default.fits').exists()
+            if done:
+                self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
+            self._logger.debug('> sph_ird_cal_wave status = {}'.format(done))
+
+            done = (path.preproc / 'wavelength_recalibrated.fits').exists()
+            if done:
+                self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.SUCCESS)
+            self._logger.debug('> sph_ird_wavelength_recalibration status = {}'.format(done))
+
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
@@ -468,7 +534,7 @@ class ImagingReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ird_preprocess_science', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_preprocess_science', sphere.SUCCESS)
             self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
 
             done = True
@@ -479,13 +545,13 @@ class ImagingReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ird_star_center', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
-            
-        # reduction status
-        self._status = pysphere.INCOMPLETE
 
-        
+        # reduction status
+        self._status = sphere.INCOMPLETE
+
+
     def _update_recipe_status(self, recipe, status):
         '''Update execution status for reduction and recipe
 
@@ -494,9 +560,9 @@ class ImagingReduction(object):
         recipe : str
             Recipe name
 
-        status : pysphere status (int)
-            Status of the recipe. Can be either one of pysphere.NOTSET,
-            pysphere.SUCCESS or pysphere.ERROR
+        status : sphere status (int)
+            Status of the recipe. Can be either one of sphere.NOTSET,
+            sphere.SUCCESS or sphere.ERROR
         '''
 
         self._logger.debug('> update recipe execution')
@@ -518,8 +584,8 @@ class ImagingReduction(object):
 
         self._logger.info('Sort raw files')
 
-        # recipe execution status
-        self._update_recipe_status('sort_files', pysphere.NOTSET)
+        # update recipe execution
+        self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
         path = self._path
@@ -530,8 +596,8 @@ class ImagingReduction(object):
 
         if len(files) == 0:
             self._logger.critical('No raw FITS files in reduction path')
-            self._update_recipe_status('sort_files', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_files', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
@@ -539,7 +605,7 @@ class ImagingReduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(pysphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -578,18 +644,18 @@ class ImagingReduction(object):
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
             self._logger.critical('Sequence is mixing different instruments: {0}'.format(instru))
-            self._update_recipe_status('sort_files', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_files', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         # check science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
         if len(sci_files) == 0:
             self._logger.critical('This dataset contains no science frame. There should be at least one!')
-            self._update_recipe_status('sort_frames', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
             return
-
+        
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
@@ -611,13 +677,13 @@ class ImagingReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
-        # recipe execution status
-        self._update_recipe_status('sort_files', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sort_files', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
-        
+
     def sort_frames(self):
         '''
         Extract the frames information from the science files and save
@@ -662,9 +728,9 @@ class ImagingReduction(object):
 
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(frames_info, logger=self._logger)
-        if ret == pysphere.ERROR:
-            self._update_recipe_status('sort_frames', pysphere.ERROR)
-            self._status = pysphere.FATAL
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         # save
@@ -716,11 +782,11 @@ class ImagingReduction(object):
         self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
-        # recipe execution status
-        self._update_recipe_status('sort_frames', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sort_frames', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def check_files_association(self):
@@ -739,28 +805,34 @@ class ImagingReduction(object):
             return
 
         # parameters
+        path = self._path
         files_info = self._files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
             self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
-            self._logger.error('Sequence is mixing different types of observations: {0}'.format(modes))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._logger.eror('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
             self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
+
         filter_comb = filter_combs[0]
+        if (filter_comb != 'S_LR') and (filter_comb != 'S_MR'):
+            self._logger.error('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
+            self._update_recipe_status('check_files_association', sphere.ERROR)
+            return
 
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
@@ -780,6 +852,25 @@ class ImagingReduction(object):
         if len(cfiles) <= 1:
             error_flag += 1
             self._logger.error(' * there should be more than 1 flat in filter combination {0}'.format(filter_comb))
+
+        # wave
+        self._logger.debug('> check wavelength calibration requirements')
+        cfiles = calibs[(calibs['DPR TYPE'] == 'LAMP,WAVE') & (calibs['INS COMB IFLT'] == filter_comb)]
+        if len(cfiles) == 0:
+            error_flag += 1
+            self._logger.error(' * there should be 1 wavelength calibration file, found none.')
+        elif len(cfiles) > 1:
+            warning_flag += 1
+            self._logger.warning(' * there should be 1 wavelength calibration file, found {0}. Using the closest from science.'.format(len(cfiles)))
+
+            # find the two closest to science files
+            sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE')]
+            time_sci   = sci_files['DATE-OBS'].min()
+            time_flat  = cfiles['DATE-OBS']
+            time_delta = np.abs(time_sci - time_flat).argsort()
+
+            # drop the others
+            files_info.drop(time_delta[1:].index, inplace=True)
 
         ##################################################
         # static calibrations that depend on science DIT
@@ -803,22 +894,26 @@ class ImagingReduction(object):
             cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
             if len(cfiles) == 0:
                 warning_flag += 1
-                self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction, especially in K-band'.format(DIT))
+                self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction'.format(DIT))
 
         # error reporting
         self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
 
-        # recipe execution status
-        self._update_recipe_status('check_files_association', pysphere.SUCCESS)
+        # save
+        files_info.to_csv(path.preproc / 'files.csv')
+        self._files_info = files_info
+
+        # update recipe execution
+        self._update_recipe_status('check_files_association', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_cal_dark(self, silent=True):
@@ -882,9 +977,9 @@ class ImagingReduction(object):
                     dark_file = 'dark_{0}_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
                     bpm_file  = 'dark_{0}_bpm_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
 
-                    # different max level in K-band
+                    # different max level in LRS
                     max_level = 1000
-                    if cfilt in ['DB_K12', 'BB_Ks']:
+                    if cfilt in ['S_LR']:
                         max_level = 15000
 
                     # esorex parameters
@@ -901,8 +996,8 @@ class ImagingReduction(object):
 
                     # check esorex
                     if shutil.which('esorex') is None:
-                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
-                        self._update_recipe_status('sph_ird_cal_dark', pysphere.ERROR)
+                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+                        self._update_recipe_status('sph_ird_cal_dark', sphere.ERROR)
                         return
 
                     # execute esorex
@@ -914,7 +1009,7 @@ class ImagingReduction(object):
 
                     if proc.returncode != 0:
                         self._logger.error('esorex process was not successful')
-                        self._update_recipe_status('sph_ird_cal_dark', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_cal_dark', sphere.ERROR)
                         return
 
                     # store products
@@ -944,11 +1039,11 @@ class ImagingReduction(object):
         self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_cal_dark', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sph_ird_cal_dark', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_cal_detector_flat(self, silent=True):
@@ -974,11 +1069,19 @@ class ImagingReduction(object):
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
-                            ((files_info['DPR TYPE'] == 'FLAT,LAMP') |
-                             (files_info['DPR TECH'] == 'IMAGE'))]
+                            (files_info['DPR TYPE'] == 'FLAT,LAMP')]
         filter_combs = calibs['INS COMB IFLT'].unique()
 
         for cfilt in filter_combs:
+            for i, dpr_tech in enumerate(calibs['DPR TECH']):
+                if dpr_tech != 'SPECTRUM':
+                    date_obs = calibs['DATE-OBS'][i]
+
+                    self._logger.warning(f'The \'DPR TECH\' value of the flat calibration '
+                                         f'obtained on {date_obs} is {dpr_tech}. It is '
+                                         f'recommended to use flat calibrations for which '
+                                         f'the \'DPR TECH\' is \'SPECTRUM\'.')
+
             cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
             files = cfiles.index
 
@@ -1008,8 +1111,8 @@ class ImagingReduction(object):
 
             # check esorex
             if shutil.which('esorex') is None:
-                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.ERROR)
+                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.ERROR)
                 return
 
             # execute esorex
@@ -1021,7 +1124,7 @@ class ImagingReduction(object):
 
             if proc.returncode != 0:
                 self._logger.error('esorex process was not successful')
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.ERROR)
                 return
 
             # store products
@@ -1051,33 +1154,205 @@ class ImagingReduction(object):
         self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sph_ird_cal_detector_flat', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
+
+
+    def sph_ird_cal_wave(self, silent=True):
+        '''
+        Create the wavelength calibration
+
+        Parameters
+        ----------
+        silent : bool
+            Suppress esorex output. Default is True
+        '''
+
+        self._logger.info('Wavelength calibration')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ird_cal_wave',
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
+        # parameters
+        path = self._path
+        files_info = self._files_info
+
+        # get list of files
+        wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
+        if len(wave_file) != 1:
+            self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        DIT = wave_file['DET SEQ1 DIT'][0]
+        dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_MASTER_DARK') &
+                               (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
+        if len(dark_file) == 0:
+            self._logger.error('There should at least 1 dark file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        filter_comb = wave_file['INS COMB IFLT'][0]
+        flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
+        if len(flat_file) == 0:
+            self._logger.error('There should at least 1 flat file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
+        if len(flat_file) == 0:
+            self._logger.error('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        # products
+        wav_file = 'wave_calib'
+
+        # laser wavelengths
+        wave_lasers = self._wave_cal_lasers
+
+        # esorex parameters
+        self._logger.debug('> filter combination is {}'.format(filter_comb))
+        if filter_comb == 'S_LR':
+            # create standard sof in LRS
+            self._logger.debug('> create sof file')
+            sof = path.sof / 'wave.sof'
+            file = open(sof, 'w')
+            file.write('{0}/{1}.fits     {2}\n'.format(path.raw, wave_file.index[0], 'IRD_WAVECALIB_RAW'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}/{1}.fits     {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
+            file.close()
+
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ird_wave_calib',
+                    '--ird.wave_calib.column_width=200',
+                    '--ird.wave_calib.grism_mode=FALSE',
+                    '--ird.wave_calib.threshold=2000',
+                    '--ird.wave_calib.number_lines=6',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
+                    '--ird.wave_calib.wavelength_line6={:.2f}'.format(wave_lasers[5]),
+                    '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
+                    sof]
+        elif filter_comb == 'S_MR':
+            # masking of second order spectrum in MRS
+            self._logger.debug('> masking second order')
+            wave_fname = wave_file.index[0]
+            wave_data, hdr = fits.getdata(path.raw / '{}.fits'.format(wave_fname), header=True)
+            wave_data = wave_data.squeeze()
+            wave_data[:60, :] = 0
+            fits.writeto(path.preproc / '{}_masked.fits'.format(wave_fname), wave_data, hdr, overwrite=True,
+                         output_verify='silentfix')
+
+            # create sof using the masked file
+            self._logger.debug('> create sof file')
+            sof = path.sof / 'wave.sof'
+            file = open(sof, 'w')
+            file.write('{0}/{1}_masked.fits {2}\n'.format(path.preproc, wave_fname, 'IRD_WAVECALIB_RAW'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, dark_file.index[0], 'IRD_MASTER_DARK'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, flat_file.index[0], 'IRD_FLAT_FIELD'))
+            file.write('{0}/{1}.fits        {2}\n'.format(path.calib, bpm_file.index[0], 'IRD_STATIC_BADPIXELMAP'))
+            file.close()
+
+            args = ['esorex',
+                    '--no-checksum=TRUE',
+                    '--no-datamd5=TRUE',
+                    'sph_ird_wave_calib',
+                    '--ird.wave_calib.column_width=200',
+                    '--ird.wave_calib.grism_mode=TRUE',
+                    '--ird.wave_calib.threshold=1000',
+                    '--ird.wave_calib.number_lines=5',
+                    '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
+                    '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
+                    '--ird.wave_calib.wavelength_line3={:.2f}'.format(wave_lasers[2]),
+                    '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
+                    '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
+                    '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
+                    sof]
+
+        # check esorex
+        if shutil.which('esorex') is None:
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        # execute esorex
+        self._logger.debug('> execute esorex')
+        if silent:
+            proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
+        else:
+            proc = subprocess.run(args, cwd=path.tmp)
+
+        if proc.returncode != 0:
+            self._logger.error('esorex process was not successful')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
+            return
+
+        # store products
+        self._logger.debug('> update files_info data frame')
+        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
+        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
+        files_info.loc[wav_file, 'INS COMB IFLT'] = wave_file['INS COMB IFLT'][0]
+        files_info.loc[wav_file, 'INS4 FILT2 NAME'] = wave_file['INS4 FILT2 NAME'][0]
+        files_info.loc[wav_file, 'INS1 MODE'] = wave_file['INS1 MODE'][0]
+        files_info.loc[wav_file, 'INS1 FILT NAME'] = wave_file['INS1 FILT NAME'][0]
+        files_info.loc[wav_file, 'INS1 OPTI2 NAME'] = wave_file['INS1 OPTI2 NAME'][0]
+        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
+        files_info.loc[wav_file, 'PROCESSED'] = True
+        files_info.loc[wav_file, 'PRO CATG'] = 'IRD_WAVECALIB'
+
+        # save
+        self._logger.debug('> save files.csv')
+        files_info.to_csv(path.preproc / 'files.csv')
+
+        # store default wavelength calibration in preproc
+        self._logger.debug('> compute default wavelength calibration')
+        if filter_comb == 'S_LR':
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
+        elif filter_comb == 'S_MR':
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
+
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wav_file))
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+
+        self._logger.debug('> save default wavelength calibration')
+        fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
+
+        # update recipe execution
+        self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_preprocess_science(self,
                                    subtract_background=True, fix_badpix=True,
-                                   collapse_science=False, collapse_type='mean', coadd_value=2,
-                                   collapse_psf=True, collapse_center=True):
+                                   collapse_science=False, collapse_psf=True, collapse_center=True):
         '''Pre-processes the science frames.
 
         This function can perform multiple steps:
-          - collapse of the frames according to different schemes
+          - collapse of the frames
           - subtract the background
           - correct bad pixels
           - reformat IRDIS data in (x,y,lambda) cubes
 
-        For the science, 2 collapse methods are available: mean or
-        coadd. With mean, the full cubes are mean-combined into a single
-        frame. With coadd, the frames are coadded following the
-        coadd_value. This can result in lost frames if the number of NDIT
-        is not a multiple of coadd_value.
-
-        For the PSFs and star center frames, there is either no collapse
-        or a mean collapse.
+        For the science, PSFs or star center frames, the full cubes
+        are mean-combined into a single frame.
 
         The pre-processed frames are saved in the preproc
         sub-directory and will be combined later.
@@ -1092,14 +1367,6 @@ class ImagingReduction(object):
 
         collapse_science :  bool
             Collapse data for OBJECT cubes. Default is False
-
-        collapse_type : str
-            Type of collapse. Possible values are mean or coadd. Default
-            is mean.
-
-        coadd_value : int
-            Number of consecutive frames to be coadded when collapse_type
-            is coadd. Default is 2
 
         collapse_psf :  bool
             Collapse data for OBJECT,FLUX cubes. Default is True. Note
@@ -1139,9 +1406,9 @@ class ImagingReduction(object):
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
             if len(bpm_files) == 0:
                 self._logger.error('Could not fin any bad pixel maps')
-                self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                 return
-            
+
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
             # mask dead regions
@@ -1156,14 +1423,14 @@ class ImagingReduction(object):
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
             self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
-            self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
             return
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
         # final dataframe
         self._logger.debug('> create frames_info_preproc data frame')
         index = pd.MultiIndex(names=['FILE', 'IMG'], levels=[[], []], codes=[[], []])
-        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns)
+        frames_info_preproc = pd.DataFrame(index=index, columns=frames_info.columns, dtype='float')
 
         # loop on the different type of science files
         sci_types = ['OBJECT,CENTER', 'OBJECT,FLUX', 'OBJECT']
@@ -1201,7 +1468,7 @@ class ImagingReduction(object):
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
                         self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
-                        self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
 
                 # process files
@@ -1243,47 +1510,17 @@ class ImagingReduction(object):
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
                     elif (typ == 'OBJECT'):
                         if collapse_science:
-                            if collapse_type == 'mean':
-                                self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
-                                img = np.mean(img, axis=0, keepdims=True)
+                            self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
+                            img = np.mean(img, axis=0, keepdims=True)
 
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
-                            elif collapse_type == 'coadd':
-                                if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
-                                    self._logger.error('coadd_value must be an integer >1')
-                                    self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
-                                    return
-
-                                coadd_value = int(coadd_value)
-                                NDIT = len(img)
-                                NDIT_new = NDIT // coadd_value
-                                dropped = NDIT % coadd_value
-
-                                if coadd_value > NDIT:
-                                    self._logger.error('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
-                                    self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
-                                    return
-
-                                self._logger.info('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
-
-                                # coadd frames
-                                nimg = np.empty((NDIT_new, 1024, 2048), dtype=img.dtype)
-                                for f in range(NDIT_new):
-                                    nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
-                                img = nimg
-
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value, logger=self._logger)
-                            else:
-                                self._logger.error('Unknown collapse type {0}'.format(collapse_type))
-                                self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
-                                return
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
 
                     # check for any error during collapse of frame information
                     if frames_info_new is None:
                         self._logger.error('An error occured when collapsing frames info')
-                        self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
                     
                     # merge frames info
@@ -1339,14 +1576,14 @@ class ImagingReduction(object):
 
         self._frames_info_preproc = frames_info_preproc
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_preprocess_science', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sph_ird_preprocess_science', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
-    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), plot=True):
+    def sph_ird_star_center(self, high_pass=False, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1355,11 +1592,6 @@ class ImagingReduction(object):
         high_pass : bool
             Apply high-pass filter to the image before searching for the satelitte spots.
             Default is False
-
-        offset : tuple
-            Apply an (x,y) offset to the default center position, for the waffle centering.
-            The offset will move the search box of the waffle spots by the amount of
-            specified pixels in each direction. Default is no offset
 
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
@@ -1376,14 +1608,25 @@ class ImagingReduction(object):
         # parameters
         path = self._path
         pixel = self._pixel
-        orientation_offset = self._orientation_offset
-        center_guess = self._default_center
+        files_info  = self._files_info
         frames_info = self._frames_info_preproc
 
-        # wavelength
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)
-        wave = np.array(wave)
+        if filter_comb == 'S_LR':
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
+        elif filter_comb == 'S_MR':
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
+
+        # wavelength map
+        self._logger.debug('> compute default wavelength calibration')
+        wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
@@ -1401,83 +1644,247 @@ class ImagingReduction(object):
                     save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel,
-                                                                    exclude_fraction=0.3,
-                                                                    save_path=save_path, logger=self._logger)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path,
+                                                                    logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
-                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), psf_center, overwrite=True)
 
-        # then OBJECT,CENTER
+        # then OBJECT,CENTER (if any)
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) != 0:
+            DIT = starcen_files['DET SEQ1 DIT'].round(2)[0]
+            starsci_files = frames_info[(frames_info['DPR TYPE'] == 'OBJECT') & (frames_info['DET SEQ1 DIT'].round(2) == DIT)]
+
             for file, idx in starcen_files.index:
                 self._logger.info(' * OBJECT,CENTER: {0}'.format(file))
 
-                # read data
+                # read center data
                 self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
+                cube_cen, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
 
-                # coronagraph
-                coro_name = starcen_files.loc[(file, idx), 'INS COMB ICOR']
-                if coro_name == 'N_NS_CLEAR':
-                    coro = False
+                # read science data
+                self._logger.debug('> read matching science data')
+                if len(starsci_files) != 0:
+                    self._logger.debug('> read matiching science data')
+                    fname2 = '{0}_DIT{1:03d}_preproc'.format(starsci_files.index[0][0], idx)
+                    cube_sci, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname2), header=True)
                 else:
-                    coro = True
+                    cube_sci = None
 
                 # centers
-                waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-                self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
                 if plot:
                     save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                spot_center, spot_dist, img_center \
-                    = toolbox.star_centers_from_waffle_img_cube(cube, wave, waffle_orientation, center_guess,
-                                                                pixel, orientation_offset, high_pass=high_pass,
-                                                                center_offset=offset, coro=coro, save_path=save_path,
+                spot_centers, spot_dist, img_centers \
+                    = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel,
+                                                                high_pass=high_pass, save_path=save_path,
                                                                 logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
-                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
+                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_centers, overwrite=True)
+                fits.writeto(path.preproc / '{}_spot_distance.fits'.format(fname), spot_dist, overwrite=True)
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_star_center', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
+
+        
+    def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
+        '''Performs a recalibration of the wavelength, if star center frames
+        are available. Otherwise simply use the ESO pipeline-calibrated law.
+
+        It follows a similar process to that used for the IFS
+        data. The method for the IFS is described in Vigan et
+        al. (2015, MNRAS, 454, 129):
+
+        https://ui.adsabs.harvard.edu/#abs/2015MNRAS.454..129V/abstract
+
+        Parameters
+        ----------
+        fit_scaling : bool
+            Perform a polynomial fitting of the wavelength scaling
+            law. It helps removing high-frequency noise that can
+            result from the waffle fitting. Default is True
+
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
+
+        '''
+
+        self._logger.info('Wavelength recalibration')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ird_wavelength_recalibration',
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
+        # parameters
+        path = self._path
+        lasers = self._wave_cal_lasers
+        files_info  = self._files_info
+        frames_info = self._frames_info_preproc
+
+        # remove old files
+        self._logger.debug('> remove old recalibrated wavelength calibration')
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wfile.unlink()
+
+        # resolution-specific parameters
+        filter_comb = frames_info['INS COMB IFLT'].unique()[0]
+        if filter_comb == 'S_LR':
+            centers  = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
+        elif filter_comb == 'S_MR':
+            centers  = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
+
+        # wavelength map
+        self._logger.debug('> compute default wavelength calibration')
+        wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
+        wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
+        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+
+        # reference wavelength
+        idx_ref = 3
+        wave_ref = lasers[idx_ref]
+
+        # get spot distance from the first OBJECT,CENTER in the sequence
+        self._logger.debug('> read saved spot distances')
+        starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+        if len(starcen_files) == 0:
+            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
+            return
+
+        fname = '{0}_DIT{1:03d}_preproc_spot_distance'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+        spot_dist = fits.getdata(path.preproc / '{}.fits'.format(fname))
+
+        if plot:
+            pdf = PdfPages(path.products / 'wavelength_recalibration.pdf')
+
+        pix = np.arange(1024)
+        wave_final = np.zeros((1024, 2))
+        for fidx in range(2):
+            self._logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, 2))
+
+            wave = wave_lin[fidx]
+            dist = spot_dist[:, fidx]
+
+            imin = np.nanargmin(np.abs(wave-wave_ref))
+
+            # scaling factor
+            self._logger.debug('> compute wavelength scaling factor')
+            scaling_raw = dist / dist[imin]
+
+            self._logger.debug('> polynomial fit for recalibration')
+            if filter_comb == 'S_LR':
+                # FIXME: implement smoothing of the scaling factor for
+                # LRS mode
+                self._logger.error('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
+                self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.ERROR)
+                return
+            elif filter_comb == 'S_MR':
+                # linear fit with a 5-degree polynomial
+                good = np.where(np.isfinite(wave))
+                p = np.polyfit(pix[good], scaling_raw[good], 5)
+
+                scaling_fit = np.polyval(p, pix)
+
+            wave_final_raw = wave[imin] * scaling_raw
+            wave_final_fit = wave[imin] * scaling_fit
+
+            bad = np.where(np.logical_not(np.isfinite(wave)))
+            wave_final_raw[bad] = np.nan
+            wave_final_fit[bad] = np.nan
+
+            wave_diff = np.abs(wave_final_fit - wave)
+            self._logger.info('   ==> difference with calibrated wavelength: min={0:.1f} nm, max={1:.1f} nm'.format(np.nanmin(wave_diff), np.nanmax(wave_diff)))
+
+            if fit_scaling:
+                self._logger.debug('> use fitted scaling factor')
+                wave_final[:, fidx] = wave_final_fit
+                use_r = ''
+                use_f = ' <=='
+            else:
+                self._logger.debug('> use raw scaling factor')
+                wave_final[:, fidx] = wave_final_raw
+                use_r = ' <=='
+                use_f = ''
+
+            # plot
+            if plot:
+                plt.figure('Wavelength recalibration', figsize=(10, 10))
+                plt.clf()
+
+                plt.subplot(211)
+                plt.axvline(imin, color='k', linestyle='--')
+                plt.plot(pix, wave, label='DRH', color='r', lw=3)
+                plt.plot(pix, wave_final_raw, label='Recalibrated [raw]'+use_r)
+                plt.plot(pix, wave_final_fit, label='Recalibrated [fit]'+use_f)
+                plt.legend(loc='upper left')
+                plt.ylabel('Wavelength r[nm]')
+                plt.title('Field #{}'.format(fidx))
+                plt.xlim(1024, 0)
+                plt.gca().xaxis.set_ticklabels([])
+
+                plt.subplot(212)
+                plt.axvline(imin, color='k', linestyle='--')
+                plt.plot(pix, wave-wave_final_raw)
+                plt.plot(pix, wave-wave_final_fit)
+                plt.ylabel('Residuals r[nm]')
+                plt.xlabel('Detector coordinate [pix]')
+                plt.xlim(1024, 0)
+
+                plt.subplots_adjust(left=0.13, right=0.97, bottom=0.08, top=0.96, hspace=0.05)
+
+                pdf.savefig()
+
+        if plot:
+            pdf.close()
+
+        # save
+        self._logger.info(' * saving')
+        fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
+
+        # update recipe execution
+        self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.SUCCESS)
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
 
 
-    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
+    def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
+                             split_posang=True, shift_method='fft', manual_center=None, coarse_centering=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
         (OBJECT,FLUX), star centers (OBJECT,CENTER) and standard
-        coronagraphic images (OBJECT). For each type of data, the
-        method saves 4 or 5 different files:
+        coronagraphic images (OBJECT).
 
-          - *_cube: the (x,y,time,lambda) cube
+        Depending on the observing strategy, there can be several
+        position angle positions in the sequence. Images taken at
+        different position angles can be either kept together or
+        split into different cubes. In either case a posang vector
+        is saved alongside the science cube(s).
 
-          - *_parang: the parallactic angle vector
+        For each type of data, the method saves 3 different files:
 
-          - *_derot: the derotation angles vector. This vector takes
-                     into account the parallactic angle and any
-                     instrumental pupil offset. This is the values
-                     that need to be used for aligning the images with
-                     North up and East left.
+          - *_cube: the (x,y,time,nfield) cube
+
+          - *_posang: the position angle vector.
 
           - *_frames: a csv file with all the information for every
                       frames. There is one line by time step in the
                       data cube.
-
-          - *_cube_scaled: the (x,y,time,lambda) cube with images
-                           rescaled spectraly. This is useful if you
-                           plan to perform spectral differential
-                           imaging in your analysis.
 
         Centering
         ---------
@@ -1490,44 +1897,50 @@ class ImagingReduction(object):
 
           - only integer shifts (shift_method='roll')
           - centering on an integer pixel (cpix=True)
-          - no correction of the anamorphism (correct_anamorphism=False)
-          - no saving of the rescaled frames (save_scaled=False)
+          - no correction of the MRS chromatism (correct_mrs_chromatism=False)
 
         This option is useful if the user wants to perform a
-        posteriori centering of the frames, e.g. to fully preserve
+        posteriori centering of the spectrum, e.g. to fully preserve
         photometry.
 
         If there was no OBJECT,CENTER acquired in the sequence, then
         the centering will be performed with respect to a default,
-        pre-defined center that is representative of the typical
-        center of the coronagraph.
+        pre-defined center that is representative of the typical center
+        of the coronagraph.
 
         Parameters
         ----------
         cpix : bool
             If True the images are centered on the pixel at coordinate
-            (dim//2,dim//2). If False the images are centered between
-            4 pixels, at coordinates ((dim-1)/2,(dim-1)/2). The value
-            of cpix is automatically set to True when coarse_centering
-            is set to True. Default is True.
+            dim//2 in the spatial dimension. If False the images are
+            centered between 2 pixels, at coordinates (dim-1)/2. The
+            value of cpix is automatically set to True when
+            coarse_centering is set to True. Default is True.
 
         psf_dim : even int
-            Size of the PSF images. Default is 80x80 pixels
+            Size of the PSF images along in the spatial
+            dimension. Default is 80x pixels
 
         science_dim : even int
             Size of the science images (star centers and standard
-            coronagraphic images). Default is 290, 290 pixels
+            coronagraphic images) in the spatial dimension. Default is
+            800 pixels
 
-        correct_anamorphism : bool
-            Correct the optical anamorphism of the instrument (see
-            user manual for details). The value of correct_anamorphism
-            is automatically set to True when coarse_centering is set
-            to True. Default is True.
+        correct_mrs_chromatism : bool
+            Correct for the slight chromatism in the MRS mode. This
+            chromatism induces a slight shift of the PSF center with
+            wavelength. The value of correct_mrs_chromatism is
+            automatically set to True when coarse_centering is set to
+            True. Default is True.
+
+        split_posang : bool
+            Save data taken at different position angles in separate
+            science files. Default is True
 
         manual_center : array
-            User provided centers for the OBJECT,CENTER and OBJECT
-            frames. This should be an array of either 2 or nwave*2
-            values. Default is None
+            User provided spatial center for the OBJECT,CENTER and
+            OBJECT frames. This should be an array of 2 values (cx for
+            the 2 IRDIS fields). Default is None
 
         coarse_centering : bool
             Control if images are finely centered or not before being
@@ -1538,14 +1951,8 @@ class ImagingReduction(object):
             afterwards. Default is False.
 
         shift_method : str
-            Method to scaling and shifting the images: fft or interp.
-            Default is fft
-
-        save_scaled : bool
-            Also save the wavelength-rescaled cubes. Makes the process
-            much longer. The value of save_scaled is automatically set
-            to True when coarse_centering is set to True. The default
-            is False
+            Method to shifting the images: fft or interp.  Default is
+            fft
 
         '''
 
@@ -1561,13 +1968,48 @@ class ImagingReduction(object):
         nwave = self._nwave
         frames_info = self._frames_info_preproc
 
-        # wavelength
+        # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
-        wave, bandwidth = transmission.wavelength_bandwidth_filter(filter_comb)
-        wave = np.array(wave)
+        if filter_comb == 'S_LR':
+            default_center = self._default_center_lrs
+            wave_min = self._wave_min_lrs
+            wave_max = self._wave_max_lrs
+        elif filter_comb == 'S_MR':
+            default_center = self._default_center_mrs
+            wave_min = self._wave_min_mrs
+            wave_max = self._wave_max_mrs
 
+        # read final wavelength calibration
         self._logger.debug('> save final wavelength')
-        fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
+        wfile = path.preproc / 'wavelength_recalibrated.fits'
+        if wfile.exists():
+            wave = fits.getdata(wfile)
+        else:
+            wfile = path.preproc / 'wavelength_default.fits'
+            if wfile.exists():
+                self._logger.warning('Using default wavelength calibration.')
+                wave = fits.getdata(wfile)
+            else:
+                self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_cal_wave or sph_ird_wavelength_recalibration().')
+                self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
+                return
+
+        # wavelength solution: make sure we have the same number of
+        # wave points in each field
+        mask   = ((wave_min <= wave) & (wave <= wave_max))
+        iwave0 = np.where(mask[:, 0])[0]
+        iwave1 = np.where(mask[:, 1])[0]
+        nwave  = np.min([iwave0.size, iwave1.size])
+
+        iwave = np.empty((nwave, 2), dtype=np.int)
+        iwave[:, 0] = iwave0[:nwave]
+        iwave[:, 1] = iwave1[:nwave]
+
+        final_wave = np.empty((nwave, 2))
+        final_wave[:, 0] = wave[iwave[:, 0], 0]
+        final_wave[:, 1] = wave[iwave[:, 1], 1]
+
+        fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
 
         # max images size
         if psf_dim > 1024:
@@ -1580,24 +2022,22 @@ class ImagingReduction(object):
 
         # centering configuration
         if coarse_centering:
-            self._logger.warning('Images will be coarsely centered without any interpolation. Automatic settings for coarse centering: shift_method=\'roll\', cpix=True, correct_anamorphism=False, save_scaled=False')
+            self._logger.warning('Images will be coarsely centered without any interpolation. Automatic settings for coarse centering: shift_method=\'roll\', cpix=True, correct_mrs_chromatism=False')
             shift_method = 'roll'
             cpix = True
-            correct_anamorphism = False
-            save_scaled = False
+            correct_mrs_chromatism = False
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
 
-            if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
+            if manual_center.shape != (2,):
                 self._logger.error('manual_center does not have the right number of dimensions.')
-                self._update_recipe_status('sph_ird_combine_data', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
                 return
 
-            if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
+            self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center))
 
-            self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
+            manual_center = np.full((1024, 2), manual_center, dtype=np.float)
 
         #
         # OBJECT,FLUX
@@ -1608,11 +2048,8 @@ class ImagingReduction(object):
             self._logger.info(' * OBJECT,FLUX data')
 
             # final arrays
-            psf_cube   = np.zeros((nwave, nfiles, psf_dim, psf_dim))
-            psf_parang = np.zeros(nfiles)
-            psf_derot  = np.zeros(nfiles)
-            if save_scaled:
-                psf_cube_scaled = np.zeros((nwave, nfiles, psf_dim, psf_dim))
+            psf_cube   = np.zeros((2, nfiles, nwave, psf_dim))
+            psf_posang = np.zeros(nfiles)
 
             # final center
             if cpix:
@@ -1634,64 +2071,78 @@ class ImagingReduction(object):
                 if cfile.exists():
                     centers = fits.getdata(cfile)
                 else:
-                    self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = self._default_center
+                    self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default centers ({}, {})'.format(*default_center[:, 0]))
+                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(np.int)
 
-                # neutral density
-                self._logger.debug('> read neutral density information')
-                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave)
-
                 # DIT, angles, etc
                 self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-                psf_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-                psf_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+                psf_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # center frames
-                for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
-                    cx, cy = centers[wave_idx, :]
+                # center
+                for field_idx, img in enumerate(cube):
+                    self._logger.debug('> field {}'.format(field_idx))
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
 
-                    self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
-                    nimg = nimg / DIT / attenuation[wave_idx]
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        self._logger.debug('> correct MRS chromatism')
+                        img = img.astype(np.float)
+                        self._logger.debug('> shift and normalize')
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
 
-                    psf_cube[wave_idx, file_idx] = nimg[:psf_dim, :psf_dim]
+                            line = img[widx, :]
 
-                    # correct anamorphism
-                    if correct_anamorphism:
-                        self._logger.debug('> correct anamorphism')
-                        nimg = psf_cube[wave_idx, file_idx]
-                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
-                        psf_cube[wave_idx, file_idx] = nimg
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            nimg = nimg / DIT
 
-                    # wavelength-scaled version
-                    if save_scaled:
-                        self._logger.debug('> spatial scaling')
-                        nimg = psf_cube[wave_idx, file_idx]
-                        psf_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
+                            psf_cube[field_idx, file_idx, wave_idx] = nimg[:psf_dim]
+                    else:
+                        cx = centers[ciwave, field_idx].mean()
 
-            # save final cubes
+                        self._logger.debug('> shift and normalize')
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        nimg = nimg / DIT
+
+                        psf_cube[field_idx, file_idx] = nimg[ciwave, :psf_dim]
+
+                    # neutral density
+                    self._logger.debug('> compensate for neutral density')
+                    cwave  = final_wave[:, field_idx]
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    psf_cube[field_idx, file_idx] = (psf_cube[field_idx, file_idx].T / attenuation).T
+
             self._logger.debug('> save final cubes and metadata')
-            flux_files.to_csv(path.products / 'psf_frames.csv')
-            fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
-            fits.writeto(path.products / 'psf_parang.fits', psf_parang, overwrite=True)
-            fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
-            if save_scaled:
-                self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'psf_cube_scaled.fits', psf_cube_scaled, overwrite=True)
+            if split_posang:
+                self._logger.debug('> split position angles')
+                pas = np.unique(psf_posang)
+                for pa in pas:
+                    ii = np.where(psf_posang == pa)[0]
+
+                    # save metadata
+                    flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'psf_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'psf_posang={:06.2f}_posang.fits'.format(pa), psf_posang[ii], overwrite=True)
+
+                    # save final cubes
+                    fits.writeto(path.products / 'psf_posang={:06.2f}_cube.fits'.format(pa), psf_cube[:, ii], overwrite=True)
+            else:
+                # save metadata
+                flux_files.to_csv(path.products / 'psf_posang=all_frames.csv')
+                fits.writeto(path.products / 'psf_posang=all_posang.fits', psf_posang, overwrite=True)
+
+                # save final cubes
+                fits.writeto(path.products / 'psf_posang=all_cube.fits', psf_cube, overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
             del psf_cube
-            if save_scaled:
-                del psf_cube_scaled
 
         #
         # OBJECT,CENTER
@@ -1702,11 +2153,8 @@ class ImagingReduction(object):
             self._logger.info(' * OBJECT,CENTER data')
 
             # final arrays
-            cen_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
-            cen_parang = np.zeros(nfiles)
-            cen_derot  = np.zeros(nfiles)
-            if save_scaled:
-                cen_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
+            cen_cube   = np.zeros((2, nfiles, nwave, science_dim))
+            cen_posang = np.zeros(nfiles)
 
             # final center
             if cpix:
@@ -1728,64 +2176,75 @@ class ImagingReduction(object):
                 if manual_center is not None:
                     centers = manual_center
                 else:
-                    # otherwise read center data
                     centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(np.int)
 
-                # neutral density
-                self._logger.debug('> read neutral density information')
-                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave)
-
                 # DIT, angles, etc
                 self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-                cen_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-                cen_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+                cen_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # center frames
-                for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
-                    cx, cy = centers[wave_idx, :]
+                # center
+                for field_idx, img in enumerate(cube):
+                    self._logger.debug('> field {}'.format(field_idx))
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
 
-                    self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
-                    nimg = nimg / DIT / attenuation[wave_idx]
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        self._logger.debug('> correct MRS chromatism')
+                        img = img.astype(np.float)
+                        self._logger.debug('> shift and normalize')
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
 
-                    cen_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
+                            line = img[widx, :]
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            nimg = nimg / DIT
 
-                    # correct anamorphism
-                    if correct_anamorphism:
-                        self._logger.debug('> correct anamorphism')
-                        nimg = cen_cube[wave_idx, file_idx]
-                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
-                        cen_cube[wave_idx, file_idx] = nimg
+                            cen_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
+                    else:
+                        cx = centers[ciwave, field_idx].mean()
 
-                    # wavelength-scaled version
-                    if save_scaled:
-                        self._logger.debug('> spatial scaling')
-                        nimg = cen_cube[wave_idx, file_idx]
-                        cen_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
+                        self._logger.debug('> shift and normalize')
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        nimg = nimg / DIT
 
-            # save final cubes
+                        cen_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
+
+                    # neutral density
+                    self._logger.debug('> compensate for neutral density')
+                    cwave  = final_wave[:, field_idx]
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    cen_cube[field_idx, file_idx] = (cen_cube[field_idx, file_idx].T / attenuation).T
+
             self._logger.debug('> save final cubes and metadata')
-            starcen_files.to_csv(path.products / 'starcenter_frames.csv')
-            fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
-            fits.writeto(path.products / 'starcenter_parang.fits', cen_parang, overwrite=True)
-            fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
-            if save_scaled:
-                self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'starcenter_cube_scaled.fits', cen_cube_scaled, overwrite=True)
+            if split_posang:
+                self._logger.debug('> split position angles')
+                pas = np.unique(cen_posang)
+                for pa in pas:
+                    ii = np.where(cen_posang == pa)[0]
+
+                    # save metadata
+                    starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'starcenter_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'starcenter_posang={:06.2f}_posang.fits'.format(pa), cen_posang[ii], overwrite=True)
+
+                    # save final cubes
+                    fits.writeto(path.products / 'starcenter_posang={:06.2f}_cube.fits'.format(pa), cen_cube[:, ii], overwrite=True)
+            else:
+                # save metadata
+                starcen_files.to_csv(path.products / 'starcenter_posang=all_frames.csv')
+                fits.writeto(path.products / 'starcenter_posang=all_posang.fits', cen_posang, overwrite=True)
+
+                # save final cubes
+                fits.writeto(path.products / 'starcenter_posang=all_cube.fits', cen_cube, overwrite=True)
 
             # delete big cubes
-            self._logger.debug('> free memory')
             del cen_cube
-            if save_scaled:
-                del cen_cube_scaled
 
         #
         # OBJECT
@@ -1795,56 +2254,35 @@ class ImagingReduction(object):
         if nfiles != 0:
             self._logger.info(' * OBJECT data')
 
-            # null value for Dithering Motion Stage by default
-            dms_dx_ref = 0
-            dms_dy_ref = 0
+            # final arrays
+            sci_cube   = np.zeros((2, nfiles, nwave, science_dim))
+            sci_posang = np.zeros(nfiles)
 
             # use manual center if explicitely requested
             self._logger.debug('> read centers')
             if manual_center is not None:
-                centers = manual_center
+                centers = np.full((1024, 2), manual_center, dtype=np.float)
             else:
-                # otherwise, look whether we have an OBJECT,CENTER frame
-
                 # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
                 # in the sequence, but it would be better to be able to
                 # select which CENTER to use
                 starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
                 if len(starcen_files) == 0:
-                    self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = self._default_center
+                    self._logger.warning('No OBJECT,CENTER file in the data set. Images will be centered using default center ({},{})'.format(*default_center[:, 0]))
+                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
                 else:
                     fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                    fpath = path.preproc / fname
-                    if fpath.exists():
-                        centers = fits.getdata(fpath)
-
-                        # Dithering Motion Stage for star center: value is in micron,
-                        # and the pixel size is 18 micron
-                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
-                    else:
-                        self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                        centers = self._default_center
+                    centers = fits.getdata(path.preproc / fname)
 
             # make sure we have only integers if user wants coarse centering
             if coarse_centering:
                 centers = centers.astype(np.int)
-                dms_dx_ref = np.int(dms_dx_ref)
-                dms_dy_ref = np.int(dms_dy_ref)
 
             # final center
             if cpix:
                 cc = science_dim // 2
             else:
                 cc = (science_dim - 1) / 2
-
-            # final arrays
-            sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
-            sci_parang = np.zeros(nfiles)
-            sci_derot  = np.zeros(nfiles)
-            if save_scaled:
-                sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
@@ -1853,81 +2291,77 @@ class ImagingReduction(object):
                 # read data
                 self._logger.debug('> read data')
                 fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = list(path.preproc.glob('{}*.fits'.format(fname)))
-                cube = fits.getdata(files[0])
-
-                # neutral density
-                self._logger.debug('> read neutral density information')
-                ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
-                w, attenuation = transmission.transmission_nd(ND, wave=wave)
+                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
 
                 # DIT, angles, etc
                 self._logger.debug('> read angles')
                 DIT = frames_info.loc[(file, idx), 'DET SEQ1 DIT']
-                sci_parang[file_idx] = frames_info.loc[(file, idx), 'PARANG']
-                sci_derot[file_idx] = frames_info.loc[(file, idx), 'DEROT ANGLE']
+                sci_posang[file_idx] = frames_info.loc[(file, idx), 'INS4 DROT2 POSANG'] + 90
 
-                # Dithering Motion Stage for star center: value is in micron,
-                # and the pixel size is 18 micron
-                self._logger.debug('> read DMS position')
-                dms_dx = frames_info.loc[(file, idx), 'INS1 PAC X'] / 18
-                dms_dy = frames_info.loc[(file, idx), 'INS1 PAC Y'] / 18
+                # center
+                for field_idx, img in enumerate(cube):
+                    self._logger.debug('> field {}'.format(field_idx))
+                    # wavelength solution for this field
+                    ciwave = iwave[:, field_idx]
 
-                # make sure we have only integers if user wants coarse centering
-                if coarse_centering:
-                    dms_dx = np.int(dms_dx)
-                    dms_dy = np.int(dms_dy)
+                    if correct_mrs_chromatism and (filter_comb == 'S_MR'):
+                        self._logger.debug('> correct MRS chromatism')
+                        img = img.astype(np.float)
+                        self._logger.debug('> shift and normalize')
+                        for wave_idx, widx in enumerate(ciwave):
+                            cx = centers[widx, field_idx]
 
-                # center frames
-                for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
-                    cx, cy = centers[wave_idx, :]
+                            line = img[widx, :]
+                            nimg = imutils.shift(line, cc-cx, method=shift_method)
+                            nimg = nimg / DIT
 
-                    # DMS contribution
-                    cx = cx + dms_dx_ref + dms_dx
-                    cy = cy + dms_dy_ref + dms_dy
+                            sci_cube[field_idx, file_idx, wave_idx] = nimg[:science_dim]
+                    else:
+                        cx = centers[ciwave, field_idx].mean()
 
-                    self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
-                    nimg = nimg / DIT / attenuation[wave_idx]
+                        self._logger.debug('> shift and normalize')
+                        img  = img.astype(np.float)
+                        nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
+                        nimg = nimg / DIT
 
-                    sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
+                        sci_cube[field_idx, file_idx] = nimg[ciwave, :science_dim]
 
-                    # correct anamorphism
-                    if correct_anamorphism:
-                        self._logger.debug('> correct anamorphism')
-                        nimg = sci_cube[wave_idx, file_idx]
-                        nimg = imutils.scale(nimg, (1.0000, 1.0062), method='interp')
-                        sci_cube[wave_idx, file_idx] = nimg
+                    # neutral density
+                    self._logger.debug('> compensate for neutral density')
+                    cwave  = final_wave[:, field_idx]
+                    ND = frames_info.loc[(file, idx), 'INS4 FILT2 NAME']
+                    w, attenuation = transmission.transmission_nd(ND, wave=cwave)
+                    sci_cube[field_idx, file_idx] = (sci_cube[field_idx, file_idx].T / attenuation).T
 
-                    # wavelength-scaled version
-                    if save_scaled:
-                        self._logger.debug('> spatial scaling')
-                        nimg = sci_cube[wave_idx, file_idx]
-                        sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
-
-            # save final cubes
             self._logger.debug('> save final cubes and metadata')
-            object_files.to_csv(path.products / 'science_frames.csv')
-            fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
-            fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
-            fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
-            if save_scaled:
-                self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
+            if split_posang:
+                self._logger.debug('> split position angles')
+                pas = np.unique(sci_posang)
+                for pa in pas:
+                    ii = np.where(sci_posang == pa)[0]
+
+                    # save metadata
+                    object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / 'science_posang={:06.2f}_frames.csv'.format(pa))
+                    fits.writeto(path.products / 'science_posang={:06.2f}_posang.fits'.format(pa), sci_posang[ii], overwrite=True)
+
+                    # save final cubes
+                    fits.writeto(path.products / 'science_posang={:06.2f}_cube.fits'.format(pa), sci_cube[:, ii], overwrite=True)
+            else:
+                # save metadata
+                object_files.to_csv(path.products / 'science_posang=all_frames.csv')
+                fits.writeto(path.products / 'science_posang=all_posang.fits', sci_posang, overwrite=True)
+
+                # save final cubes
+                fits.writeto(path.products / 'science_posang=all_cube.fits', sci_cube, overwrite=True)
 
             # delete big cubes
-            self._logger.debug('> free memory')
             del sci_cube
-            if save_scaled:
-                del sci_cube_scaled
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_combine_data', pysphere.SUCCESS)
+        # update recipe execution
+        self._update_recipe_status('sph_ird_combine_data', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.COMPLETE
+        self._status = sphere.COMPLETE
 
 
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
@@ -1987,9 +2421,12 @@ class ImagingReduction(object):
                 self._logger.warning('   ==> delete products')
                 shutil.rmtree(path.products, ignore_errors=True)
 
-        # recipe execution status
-        self._update_recipe_status('sph_ird_clean', pysphere.SUCCESS)
+        # update recipe execution
+        self._logger.debug('> update recipe execution')
+        self._recipes_status['sph_ird_clean'] = True
+
+        # update recipe execution
+        self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.COMPLETE
-        
+        self._status = sphere.INCOMPLETE
