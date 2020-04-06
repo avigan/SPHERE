@@ -1,11 +1,11 @@
-import vltpf.IRDIS as IRDIS
+import pysphere.IRDIS as IRDIS
 
 ####################################################@
 # full reduction
 #
 
 #%% init reduction
-reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/', log_level='info')
+reduction = IRDIS.ImagingReduction('/Users/avigan/data/pysphere-test-target/IRD/DBI/', log_level='info')
 
 #%% configuration
 reduction.config['combine_psf_dim']          = 80
@@ -23,7 +23,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IRDIS.ImagingReduction('/Users/avigan/data/VLTPF-test-target/IRD/DBI/', log_level='info')
+reduction = IRDIS.ImagingReduction('/Users/avigan/data/pysphere-test-target/IRD/DBI/', log_level='info')
 
 #%% sorting
 reduction.sort_files()

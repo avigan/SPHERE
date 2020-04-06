@@ -845,7 +845,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     imvar = fact*(convolve(imdev, kernel)*box2 - imdev)
 
     # following solution is faster but does not support bad pixels
-    # see avigan/VLTPF#49
+    # see avigan/SPHERE#49
     # img_clip = (ndimage.uniform_filter(img, box, mode='constant')*box2 - img) / (box2-1)
 
     # imdev = (img - img_clip)**2

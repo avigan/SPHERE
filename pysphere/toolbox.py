@@ -9,8 +9,8 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import logging
 
-import vltpf
-import vltpf.utils.aperture as aperture
+import pysphere
+import pysphere.utils.aperture as aperture
 
 from astropy.io import fits
 from astropy.time import Time
@@ -31,7 +31,7 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
     recipes_status : dict
         Status of executed recipes
 
-    reduction_status : vltpf state
+    reduction_status : pysphere state
         Overall status of the reduction
 
     recipe : str
@@ -49,7 +49,7 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
         Current recipe can be executed safely
     '''
     
-    if reduction_status == vltpf.FATAL:
+    if reduction_status == pysphere.FATAL:
         logger.critical('   ==> reduction is in a FATAL state! See log file for details')
         return False
     
@@ -62,13 +62,13 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
         if r not in recipes:
             execute_recipe = False
             missing.append(r)
-        elif recipes_status[r] != vltpf.SUCCESS:
+        elif recipes_status[r] != pysphere.SUCCESS:
             execute_recipe = False
             missing.append(r)
 
     if not execute_recipe:
         logger.error('{} cannot be executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe, missing))
-        recipes_status[recipe] = vltpf.ERROR
+        recipes_status[recipe] = pysphere.ERROR
 
     logger.debug('> execution requirements check for {}: {}'.format(recipe, execute_recipe))
     
@@ -242,19 +242,19 @@ def compute_angles(frames_info, logger=_log):
     instru = frames_info['SEQ ARM'].unique()
     if len(instru) != 1:
         logger.error('Sequence is mixing different instruments: {0}'.format(instru))
-        return vltpf.ERROR
+        return pysphere.ERROR
     if instru == 'IFS':
         instru_offset = -100.48
     elif instru == 'IRDIS':
         instru_offset = 0.0
     else:
         logger.error('Unkown instrument {0}'.format(instru))
-        return vltpf.ERROR
+        return pysphere.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
     if len(drot_mode) != 1:
         logger.error('Derotator mode has several values in the sequence')
-        return vltpf.ERROR
+        return pysphere.ERROR
     if drot_mode == 'ELEV':
         pupoff = 135.99
     elif drot_mode == 'SKY':
@@ -263,14 +263,14 @@ def compute_angles(frames_info, logger=_log):
         pupoff = -100.48
     else:
         logger.error('Unknown derotator mode {0}'.format(drot_mode))
-        return vltpf.ERROR
+        return pysphere.ERROR
 
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset
     
-    return vltpf.SUCCESS
+    return pysphere.SUCCESS
 
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
@@ -369,7 +369,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
         
         # recompute angles
         ret = compute_angles(nfinfo, logger=logger)
-        if ret == vltpf.ERROR:
+        if ret == pysphere.ERROR:
             return None
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
@@ -398,7 +398,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
             
         # recompute angles
         ret = compute_angles(nfinfo, logger=logger)
-        if ret == vltpf.ERROR:
+        if ret == pysphere.ERROR:
             return None
     else:
         logger.error('Unknown collapse type {0}'.format(collapse_type))
@@ -452,7 +452,8 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_log):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
+                                   save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -467,6 +468,10 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     pixel : float
         Pixel scale, in mas/pixel
 
+    exclude_fraction : float
+        Exclude a fraction of the image borders to avoid getting
+        biased by hot pixels close to the edges. Default is 10%
+
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
@@ -478,6 +483,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     -------
     img_centers : array_like
         The star center in each frame of the cube
+
     '''
 
     # standard parameters
@@ -488,24 +494,35 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
 
-    # multi-page PDF to save result
-    if save_path is not None:
-        pdf = PdfPages(save_path)
-
     # loop over images
-    img_centers = np.zeros((nwave, 2))
-    for idx, (wave, img) in enumerate(zip(wave, cube)):
-        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
+    img_centers    = np.zeros((nwave, 2))
+    failed_centers = np.zeros(nwave, dtype=np.bool)
+    for idx, (cwave, img) in enumerate(zip(wave, cube)):
+        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, cwave))
 
         # remove any NaN
-        img = np.nan_to_num(img)
-
+        img = np.nan_to_num(img)        
+        
         # center guess
         cy, cx = np.unravel_index(np.argmax(img), img.shape)
 
+        # check if we are really too close to the edge
+        dim = img.shape
+        lf = exclude_fraction
+        hf = 1-exclude_fraction
+        if (cx <= lf*dim[-1]) or (cx >= hf*dim[-1]) or \
+           (cy <= lf*dim[0])  or (cy >= hf*dim[0]):
+            nimg = img.copy()
+            nimg[:, :int(lf*dim[-1])] = 0
+            nimg[:, int(hf*dim[-1]):] = 0
+            nimg[:int(lf*dim[0]), :]  = 0
+            nimg[int(hf*dim[0]):, :]  = 0
+
+            cy, cx = np.unravel_index(np.argmax(nimg), img.shape)
+
         # sub-image
         sub = img[cy-box:cy+box, cx-box:cx+box]
-
+        
         # fit peak with Gaussian + constant
         imax = np.unravel_index(np.argmax(sub), sub.shape)
         g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
@@ -513,23 +530,70 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
                                    models.Const2D(amplitude=sub.min())
         fitter = fitting.LevMarLSQFitter()
         par = fitter(g_init, xx, yy, sub)
-
+        
         cx_final = cx - box + par[0].x_mean
         cy_final = cy - box + par[0].y_mean
 
         img_centers[idx, 0] = cx_final
         img_centers[idx, 1] = cy_final
 
-        if save_path:
+    # look for outliers and replace by a linear fit to all good ones
+    # Ticket #81
+    ibad = []
+    if nwave > 2:
+        c_med = np.median(img_centers, axis=0)
+        c_std = np.std(img_centers, axis=0)
+        bad   = np.any(np.logical_or(img_centers < (c_med-3*c_std),
+                                     img_centers > (c_med+3*c_std)), axis=1)
+        ibad  = np.where(bad)[0]
+        igood = np.where(np.logical_not(bad))[0]
+        if len(ibad) != 0:
+            logger.info(f'   ==> found {len(ibad)} outliers. Will replace them with a linear fit.')
+            
+            idx = np.arange(nwave)
+
+            # x
+            lin = np.polyfit(idx[igood], img_centers[igood, 0], 1)
+            pol = np.poly1d(lin)
+            img_centers[ibad, 0] = pol(idx[ibad])
+
+            # y
+            lin = np.polyfit(idx[igood], img_centers[igood, 1], 1)
+            pol = np.poly1d(lin)
+            img_centers[ibad, 1] = pol(idx[ibad])
+
+    #
+    # Generate summary plot
+    #
+    
+    # multi-page PDF to save result
+    if save_path is not None:
+        pdf = PdfPages(save_path)
+    
+        for idx, (cwave, img) in enumerate(zip(wave, cube)):
+            cx_final = img_centers[idx, 0]
+            cy_final = img_centers[idx, 1]
+            
+            failed = (idx in ibad)
+            if failed:
+                mcolor = 'r'
+                bcolor = 'r'
+            else:
+                mcolor = 'b'
+                bcolor = 'w'
+            
             plt.figure('PSF center - imaging', figsize=(8.3, 8))
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/np.nanmax(img), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
                        interpolation='nearest', cmap=global_cmap)
-            plt.plot([cx_final], [cy_final], marker='D', color='blue')
-            plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
-            plt.title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
+            plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
+            plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
+            if failed:
+                plt.text(cx, cy+box, 'Fit failed', color='r', weight='bold', fontsize='x-small',
+                         ha='center', va='bottom')
+            plt.title(r'Image #{0} - {1:.0f} nm'.format(idx+1, cwave))
 
             ext = 1000 / pixel
             plt.xlim(cx_final-ext, cx_final+ext)
@@ -541,9 +605,8 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, save_path=None, logger=_lo
 
             pdf.savefig()
 
-    if save_path:
         pdf.close()
-
+    
     return img_centers
 
 

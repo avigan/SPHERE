@@ -1,11 +1,11 @@
-import vltpf.IRDIS as IRDIS
+import pysphere.IRDIS as IRDIS
 
 ####################################################@
 # full reduction
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/', log_level='info')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/pysphere-test-target/IRD/LSS/', log_level='info')
 
 #%% configuration
 reduction.config['combine_science_dim'] = 300
@@ -20,7 +20,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/VLTPF-test-target/IRD/LSS/', log_level='info')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/pysphere-test-target/IRD/LSS/', log_level='info')
 
 #%% sorting
 reduction.sort_files()

@@ -18,12 +18,12 @@ from astropy.io import fits
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
-import vltpf
-import vltpf.utils as utils
-import vltpf.utils.imutils as imutils
-import vltpf.utils.aperture as aperture
-import vltpf.transmission as transmission
-import vltpf.toolbox as toolbox
+import pysphere
+import pysphere.utils as utils
+import pysphere.utils.imutils as imutils
+import pysphere.utils.aperture as aperture
+import pysphere.transmission as transmission
+import pysphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def compute_detector_flat(raw_flat_files, bpm_files=[], mask_vignetting=True, lo
     # where the the lenslets are vignetted
     if mask_vignetting:
         logger.debug('> apply mask vignetting')
-        ifu_mask = fits.getdata(Path(vltpf.__file__).parent / 'data' / 'ifu_mask.fits')
+        ifu_mask = fits.getdata(Path(pysphere.__file__).parent / 'data' / 'ifu_mask.fits')
         flat[ifu_mask == 0] = 1
 
     return flat, bpm
@@ -466,7 +466,7 @@ class Reduction(object):
         # configuration
         #
         reduction._logger.debug('> read default configuration')
-        configfile = f'{Path(vltpf.__file__).parent}/instruments/{reduction._instrument}.ini'
+        configfile = f'{Path(pysphere.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')
@@ -493,7 +493,7 @@ class Reduction(object):
         #
         # reduction status
         #
-        reduction._status = vltpf.INIT
+        reduction._status = pysphere.INIT
         reduction._recipes_status = collections.OrderedDict()
         
         # reload any existing data frames
@@ -751,17 +751,17 @@ class Reduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
             # update recipe execution
-            self._update_recipe_status('sort_files', vltpf.SUCCESS)
+            self._update_recipe_status('sort_files', pysphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DARK'):
-                self._update_recipe_status('sph_ifs_cal_dark', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_dark', pysphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IFS_MASTER_DFF'):
-                self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_detector_flat', pysphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IFS_SPECPOS'):
-                self._update_recipe_status('sph_ifs_cal_specpos', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_specpos', pysphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IFS_WAVECALIB'):
-                self._update_recipe_status('sph_ifs_cal_wave', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_wave', pysphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD'):
-                self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
@@ -783,7 +783,7 @@ class Reduction(object):
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
             # update recipe execution
-            self._update_recipe_status('sort_frames', vltpf.SUCCESS)
+            self._update_recipe_status('sort_frames', pysphere.SUCCESS)
         else:
             frames_info = None
 
@@ -813,17 +813,17 @@ class Reduction(object):
             wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
             done = (path.preproc / '{}_preproc.fits'.format(wave_file.index[0])).exists()
             if done:
-                self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_preprocess_wave', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_preprocess_wave status = {}'.format(done))
 
             done = (path.preproc / 'wavelength_default.fits').exists()
             if done:
-                self._update_recipe_status('sph_ifs_cal_wave', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_cal_wave', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_cal_wave status = {}'.format(done))
             
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
             if done:
-                self._update_recipe_status('sph_ifs_wavelength_recalibration', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_wavelength_recalibration', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_wavelength_recalibration status = {}'.format(done))
 
         if frames_info_preproc is not None:
@@ -834,7 +834,7 @@ class Reduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ifs_preprocess_science', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_preprocess_science', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_preprocess_science status = {}'.format(done))
             
             done = True
@@ -844,7 +844,7 @@ class Reduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ifs_science_cubes', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_science_cubes', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_science_cubes status = {}'.format(done))
 
             done = True
@@ -855,11 +855,11 @@ class Reduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ifs_star_center', vltpf.SUCCESS)
+                self._update_recipe_status('sph_ifs_star_center', pysphere.SUCCESS)
             self._logger.debug('> sph_ifs_star_center status = {}'.format(done))
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def _update_recipe_status(self, recipe, status):
@@ -870,9 +870,9 @@ class Reduction(object):
         recipe : str
             Recipe name
 
-        status : vltpf status (int)
-            Status of the recipe. Can be either one of vltpf.NOTSET,
-            vltpf.SUCCESS or vltpf.ERROR
+        status : pysphere status (int)
+            Status of the recipe. Can be either one of pysphere.NOTSET,
+            pysphere.SUCCESS or pysphere.ERROR
         '''
 
         self._logger.debug('> update recipe execution')
@@ -895,7 +895,7 @@ class Reduction(object):
         self._logger.info('Sort raw files')
 
         # update recipe execution
-        self._update_recipe_status('sort_files', vltpf.NOTSET)
+        self._update_recipe_status('sort_files', pysphere.NOTSET)
         
         # parameters
         path = self._path
@@ -906,8 +906,8 @@ class Reduction(object):
 
         if len(files) == 0:
             self._logger.critical('No raw FITS files in reduction path')
-            self._update_recipe_status('sort_files', vltpf.ERROR)
-            self._status = vltpf.FATAL
+            self._update_recipe_status('sort_files', pysphere.ERROR)
+            self._status = pysphere.FATAL
             return
 
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
@@ -915,7 +915,7 @@ class Reduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(vltpf.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(pysphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -954,16 +954,16 @@ class Reduction(object):
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
             self._logger.critical('Sequence is mixing different instruments: {0}'.format(instru))
-            self._update_recipe_status('sort_files', vltpf.ERROR)
-            self._status = vltpf.FATAL
+            self._update_recipe_status('sort_files', pysphere.ERROR)
+            self._status = pysphere.FATAL
             return
 
         # check science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
         if len(sci_files) == 0:
             self._logger.critical('This dataset contains no science frame. There should be at least one!')
-            self._update_recipe_status('sort_frames', vltpf.ERROR)
-            self._status = vltpf.FATAL
+            self._update_recipe_status('sort_frames', pysphere.ERROR)
+            self._status = pysphere.FATAL
             return
         
         # processed column
@@ -988,10 +988,10 @@ class Reduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._update_recipe_status('sort_files', vltpf.SUCCESS)
+        self._update_recipe_status('sort_files', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sort_frames(self):
@@ -1038,9 +1038,9 @@ class Reduction(object):
 
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(frames_info, logger=self._logger)
-        if ret == vltpf.ERROR:
-            self._update_recipe_status('sort_frames', vltpf.ERROR)
-            self._status = vltpf.FATAL
+        if ret == pysphere.ERROR:
+            self._update_recipe_status('sort_frames', pysphere.ERROR)
+            self._status = pysphere.FATAL
             return
 
         # save
@@ -1093,10 +1093,10 @@ class Reduction(object):
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
         # update recipe execution
-        self._update_recipe_status('sort_frames', vltpf.SUCCESS)
+        self._update_recipe_status('sort_frames', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
     
     def check_files_association(self):
@@ -1122,14 +1122,14 @@ class Reduction(object):
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
             self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
-            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            self._update_recipe_status('check_files_association', pysphere.ERROR)
             return
 
         # IFS obs mode
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()
         if len(modes) != 1:
             self._logger.error('Sequence is mixing YJ and YJH observations.')
-            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            self._update_recipe_status('check_files_association', pysphere.ERROR)
             return
 
         mode = modes[0]
@@ -1139,7 +1139,7 @@ class Reduction(object):
             mode_short = 'YJH'
         else:
             self._logger.error('Unknown IFS mode {0}'.format(mode))
-            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            self._update_recipe_status('check_files_association', pysphere.ERROR)
             return        
 
         # specific data frame for calibrations
@@ -1343,7 +1343,7 @@ class Reduction(object):
         self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-            self._update_recipe_status('check_files_association', vltpf.ERROR)
+            self._update_recipe_status('check_files_association', pysphere.ERROR)
             return            
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
@@ -1354,10 +1354,10 @@ class Reduction(object):
         self._files_info = files_info
         
         # update recipe execution
-        self._update_recipe_status('check_files_association', vltpf.SUCCESS)
+        self._update_recipe_status('check_files_association', pysphere.SUCCESS)
         
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_cal_dark(self, silent=True):
@@ -1434,8 +1434,8 @@ class Reduction(object):
 
                 # check esorex
                 if shutil.which('esorex') is None:
-                    self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-                    self._update_recipe_status('sph_ifs_cal_dark', vltpf.ERROR)
+                    self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
+                    self._update_recipe_status('sph_ifs_cal_dark', pysphere.ERROR)
                     return                    
 
                 # execute esorex
@@ -1447,7 +1447,7 @@ class Reduction(object):
 
                 if proc.returncode != 0:
                     self._logger.error('esorex process was not successful')
-                    self._update_recipe_status('sph_ifs_cal_dark', vltpf.ERROR)
+                    self._update_recipe_status('sph_ifs_cal_dark', pysphere.ERROR)
                     return                    
 
                 # store products
@@ -1472,10 +1472,10 @@ class Reduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_cal_dark', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_cal_dark', pysphere.SUCCESS)
         
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_cal_detector_flat(self, silent=True):
@@ -1512,7 +1512,7 @@ class Reduction(object):
             mode_short = 'YJH'
         else:
             self._logger.error('Unknown IFS mode {0}'.format(mode))
-            self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_detector_flat', pysphere.ERROR)
             return                    
 
         # bpm files
@@ -1520,7 +1520,7 @@ class Reduction(object):
         bpm_files = [path.calib / '{}.fits'.format(f) for f in cfiles]
         if len(bpm_files) == 0:
             self._logger.error('Could not fin any bad pixel maps')
-            self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_detector_flat', pysphere.ERROR)
             return
 
         # loop on wavelengths
@@ -1538,7 +1538,7 @@ class Reduction(object):
                 continue
             elif len(files) != 2:
                 self._logger.error('There should be exactly 2 raw flat files. Found {0}.'.format(len(files)))
-                self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_cal_detector_flat', pysphere.ERROR)
                 return                    
 
             # create the flat and bpm
@@ -1579,10 +1579,10 @@ class Reduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_cal_detector_flat', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_cal_detector_flat', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_cal_specpos(self, silent=True):
@@ -1610,14 +1610,14 @@ class Reduction(object):
         specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
         if len(specpos_file) != 1:
             self._logger.error('There should be exactly 1 raw specpos files. Found {0}.'.format(len(specpos_file)))
-            self._update_recipe_status('sph_ifs_cal_specpos', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_specpos', pysphere.ERROR)
             return                    
 
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
-            self._update_recipe_status('sph_ifs_cal_specpos', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_specpos', pysphere.ERROR)
             return                    
 
         # IFS obs mode
@@ -1628,7 +1628,7 @@ class Reduction(object):
             Hmode = 'TRUE'
         else:
             self._logger.error('Unknown IFS mode {0}'.format(mode))
-            self._update_recipe_status('sph_ifs_cal_specpos', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_specpos', pysphere.ERROR)
             return                    
 
         # create sof
@@ -1653,8 +1653,8 @@ class Reduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-            self._update_recipe_status('sph_ifs_cal_specpos', vltpf.ERROR)
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
+            self._update_recipe_status('sph_ifs_cal_specpos', pysphere.ERROR)
             return                    
 
         # execute esorex
@@ -1666,7 +1666,7 @@ class Reduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
-            self._update_recipe_status('sph_ifs_cal_specpos', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_specpos', pysphere.ERROR)
             return                    
 
         # store products
@@ -1684,10 +1684,10 @@ class Reduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_cal_specpos', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_cal_specpos', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_cal_wave(self, silent=True):
@@ -1715,20 +1715,20 @@ class Reduction(object):
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ifs_cal_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_wave', pysphere.ERROR)
             return                    
 
         specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
         if len(specpos_file) != 1:
             self._logger.error('There should be exactly 1 specpos file. Found {0}.'.format(len(specpos_file)))
-            self._update_recipe_status('sph_ifs_cal_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_wave', pysphere.ERROR)
             return                    
         
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
-            self._update_recipe_status('sph_ifs_cal_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_wave', pysphere.ERROR)
             return                    
 
         # IFS obs mode
@@ -1774,8 +1774,8 @@ class Reduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-            self._update_recipe_status('sph_ifs_cal_wave', vltpf.ERROR)
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
+            self._update_recipe_status('sph_ifs_cal_wave', pysphere.ERROR)
             return                    
 
         # execute esorex
@@ -1787,7 +1787,7 @@ class Reduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
-            self._update_recipe_status('sph_ifs_cal_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_wave', pysphere.ERROR)
             return                    
 
         # store products
@@ -1816,10 +1816,10 @@ class Reduction(object):
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_drh, overwrite=True)
         
         # update recipe execution
-        self._update_recipe_status('sph_ifs_cal_wave', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_cal_wave', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_cal_ifu_flat(self, silent=True):
@@ -1851,7 +1851,7 @@ class Reduction(object):
             mode_short = 'YJH'
         else:
             self._logger.error('Unknown IFS mode {0}'.format(mode))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         # get list of files
@@ -1859,48 +1859,48 @@ class Reduction(object):
                                    (files_info['DPR TECH'] == 'IFU')]
         if len(ifu_flat_file) != 1:
             self._logger.error('There should be exactly 1 raw IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                                
 
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                       (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
         if len(flat_white_file) != 1:
             self._logger.error('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
         if len(flat_1020_file) != 1:
             self._logger.error('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
         if len(flat_1230_file) != 1:
             self._logger.error('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
         if len(flat_1300_file) != 1:
             self._logger.error('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         if mode == 'OBS_H':
@@ -1908,7 +1908,7 @@ class Reduction(object):
                                          (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(flat_1550_file) != 1:
                 self._logger.error('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
-                self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
                 return                    
 
         # create sof
@@ -1941,8 +1941,8 @@ class Reduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         # execute esorex
@@ -1954,7 +1954,7 @@ class Reduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
-            self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.ERROR)
             return                    
 
         # store products
@@ -1972,10 +1972,10 @@ class Reduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_cal_ifu_flat', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_cal_ifu_flat', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_preprocess_science(self,
@@ -2060,7 +2060,7 @@ class Reduction(object):
 
             if len(bpm_files) == 0:
                 self._logger.error('Could not fin any bad pixel maps')
-                self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                 return
     
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
@@ -2107,7 +2107,7 @@ class Reduction(object):
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
                         self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
-                        self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                        self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                         return                    
 
                 # process files
@@ -2150,7 +2150,7 @@ class Reduction(object):
                             elif collapse_type == 'coadd':
                                 if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                     self._logger.error('coadd_value must be an integer >1')
-                                    self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                                    self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                                     return                    
 
                                 coadd_value = int(coadd_value)
@@ -2160,7 +2160,7 @@ class Reduction(object):
 
                                 if coadd_value > NDIT:
                                     self._logger.error('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
-                                    self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                                    self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                                     return
 
                                 self._logger.info('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
@@ -2174,7 +2174,7 @@ class Reduction(object):
                                 frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value, logger=self._logger)
                             else:
                                 self._logger.error('Unknown collapse type {0}'.format(collapse_type))
-                                self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                                self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                                 return                    
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
@@ -2182,7 +2182,7 @@ class Reduction(object):
                     # check for any error during collapse of frame information
                     if frames_info_new is None:
                         self._logger.error('An error occured when collapsing frames info')
-                        self._update_recipe_status('sph_ifs_preprocess_science', vltpf.ERROR)
+                        self._update_recipe_status('sph_ifs_preprocess_science', pysphere.ERROR)
                         return
                     
                     # merge frames_info
@@ -2239,10 +2239,10 @@ class Reduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_preprocess_science', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_preprocess_science', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_preprocess_wave(self):
@@ -2267,7 +2267,7 @@ class Reduction(object):
         bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
         if len(bpm_files) == 0:
             self._logger.error('Could not fin any bad pixel maps')
-            self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_preprocess_wave', pysphere.ERROR)
             return
         
         bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
@@ -2277,7 +2277,7 @@ class Reduction(object):
                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
-            self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_preprocess_wave', pysphere.ERROR)
             return                    
         bkg = fits.getdata(path.calib / '{}.fits'.format(dark_file.index[0]))
 
@@ -2285,7 +2285,7 @@ class Reduction(object):
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_preprocess_wave', pysphere.ERROR)
             return                    
         fname = wave_file.index[0]
 
@@ -2320,10 +2320,10 @@ class Reduction(object):
                      overwrite=True, output_verify='silentfix')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_preprocess_wave', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_preprocess_wave', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_science_cubes(self, silent=True):
@@ -2361,7 +2361,7 @@ class Reduction(object):
             mode_short = 'YJH'
         else:
             self._logger.error('Unknown IFS mode {0}'.format(mode))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         # get list of science files
@@ -2375,41 +2375,41 @@ class Reduction(object):
         ifu_flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_IFU_FLAT_FIELD')]
         if len(ifu_flat_file) != 1:
             self._logger.error('There should be exactly 1 IFU flat file. Found {0}.'.format(len(ifu_flat_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                       (files_info['INS2 COMB IFS'] == 'CAL_BB_2_{0}'.format(mode_short))]
         if len(flat_white_file) != 1:
             self._logger.error('There should be exactly 1 white flat file. Found {0}.'.format(len(flat_white_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB1_1_{0}'.format(mode_short))]
         if len(flat_1020_file) != 1:
             self._logger.error('There should be exactly 1 1020 nm flat file. Found {0}.'.format(len(flat_1020_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB2_1_{0}'.format(mode_short))]
         if len(flat_1230_file) != 1:
             self._logger.error('There should be exactly 1 1230 nm flat file. Found {0}.'.format(len(flat_1230_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == 'CAL_NB3_1_{0}'.format(mode_short))]
         if len(flat_1300_file) != 1:
             self._logger.error('There should be exactly 1 1300 nm flat file. Found {0}.'.format(len(flat_1300_file)))
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         if mode == 'OBS_H':
@@ -2417,7 +2417,7 @@ class Reduction(object):
                                          (files_info['INS2 COMB IFS'] == 'CAL_NB4_2_{0}'.format(mode_short))]
             if len(flat_1550_file) != 1:
                 self._logger.error('There should be exactly 1 1550 nm flat file. Found {0}.'.format(len(flat_1550_file)))
-                self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
                 return                    
 
         # create sof
@@ -2450,8 +2450,8 @@ class Reduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running VLTPF.')
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return                    
 
         # execute esorex
@@ -2463,7 +2463,7 @@ class Reduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex was not successful. Trying to process some of the frames...')
-            self._update_recipe_status('sph_ifs_science_cubes', vltpf.ERROR)
+            self._update_recipe_status('sph_ifs_science_cubes', pysphere.ERROR)
             return
 
         # post-process
@@ -2480,10 +2480,10 @@ class Reduction(object):
             shutil.move(file, path.preproc / file.name)
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_science_cubes', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_science_cubes', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), plot=True):
@@ -2706,7 +2706,10 @@ class Reduction(object):
             plt.xlabel(r'Wavelength [nm]')
             plt.xlim(wave_min-50, wave_max+50)
             plt.ylabel('Flux')
-            plt.legend(loc='upper right', fontsize='x-small')
+            if ifs_mode == 'OBS_YJ':
+                plt.legend(loc='upper right', fontsize='x-small')
+            elif ifs_mode == 'OBS_H':
+                plt.legend(loc='upper left', fontsize='x-small')
             plt.title('Wavelength calibration')
 
             plt.tight_layout()
@@ -2714,10 +2717,10 @@ class Reduction(object):
             plt.savefig(path.products / 'wavelength_recalibration.pdf')
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_wavelength_recalibration', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_wavelength_recalibration', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), plot=True):
@@ -2782,7 +2785,8 @@ class Reduction(object):
                     save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, 
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel,
+                                                                    exclude_fraction=0.15,
                                                                     save_path=save_path, logger=self._logger)
 
                 # save
@@ -2825,10 +2829,10 @@ class Reduction(object):
                 fits.writeto(path.preproc / '{}centers.fits'.format(fname), img_center, overwrite=True)
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_star_center', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_star_center', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
 
 
     def sph_ifs_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
@@ -2953,7 +2957,7 @@ class Reduction(object):
                 wave = fits.getdata(wfile)
             else:
                 self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ifs_wave_calib or sph_ifs_wavelength_recalibration().')
-                self._update_recipe_status('sph_ifs_combine_data', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_combine_data', pysphere.ERROR)
                 return                                    
         fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
         
@@ -2979,7 +2983,7 @@ class Reduction(object):
             
             if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
                 self._logger.error('manual_center does not have the right number of dimensions.')
-                self._update_recipe_status('sph_ifs_combine_data', vltpf.ERROR)
+                self._update_recipe_status('sph_ifs_combine_data', pysphere.ERROR)
                 return                    
 
             if manual_center.shape == (2,):
@@ -3299,10 +3303,10 @@ class Reduction(object):
                 del sci_cube_scaled
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_combine_data', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_combine_data', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.COMPLETE
+        self._status = pysphere.COMPLETE
 
 
     def sph_ifs_clean(self, delete_raw=False, delete_products=False):
@@ -3363,7 +3367,7 @@ class Reduction(object):
                 shutil.rmtree(path.products, ignore_errors=True)
 
         # update recipe execution
-        self._update_recipe_status('sph_ifs_clean', vltpf.SUCCESS)
+        self._update_recipe_status('sph_ifs_clean', pysphere.SUCCESS)
 
         # reduction status
-        self._status = vltpf.INCOMPLETE
+        self._status = pysphere.INCOMPLETE
