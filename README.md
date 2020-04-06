@@ -8,6 +8,27 @@ This repository provides tools for the reduction of VLT/SPHERE data. The pipelin
 
 If you find a bug or want to suggest improvements, please [create a ticket](https://github.com/avigan/SPHERE/issues).
 
+Requirements
+------------
+
+The pipeline requires official [ESO pipeline for SPHERE](https://www.eso.org/sci/software/pipelines/) to be installed and in your path. If the `esorex` command is not available the pipeline will output an error.
+
+Installation
+------------
+
+For an easy install, you can use `pip`:
+
+```bash
+> pip install pysphere-vlt
+```
+
+Otherwise your can download the current repository 
+
+```bash
+> cd SPHERE-master
+> python setup.py install
+```
+
 Credits
 -------
 
