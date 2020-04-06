@@ -1,5 +1,5 @@
-VLT/SPHERE - pysphere
-=====================
+VLT/SPHERE
+==========
 
 Information
 -----------
@@ -18,10 +18,10 @@ The package also relies on usual packages for data science and astronomy: [numpy
 Installation
 ------------
 
-The easiest is to install `pysphere` using `pip`:
+The easiest is to install `sphere` using `pip`:
 
 ```sh
-pip install pysphere-vlt
+pip install vlt-sphere
 ```
 
 Otherwise your can download the current repository and install the package manually:

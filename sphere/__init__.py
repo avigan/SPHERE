@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(format='[%(levelname)8s] %(message)s')
 _log = logging.getLogger(__name__)
 _log.setLevel(logging.DEBUG)
-_log.info('pysphere init')
+_log.info('vlt-sphere init')
 
 # recipe execution status
 NOTSET     = -1

@@ -18,12 +18,12 @@ from astropy.io import fits
 from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
-import pysphere
-import pysphere.utils as utils
-import pysphere.utils.imutils as imutils
-import pysphere.utils.aperture as aperture
-import pysphere.transmission as transmission
-import pysphere.toolbox as toolbox
+import sphere
+import sphere.utils as utils
+import sphere.utils.imutils as imutils
+import sphere.utils.aperture as aperture
+import sphere.transmission as transmission
+import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ class SpectroReduction(object):
         #
         # configuration
         #
-        configfile = f'{Path(pysphere.__file__).parent}/instruments/{reduction._instrument}.ini'
+        configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
         config = configparser.ConfigParser()
 
         reduction._logger.debug('> read configuration')
@@ -207,7 +207,7 @@ class SpectroReduction(object):
         #
         # reduction status
         #
-        reduction._status = pysphere.INIT
+        reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
 
         # reload any existing data frames
@@ -462,13 +462,13 @@ class SpectroReduction(object):
             files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
             # update recipe execution
-            self._update_recipe_status('sort_files', pysphere.SUCCESS)
+            self._update_recipe_status('sort_files', sphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_MASTER_DARK'):
-                self._update_recipe_status('sph_ird_cal_dark', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_dark', sphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_FLAT_FIELD'):
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.SUCCESS)
             if np.any(files_info['PRO CATG'] == 'IRD_WAVECALIB'):
-                self._update_recipe_status('sph_ird_cal_wave', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
 
             # update instrument mode
             self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'][0]
@@ -490,7 +490,7 @@ class SpectroReduction(object):
             frames_info['TIME END'] = pd.to_datetime(frames_info['TIME END'], utc=False)
 
             # update recipe execution
-            self._update_recipe_status('sort_frames', pysphere.SUCCESS)
+            self._update_recipe_status('sort_frames', sphere.SUCCESS)
         else:
             frames_info = None
 
@@ -519,12 +519,12 @@ class SpectroReduction(object):
         if frames_info_preproc is not None:
             done = (path.preproc / 'wavelength_default.fits').exists()
             if done:
-                self._update_recipe_status('sph_ird_cal_wave', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
             self._logger.debug('> sph_ird_cal_wave status = {}'.format(done))
 
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
             if done:
-                self._update_recipe_status('sph_ird_wavelength_recalibration', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.SUCCESS)
             self._logger.debug('> sph_ird_wavelength_recalibration status = {}'.format(done))
 
             done = True
@@ -534,7 +534,7 @@ class SpectroReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ird_preprocess_science', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_preprocess_science', sphere.SUCCESS)
             self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
 
             done = True
@@ -545,11 +545,11 @@ class SpectroReduction(object):
                 file = list(path.preproc.glob('{}.fits'.format(fname)))
                 done = done and (len(file) == 1)
             if done:
-                self._update_recipe_status('sph_ird_star_center', pysphere.SUCCESS)
+                self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
             self._logger.debug('> sph_ird_star_center status = {}'.format(done))
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def _update_recipe_status(self, recipe, status):
@@ -560,9 +560,9 @@ class SpectroReduction(object):
         recipe : str
             Recipe name
 
-        status : pysphere status (int)
-            Status of the recipe. Can be either one of pysphere.NOTSET,
-            pysphere.SUCCESS or pysphere.ERROR
+        status : sphere status (int)
+            Status of the recipe. Can be either one of sphere.NOTSET,
+            sphere.SUCCESS or sphere.ERROR
         '''
 
         self._logger.debug('> update recipe execution')
@@ -585,7 +585,7 @@ class SpectroReduction(object):
         self._logger.info('Sort raw files')
 
         # update recipe execution
-        self._update_recipe_status('sort_files', pysphere.NOTSET)
+        self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
         path = self._path
@@ -596,8 +596,8 @@ class SpectroReduction(object):
 
         if len(files) == 0:
             self._logger.critical('No raw FITS files in reduction path')
-            self._update_recipe_status('sort_files', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_files', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         self._logger.info(' * found {0} raw FITS files'.format(len(files)))
@@ -605,7 +605,7 @@ class SpectroReduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(pysphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -644,16 +644,16 @@ class SpectroReduction(object):
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
             self._logger.critical('Sequence is mixing different instruments: {0}'.format(instru))
-            self._update_recipe_status('sort_files', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_files', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         # check science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
         if len(sci_files) == 0:
             self._logger.critical('This dataset contains no science frame. There should be at least one!')
-            self._update_recipe_status('sort_frames', pysphere.ERROR)
-            self._status = pysphere.FATAL
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
             return
         
         # processed column
@@ -678,10 +678,10 @@ class SpectroReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._update_recipe_status('sort_files', pysphere.SUCCESS)
+        self._update_recipe_status('sort_files', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sort_frames(self):
@@ -728,9 +728,9 @@ class SpectroReduction(object):
 
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(frames_info, logger=self._logger)
-        if ret == pysphere.ERROR:
-            self._update_recipe_status('sort_frames', pysphere.ERROR)
-            self._status = pysphere.FATAL
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
             return
 
         # save
@@ -783,10 +783,10 @@ class SpectroReduction(object):
         self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
         # update recipe execution
-        self._update_recipe_status('sort_frames', pysphere.SUCCESS)
+        self._update_recipe_status('sort_frames', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def check_files_association(self):
@@ -812,26 +812,26 @@ class SpectroReduction(object):
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
             self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
             self._logger.eror('Sequence is mixing different types of observations: {0}'.format(modes))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
             self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         filter_comb = filter_combs[0]
         if (filter_comb != 'S_LR') and (filter_comb != 'S_MR'):
             self._logger.error('Unknown IRDIS-LSS filter combination/mode {0}'.format(filter_comb))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         # specific data frame for calibrations
@@ -900,7 +900,7 @@ class SpectroReduction(object):
         self._logger.debug('> report status')
         if error_flag:
             self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
-            self._update_recipe_status('check_files_association', pysphere.ERROR)
+            self._update_recipe_status('check_files_association', sphere.ERROR)
             return
         else:
             self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
@@ -910,10 +910,10 @@ class SpectroReduction(object):
         self._files_info = files_info
 
         # update recipe execution
-        self._update_recipe_status('check_files_association', pysphere.SUCCESS)
+        self._update_recipe_status('check_files_association', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_cal_dark(self, silent=True):
@@ -996,8 +996,8 @@ class SpectroReduction(object):
 
                     # check esorex
                     if shutil.which('esorex') is None:
-                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
-                        self._update_recipe_status('sph_ird_cal_dark', pysphere.ERROR)
+                        self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+                        self._update_recipe_status('sph_ird_cal_dark', sphere.ERROR)
                         return
 
                     # execute esorex
@@ -1009,7 +1009,7 @@ class SpectroReduction(object):
 
                     if proc.returncode != 0:
                         self._logger.error('esorex process was not successful')
-                        self._update_recipe_status('sph_ird_cal_dark', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_cal_dark', sphere.ERROR)
                         return
 
                     # store products
@@ -1040,10 +1040,10 @@ class SpectroReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_cal_dark', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_cal_dark', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_cal_detector_flat(self, silent=True):
@@ -1111,8 +1111,8 @@ class SpectroReduction(object):
 
             # check esorex
             if shutil.which('esorex') is None:
-                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.ERROR)
+                self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.ERROR)
                 return
 
             # execute esorex
@@ -1124,7 +1124,7 @@ class SpectroReduction(object):
 
             if proc.returncode != 0:
                 self._logger.error('esorex process was not successful')
-                self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_cal_detector_flat', sphere.ERROR)
                 return
 
             # store products
@@ -1155,10 +1155,10 @@ class SpectroReduction(object):
         files_info.to_csv(path.preproc / 'files.csv')
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_cal_detector_flat', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_cal_detector_flat', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_cal_wave(self, silent=True):
@@ -1186,7 +1186,7 @@ class SpectroReduction(object):
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
         if len(wave_file) != 1:
             self._logger.error('There should be exactly 1 raw wavelength calibration file. Found {0}.'.format(len(wave_file)))
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         DIT = wave_file['DET SEQ1 DIT'][0]
@@ -1194,20 +1194,20 @@ class SpectroReduction(object):
                                (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         filter_comb = wave_file['INS COMB IFLT'][0]
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD')]
         if len(flat_file) == 0:
             self._logger.error('There should at least 1 flat file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         bpm_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')]
         if len(flat_file) == 0:
             self._logger.error('There should at least 1 bad pixel map file for wavelength calibration. Found none.')
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         # products
@@ -1283,8 +1283,8 @@ class SpectroReduction(object):
 
         # check esorex
         if shutil.which('esorex') is None:
-            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running pysphere.')
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         # execute esorex
@@ -1296,7 +1296,7 @@ class SpectroReduction(object):
 
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
-            self._update_recipe_status('sph_ird_cal_wave', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_cal_wave', sphere.ERROR)
             return
 
         # store products
@@ -1334,10 +1334,10 @@ class SpectroReduction(object):
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_cal_wave', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_preprocess_science(self,
@@ -1406,7 +1406,7 @@ class SpectroReduction(object):
             bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
             if len(bpm_files) == 0:
                 self._logger.error('Could not fin any bad pixel maps')
-                self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                 return
 
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
@@ -1423,7 +1423,7 @@ class SpectroReduction(object):
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
             self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
-            self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+            self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
             return
         flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
 
@@ -1468,7 +1468,7 @@ class SpectroReduction(object):
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
                         self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
-                        self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
 
                 # process files
@@ -1520,7 +1520,7 @@ class SpectroReduction(object):
                     # check for any error during collapse of frame information
                     if frames_info_new is None:
                         self._logger.error('An error occured when collapsing frames info')
-                        self._update_recipe_status('sph_ird_preprocess_science', pysphere.ERROR)
+                        self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
                     
                     # merge frames info
@@ -1577,10 +1577,10 @@ class SpectroReduction(object):
         self._frames_info_preproc = frames_info_preproc
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_preprocess_science', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_preprocess_science', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_star_center(self, high_pass=False, plot=True):
@@ -1690,10 +1690,10 @@ class SpectroReduction(object):
                 fits.writeto(path.preproc / '{}_spot_distance.fits'.format(fname), spot_dist, overwrite=True)
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_star_center', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
         
     def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
@@ -1790,7 +1790,7 @@ class SpectroReduction(object):
                 # FIXME: implement smoothing of the scaling factor for
                 # LRS mode
                 self._logger.error('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
-                self._update_recipe_status('sph_ird_wavelength_recalibration', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.ERROR)
                 return
             elif filter_comb == 'S_MR':
                 # linear fit with a 5-degree polynomial
@@ -1856,10 +1856,10 @@ class SpectroReduction(object):
         fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_wavelength_recalibration', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
@@ -1991,7 +1991,7 @@ class SpectroReduction(object):
                 wave = fits.getdata(wfile)
             else:
                 self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ird_cal_wave or sph_ird_wavelength_recalibration().')
-                self._update_recipe_status('sph_ird_combine_data', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
                 return
 
         # wavelength solution: make sure we have the same number of
@@ -2032,7 +2032,7 @@ class SpectroReduction(object):
 
             if manual_center.shape != (2,):
                 self._logger.error('manual_center does not have the right number of dimensions.')
-                self._update_recipe_status('sph_ird_combine_data', pysphere.ERROR)
+                self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
                 return
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center))
@@ -2358,10 +2358,10 @@ class SpectroReduction(object):
             del sci_cube
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_combine_data', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_combine_data', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.COMPLETE
+        self._status = sphere.COMPLETE
 
 
     def sph_ird_clean(self, delete_raw=False, delete_products=False):
@@ -2426,7 +2426,7 @@ class SpectroReduction(object):
         self._recipes_status['sph_ird_clean'] = True
 
         # update recipe execution
-        self._update_recipe_status('sph_ird_clean', pysphere.SUCCESS)
+        self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
 
         # reduction status
-        self._status = pysphere.INCOMPLETE
+        self._status = sphere.INCOMPLETE
