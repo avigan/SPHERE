@@ -1,11 +1,11 @@
-import vltpf.IFS as IFS
+import pysphere.IFS as IFS
 
 ####################################################@
 # full reduction
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='info')
+reduction = IFS.Reduction('/Users/avigan/data/pysphere-test-target/IFS/', log_level='info')
 
 #%% configuration
 reduction.config['preproc_collapse_science'] = True
@@ -21,7 +21,7 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IFS.Reduction('/Users/avigan/data/VLTPF-test-target/IFS/', log_level='info')
+reduction = IFS.Reduction('/Users/avigan/data/pysphere-test-target/IFS/', log_level='info')
 
 #%% sorting
 reduction.sort_files()

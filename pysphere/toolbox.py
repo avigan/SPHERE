@@ -9,8 +9,8 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import logging
 
-import vltpf
-import vltpf.utils.aperture as aperture
+import pysphere
+import pysphere.utils.aperture as aperture
 
 from astropy.io import fits
 from astropy.time import Time
@@ -31,7 +31,7 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
     recipes_status : dict
         Status of executed recipes
 
-    reduction_status : vltpf state
+    reduction_status : pysphere state
         Overall status of the reduction
 
     recipe : str
@@ -49,7 +49,7 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
         Current recipe can be executed safely
     '''
     
-    if reduction_status == vltpf.FATAL:
+    if reduction_status == pysphere.FATAL:
         logger.critical('   ==> reduction is in a FATAL state! See log file for details')
         return False
     
@@ -62,13 +62,13 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
         if r not in recipes:
             execute_recipe = False
             missing.append(r)
-        elif recipes_status[r] != vltpf.SUCCESS:
+        elif recipes_status[r] != pysphere.SUCCESS:
             execute_recipe = False
             missing.append(r)
 
     if not execute_recipe:
         logger.error('{} cannot be executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe, missing))
-        recipes_status[recipe] = vltpf.ERROR
+        recipes_status[recipe] = pysphere.ERROR
 
     logger.debug('> execution requirements check for {}: {}'.format(recipe, execute_recipe))
     
@@ -242,19 +242,19 @@ def compute_angles(frames_info, logger=_log):
     instru = frames_info['SEQ ARM'].unique()
     if len(instru) != 1:
         logger.error('Sequence is mixing different instruments: {0}'.format(instru))
-        return vltpf.ERROR
+        return pysphere.ERROR
     if instru == 'IFS':
         instru_offset = -100.48
     elif instru == 'IRDIS':
         instru_offset = 0.0
     else:
         logger.error('Unkown instrument {0}'.format(instru))
-        return vltpf.ERROR
+        return pysphere.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
     if len(drot_mode) != 1:
         logger.error('Derotator mode has several values in the sequence')
-        return vltpf.ERROR
+        return pysphere.ERROR
     if drot_mode == 'ELEV':
         pupoff = 135.99
     elif drot_mode == 'SKY':
@@ -263,14 +263,14 @@ def compute_angles(frames_info, logger=_log):
         pupoff = -100.48
     else:
         logger.error('Unknown derotator mode {0}'.format(drot_mode))
-        return vltpf.ERROR
+        return pysphere.ERROR
 
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset
     
-    return vltpf.SUCCESS
+    return pysphere.SUCCESS
 
 
 def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
@@ -369,7 +369,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
         
         # recompute angles
         ret = compute_angles(nfinfo, logger=logger)
-        if ret == vltpf.ERROR:
+        if ret == pysphere.ERROR:
             return None
     elif collapse_type == 'coadd':
         coadd_value = int(coadd_value)
@@ -398,7 +398,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
             
         # recompute angles
         ret = compute_angles(nfinfo, logger=logger)
-        if ret == vltpf.ERROR:
+        if ret == pysphere.ERROR:
             return None
     else:
         logger.error('Unknown collapse type {0}'.format(collapse_type))
