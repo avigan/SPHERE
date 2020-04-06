@@ -1,12 +1,12 @@
-VLTPF
-=====
+SPHERE
+======
 
 Information
 -----------
 
 This repository provides tools for the reduction of VLT/SPHERE data. The pipeline currently provides support for processing IRDIS dual-band imaging (DBI), IRDIS classical imaging (CI), IRDIS long-slit spectroscopy (LSS) and IFS data. IRDIS dual-polarimetry imaging (DPI) and ZIMPOL are not supported at the moment.
 
-If you find a bug or want to suggest improvements, please `create a ticket <https://github.com/avigan/VLTPF/issues>`_.
+If you find a bug or want to suggest improvements, please `create a ticket <https://github.com/avigan/SPHERE/issues>`_.
 
 Credits
 -------
