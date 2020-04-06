@@ -1,5 +1,5 @@
-SPHERE
-======
+VLT/SPHERE - pysphere
+=====================
 
 Information
 -----------
