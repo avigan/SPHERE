@@ -1823,16 +1823,23 @@ class SpectroReduction(object):
             wave_diff = np.abs(wave_final_fit - wave)
             self._logger.info('   ==> difference with calibrated wavelength: min={0:.1f} nm, max={1:.1f} nm'.format(np.nanmin(wave_diff), np.nanmax(wave_diff)))
 
-            if fit_scaling:
-                self._logger.debug('> use fitted scaling factor')
-                wave_final[:, fidx] = wave_final_fit
+            if filter_comb == 'S_LR':
+                # use DRH
+                use_d = ' <=='
                 use_r = ''
-                use_f = ' <=='
-            else:
-                self._logger.debug('> use raw scaling factor')
-                wave_final[:, fidx] = wave_final_raw
-                use_r = ' <=='
                 use_f = ''
+            elif filter_comb == 'S_MR':
+                use_d = ''
+                if fit_scaling:
+                    self._logger.debug('> use fitted scaling factor')
+                    wave_final[:, fidx] = wave_final_fit
+                    use_r = ''
+                    use_f = ' <=='
+                else:
+                    self._logger.debug('> use raw scaling factor')
+                    wave_final[:, fidx] = wave_final_raw
+                    use_r = ' <=='
+                    use_f = ''
 
             # plot
             if plot:
@@ -1848,7 +1855,7 @@ class SpectroReduction(object):
 
                 plt.subplot(211)
                 plt.axvline(imin, color='k', linestyle='--')
-                plt.plot(pix, wave, label='DRH', color='r', lw=3)
+                plt.plot(pix, wave, label='DRH'+use_d, color='r', lw=3)
                 plt.plot(pix, wave_final_raw, label='Recalibrated [raw]'+use_r)
                 plt.plot(pix, wave_final_fit, label='Recalibrated [fit]'+use_f)
                 plt.legend(loc='upper left')
