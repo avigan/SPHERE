@@ -27,12 +27,15 @@ import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
-def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
+def get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max):
     '''
     Return the linear wavelength calibration for each IRDIS field
 
     Parameters
     ----------
+    filter_comb : str
+        Filter combination (S_LR or S_MR)
+
     wave_calib : array
         Wavelength calibration data computed by esorex recipe
 
@@ -55,6 +58,10 @@ def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
     wave_map[0] = wave_calib[:, 0:1024]
     wave_map[1] = wave_calib[:, 1024:]
     wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
+
+    if filter_comb == 'S_LR':
+        wave_map[:, 650:] = np.nan
+        wave_map[:, :400] = np.nan
 
     wave_ext = 10
     wave_lin = np.zeros((2, 1024))
@@ -1335,7 +1342,7 @@ class SpectroReduction(object):
             wave_max = self._wave_max_mrs
 
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wav_file))
-        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max)
 
         self._logger.debug('> save default wavelength calibration')
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
@@ -1633,7 +1640,7 @@ class SpectroReduction(object):
         self._logger.debug('> compute default wavelength calibration')
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max)
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
@@ -1759,7 +1766,7 @@ class SpectroReduction(object):
         self._logger.debug('> compute default wavelength calibration')
         wave_file  = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_WAVECALIB')]
         wave_calib = fits.getdata(path.calib / '{}.fits'.format(wave_file.index[0]))
-        wave_lin   = get_wavelength_calibration(wave_calib, centers, wave_min, wave_max)
+        wave_lin   = get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max)
 
         # reference wavelength
         idx_ref = 3
