@@ -1801,11 +1801,11 @@ class SpectroReduction(object):
 
             self._logger.debug('> polynomial fit for recalibration')
             if filter_comb == 'S_LR':
-                # FIXME: implement smoothing of the scaling factor for
                 # LRS mode
-                self._logger.error('Wavelength recalibration is not yet implemented for IRDIS-LRS mode')
-                self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.ERROR)
-                return
+                self._logger.warning('> no polynomial fit required in LRS mode ==> using DRH value')
+
+                wave_final_raw = wave[imin] * scaling_raw
+                wave_final_fit = wave
             elif filter_comb == 'S_MR':
                 # linear fit with a 5-degree polynomial
                 good = np.where(np.isfinite(wave))
@@ -1813,8 +1813,8 @@ class SpectroReduction(object):
 
                 scaling_fit = np.polyval(p, pix)
 
-            wave_final_raw = wave[imin] * scaling_raw
-            wave_final_fit = wave[imin] * scaling_fit
+                wave_final_raw = wave[imin] * scaling_raw
+                wave_final_fit = wave[imin] * scaling_fit
 
             bad = np.where(np.logical_not(np.isfinite(wave)))
             wave_final_raw[bad] = np.nan
@@ -1836,6 +1836,13 @@ class SpectroReduction(object):
 
             # plot
             if plot:
+                if filter_comb == 'S_LR':
+                    xmin = 600
+                    xmax = 400
+                elif filter_comb == 'S_MR':
+                    xmin = 1024
+                    xmax = 0
+                
                 plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
 
@@ -1847,7 +1854,8 @@ class SpectroReduction(object):
                 plt.legend(loc='upper left')
                 plt.ylabel('Wavelength r[nm]')
                 plt.title('Field #{}'.format(fidx))
-                plt.xlim(1024, 0)
+                plt.xlim(xmin, xmax)
+                plt.ylim(900, 2400)
                 plt.gca().xaxis.set_ticklabels([])
 
                 plt.subplot(212)
@@ -1856,7 +1864,8 @@ class SpectroReduction(object):
                 plt.plot(pix, wave-wave_final_fit)
                 plt.ylabel('Residuals r[nm]')
                 plt.xlabel('Detector coordinate [pix]')
-                plt.xlim(1024, 0)
+                plt.xlim(xmin, xmax)
+                plt.ylim(-100, 100)
 
                 plt.subplots_adjust(left=0.13, right=0.97, bottom=0.08, top=0.96, hspace=0.05)
 
