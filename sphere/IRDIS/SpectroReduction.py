@@ -1242,7 +1242,7 @@ class SpectroReduction(object):
                     'sph_ird_wave_calib',
                     '--ird.wave_calib.column_width=200',
                     '--ird.wave_calib.grism_mode=FALSE',
-                    '--ird.wave_calib.threshold=2000',
+                    '--ird.wave_calib.threshold=1500',
                     '--ird.wave_calib.number_lines=6',
                     '--ird.wave_calib.wavelength_line1={:.2f}'.format(wave_lasers[0]),
                     '--ird.wave_calib.wavelength_line2={:.2f}'.format(wave_lasers[1]),
