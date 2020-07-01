@@ -27,7 +27,6 @@ import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
-
 def get_wavelength_calibration(wave_calib, centers, wave_min, wave_max):
     '''
     Return the linear wavelength calibration for each IRDIS field
@@ -223,7 +222,7 @@ class SpectroReduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<SpectroReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        return '<SpectroReduction, instrument={}, mode={}, path={}, log={}>'.format(self._instrument, self._mode, self._path, self.loglevel)
 
     def __format__(self):
         return self.__repr__()
@@ -232,6 +231,14 @@ class SpectroReduction(object):
     # Properties
     ##################################################
 
+    @property
+    def loglevel(self):
+        return logging.getLevelName(self._logger.level)
+
+    @loglevel.setter
+    def loglevel(self, level):
+        self._logger.setLevel(level.upper())
+    
     @property
     def instrument(self):
         return self._instrument
@@ -992,7 +999,7 @@ class SpectroReduction(object):
                             '--ird.master_dark.max_acceptable={0}'.format(max_level),
                             '--ird.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
                             '--ird.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
-                            sof]
+                            str(sof)]
 
                     # check esorex
                     if shutil.which('esorex') is None:
@@ -1001,7 +1008,7 @@ class SpectroReduction(object):
                         return
 
                     # execute esorex
-                    self._logger.debug('> execute esorex')
+                    self._logger.debug('> execute {}'.format(' '.join(args)))
                     if silent:
                         proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                     else:
@@ -1107,7 +1114,7 @@ class SpectroReduction(object):
                     '--ird.instrument_flat.save_addprod=TRUE',
                     '--ird.instrument_flat.outfilename={0}/{1}.fits'.format(path.calib, flat_file),
                     '--ird.instrument_flat.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
-                    sof]
+                    str(sof)]
 
             # check esorex
             if shutil.which('esorex') is None:
@@ -1116,7 +1123,7 @@ class SpectroReduction(object):
                 return
 
             # execute esorex
-            self._logger.debug('> execute esorex')
+            self._logger.debug('> execute {}'.format(' '.join(args)))
             if silent:
                 proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
             else:
@@ -1244,7 +1251,7 @@ class SpectroReduction(object):
                     '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
                     '--ird.wave_calib.wavelength_line6={:.2f}'.format(wave_lasers[5]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
-                    sof]
+                    str(sof)]
         elif filter_comb == 'S_MR':
             # masking of second order spectrum in MRS
             self._logger.debug('> masking second order')
@@ -1279,7 +1286,7 @@ class SpectroReduction(object):
                     '--ird.wave_calib.wavelength_line4={:.2f}'.format(wave_lasers[3]),
                     '--ird.wave_calib.wavelength_line5={:.2f}'.format(wave_lasers[4]),
                     '--ird.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
-                    sof]
+                    str(sof)]
 
         # check esorex
         if shutil.which('esorex') is None:
@@ -1288,7 +1295,7 @@ class SpectroReduction(object):
             return
 
         # execute esorex
-        self._logger.debug('> execute esorex')
+        self._logger.debug('> execute {}'.format(' '.join(args)))
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:

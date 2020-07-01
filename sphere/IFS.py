@@ -509,7 +509,7 @@ class Reduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<Reduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        return '<Reduction, instrument={}, mode={}, path={}, log={}>'.format(self._instrument, self._mode, self._path, self.loglevel)
 
     def __format__(self):
         return self.__repr__()
@@ -518,6 +518,14 @@ class Reduction(object):
     # Properties
     ##################################################
 
+    @property
+    def loglevel(self):
+        return logging.getLevelName(self._logger.level)
+
+    @loglevel.setter
+    def loglevel(self, level):
+        self._logger.setLevel(level.upper())
+    
     @property
     def instrument(self):
         return self._instrument
@@ -1430,7 +1438,7 @@ class Reduction(object):
                         '--ifs.master_dark.max_acceptable=2000.0',
                         '--ifs.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
                         '--ifs.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
-                        sof]
+                        str(sof)]
 
                 # check esorex
                 if shutil.which('esorex') is None:
@@ -1439,7 +1447,7 @@ class Reduction(object):
                     return                    
 
                 # execute esorex
-                self._logger.debug('> execute esorex')
+                self._logger.debug('> execute {}'.format(' '.join(args)))
                 if silent:
                     proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                 else:
@@ -1649,7 +1657,7 @@ class Reduction(object):
                 'sph_ifs_spectra_positions',
                 '--ifs.spectra_positions.hmode={0}'.format(Hmode),
                 '--ifs.spectra_positions.outfilename={0}/{1}.fits'.format(path.calib, specp_file),
-                sof]
+                str(sof)]
 
         # check esorex
         if shutil.which('esorex') is None:
@@ -1658,7 +1666,7 @@ class Reduction(object):
             return                    
 
         # execute esorex
-        self._logger.debug('> execute esorex')
+        self._logger.debug('> execute {}'.format(' '.join(args)))
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -1758,7 +1766,7 @@ class Reduction(object):
                     '--ifs.wave_calib.wavelength_line2=1.1237',
                     '--ifs.wave_calib.wavelength_line3=1.3094',
                     '--ifs.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
-                    sof]
+                    str(sof)]
         elif mode == 'OBS_H':
             args = ['esorex',
                     '--no-checksum=TRUE',
@@ -1770,7 +1778,7 @@ class Reduction(object):
                     '--ifs.wave_calib.wavelength_line3=1.3094',
                     '--ifs.wave_calib.wavelength_line4=1.5451',
                     '--ifs.wave_calib.outfilename={0}/{1}.fits'.format(path.calib, wav_file),
-                    sof]
+                    str(sof)]
 
         # check esorex
         if shutil.which('esorex') is None:
@@ -1779,7 +1787,7 @@ class Reduction(object):
             return                    
 
         # execute esorex
-        self._logger.debug('> execute esorex')
+        self._logger.debug('> execute {}'.format(' '.join(args)))
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -1937,7 +1945,7 @@ class Reduction(object):
                 'sph_ifs_instrument_flat',
                 '--ifs.instrument_flat.nofit=TRUE',
                 '--ifs.instrument_flat.ifu_filename={0}/{1}.fits'.format(path.calib, ifu_file),
-                sof]
+                str(sof)]
 
         # check esorex
         if shutil.which('esorex') is None:
@@ -1946,7 +1954,7 @@ class Reduction(object):
             return                    
 
         # execute esorex
-        self._logger.debug('> execute esorex')
+        self._logger.debug('> execute {}'.format(' '.join(args)))
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:
@@ -2446,7 +2454,7 @@ class Reduction(object):
                 'sph_ifs_science_dr',
                 '--ifs.science_dr.use_adi=0',
                 '--ifs.science_dr.spec_deconv=FALSE',
-                sof]
+                str(sof)]
 
         # check esorex
         if shutil.which('esorex') is None:
@@ -2455,7 +2463,7 @@ class Reduction(object):
             return                    
 
         # execute esorex
-        self._logger.debug('> execute esorex')
+        self._logger.debug('> execute {}'.format(' '.join(args)))
         if silent:
             proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
         else:

@@ -174,7 +174,7 @@ class ImagingReduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<ImagingReduction, instrument={}, mode={}, path={}>'.format(self._instrument, self._mode, self._path)
+        return '<ImagingReduction, instrument={}, mode={}, path={}, log={}>'.format(self._instrument, self._mode, self._path, self.loglevel)
 
     def __format__(self):
         return self.__repr__()
@@ -183,6 +183,14 @@ class ImagingReduction(object):
     # Properties
     ##################################################
 
+    @property
+    def loglevel(self):
+        return logging.getLevelName(self._logger.level)
+
+    @loglevel.setter
+    def loglevel(self, level):
+        self._logger.setLevel(level.upper())
+    
     @property
     def instrument(self):
         return self._instrument
@@ -897,7 +905,7 @@ class ImagingReduction(object):
                             '--ird.master_dark.max_acceptable={0}'.format(max_level),
                             '--ird.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
                             '--ird.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
-                            sof]
+                            str(sof)]
 
                     # check esorex
                     if shutil.which('esorex') is None:
@@ -906,7 +914,7 @@ class ImagingReduction(object):
                         return
 
                     # execute esorex
-                    self._logger.debug('> execute esorex')
+                    self._logger.debug('> execute {}'.format(' '.join(args)))
                     if silent:
                         proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                     else:
@@ -1004,7 +1012,7 @@ class ImagingReduction(object):
                     '--ird.instrument_flat.save_addprod=TRUE',
                     '--ird.instrument_flat.outfilename={0}/{1}.fits'.format(path.calib, flat_file),
                     '--ird.instrument_flat.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
-                    sof]
+                    str(sof)]
 
             # check esorex
             if shutil.which('esorex') is None:
@@ -1013,7 +1021,7 @@ class ImagingReduction(object):
                 return
 
             # execute esorex
-            self._logger.debug('> execute esorex')
+            self._logger.debug('> execute {}'.format(' '.join(args)))
             if silent:
                 proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
             else:
