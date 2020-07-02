@@ -60,7 +60,7 @@ def get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_
     wave_map[(wave_map < wave_min) | (wave_max < wave_map)] = np.nan
 
     if filter_comb == 'S_LR':
-        wave_map[:, 650:] = np.nan
+        wave_map[:, 630:] = np.nan
         wave_map[:, :400] = np.nan
 
     wave_ext = 10
@@ -1828,6 +1828,8 @@ class SpectroReduction(object):
                 use_d = ' <=='
                 use_r = ''
                 use_f = ''
+
+                wave_final[:, fidx] = wave
             elif filter_comb == 'S_MR':
                 use_d = ''
                 if fit_scaling:
@@ -2080,7 +2082,7 @@ class SpectroReduction(object):
             # final arrays
             psf_cube   = np.zeros((2, nfiles, nwave, psf_dim))
             psf_posang = np.zeros(nfiles)
-
+            
             # final center
             if cpix:
                 cc = psf_dim // 2
