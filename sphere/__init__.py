@@ -1,7 +1,7 @@
 __author__    = 'Arthur Vigan'
 __copyright__ = 'Copyright (C) 2017-2020 Arthur Vigan'
 __license__   = 'MIT'
-__version__   = '1.1'
+__version__   = '1.2'
 
 import logging
 

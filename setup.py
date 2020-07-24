@@ -9,7 +9,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 # setup
 setup(
     name='vlt-sphere',
-    version='1.1',
+    version='1.2',
     description='Reduction and analysis code for the VLT/SPHERE instrument',
     long_description=long_description,
     long_description_content_type='text/markdown',
