@@ -678,9 +678,12 @@ class Reduction(object):
 
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
                                               offset=config['center_offset'],
+                                              box_waffle=config['center_box_waffle']
                                               plot=config['misc_plot'])
         self.sph_ifs_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
+                                 box_psf=config['center_box_psf']
+                                 box_waffle=config['center_box_waffle']
                                  plot=config['misc_plot'])
         self.sph_ifs_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
@@ -2494,7 +2497,7 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), plot=True):
+    def sph_ifs_wavelength_recalibration(self, high_pass=False, offset=(0, 0), box_waffle=16, plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
         are available
 
@@ -2513,6 +2516,9 @@ class Reduction(object):
             Apply an (x,y) offset to the default center position, for the waffle centering.
             The offset will move the search box of the waffle spots by the amount of
             specified pixels in each direction. Default is no offset
+
+        box_waffle : int
+            Size of the box in which the waffle fit is performed. Default is 16 pixels
 
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
@@ -2591,8 +2597,8 @@ class Reduction(object):
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
                                                         pixel, orientation_offset, high_pass=high_pass, 
-                                                        center_offset=offset, coro=coro, save_path=save_path, 
-                                                        logger=self._logger)
+                                                        center_offset=offset, box_size=box_waffle, coro=coro,
+                                                        save_path=save_path, logger=self._logger)
 
         # final scaling
         wave_scales = spot_dist / np.full((nwave, 6), spot_dist[0])
@@ -2731,7 +2737,7 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), plot=True):
+    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), box_psf=60, box_waffle=16, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -2744,6 +2750,12 @@ class Reduction(object):
             Apply an (x,y) offset to the default center position, for the waffle centering.
             The offset will move the search box of the waffle spots by the amount of
             specified pixels in each direction. Default is no offset
+
+        box_psf : int
+            Size of the box in which the PSF fit is performed. Default is 60 pixels
+
+        box_waffle : int
+            Size of the box in which the waffle fit is performed. Default is 16 pixels
 
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
@@ -2793,9 +2805,9 @@ class Reduction(object):
                     save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel,
-                                                                    exclude_fraction=0.15,
-                                                                    save_path=save_path, logger=self._logger)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, exclude_fraction=0.15,
+                                                                    box_size=box_psf, save_path=save_path,
+                                                                    logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -2829,8 +2841,8 @@ class Reduction(object):
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
                                                                 pixel, orientation_offset, high_pass=high_pass, 
-                                                                center_offset=offset, save_path=save_path, 
-                                                                logger=self._logger)
+                                                                center_offset=offset, box_size=box_waffle,
+                                                                save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')

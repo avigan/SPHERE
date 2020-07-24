@@ -452,7 +452,7 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box=60,
+def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_size=60,
                                    save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
@@ -472,7 +472,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box=
         Exclude a fraction of the image borders to avoid getting
         biased by hot pixels close to the edges. Default is 10%
 
-    box : int
+    box_size : int
         Size of the box in which the fit is performed. Default is 60 pixels
 
     save_path : str
@@ -492,7 +492,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box=
     # standard parameters
     nwave = wave.size
     loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
-    box = box // 2
+    box = box_size // 2
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
@@ -613,7 +613,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box=
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box=40, save_path=None, logger=_log):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_path=None, logger=_log):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -628,7 +628,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box=40, save_path=Non
     pixel : float
         Pixel scale, in mas/pixel
 
-    box : int
+    box_size : int
         Width of the box in which the fit is performed. Default is 16 pixels
 
     save_path : str
@@ -645,7 +645,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box=40, save_path=Non
     '''
 
     # standard parameters
-    box = box // 2
+    box = box_size // 2
 
     # prepare plot
     if save_path:
@@ -722,7 +722,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box=40, save_path=Non
 
 def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
                                       orientation_offset,  high_pass=False, center_offset=(0, 0), 
-                                      box=16, smooth=0, coro=True, save_path=None, logger=_log):
+                                      box_size=16, smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -761,7 +761,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
         will move the search box of the waffle spots by the amount of
         specified pixels in each direction. Default is no offset
 
-    box : int
+    box_size : int
         Size of the box in which the fit is performed. Default is 16 pixels
 
     coro : bool
@@ -793,7 +793,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
     # waffle parameters
     freq = 10 * np.sqrt(2) * 0.97
-    box = box // 2
+    box = box_size // 2
     if waffle_orientation == '+':
         orient = orientation_offset * np.pi / 180
     elif waffle_orientation == 'x':
@@ -945,7 +945,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_guess, pixel, high_pass=False,
-                                      box=240, save_path=None, logger=_log):
+                                      box_size=240, save_path=None, logger=_log):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
 
@@ -970,7 +970,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
         Apply high-pass filter to the image before searching for the
         satelitte spots. Default is False
 
-    box : int
+    box_size : int
         With of the box in which the fit is performed. Default is 16 pixels
 
     save_path : str
@@ -993,7 +993,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
     '''
 
     # standard parameters
-    box = box // 2
+    box = box_size // 2
 
     # loop over fiels and wavelengths
     nimg = len(cube_cen)
