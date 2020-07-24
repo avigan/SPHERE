@@ -337,8 +337,8 @@ class ImagingReduction(object):
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
-                                 box_psf=config['center_box_psf']
-                                 box_waffle=config['center_box_waffle']
+                                 box_psf=config['center_box_psf'],
+                                 box_waffle=config['center_box_waffle'],
                                  plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
