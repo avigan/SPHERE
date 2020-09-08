@@ -112,3 +112,23 @@ class Reduction(object):
 
     def __format__(self):
         return self.__repr__()
+
+    ##################################################
+    # Properties
+    ##################################################
+
+    @property
+    def loglevel(self):
+        return logging.getLevelName(self._logger.level)
+
+    @loglevel.setter
+    def loglevel(self, level):
+        self._logger.setLevel(level.upper())
+    
+    @property
+    def instrument(self):
+        return self._instrument
+
+    @property
+    def path(self):
+        return self._path
