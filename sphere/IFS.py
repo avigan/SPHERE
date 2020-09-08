@@ -394,7 +394,8 @@ class Reduction(object):
     ##################################################
 
     def __new__(cls, path, log_level='info', sphere_handler=None):
-        '''Custom instantiation for the class
+        '''
+        Custom instantiation for the class
 
         The customized instantiation enables to check that the
         provided path is a valid reduction path. If not, None will be
@@ -411,7 +412,6 @@ class Reduction(object):
 
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
-
         '''
         
         #
