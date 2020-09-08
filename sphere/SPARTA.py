@@ -103,3 +103,12 @@ class Reduction(object):
         #
         return reduction
 
+    ##################################################
+    # Representation
+    ##################################################
+
+    def __repr__(self):
+        return '<Reduction, instrument={}, path={}, log={}>'.format(self._instrument, self._path, self.loglevel)
+
+    def __format__(self):
+        return self.__repr__()
