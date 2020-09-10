@@ -3346,42 +3346,8 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
         
-        # parameters
-        path = self.path
-
-        # tmp
-        if path.tmp.exists():
-            self._logger.debug('> remove {}'.format(path.tmp))
-            shutil.rmtree(path.tmp, ignore_errors=True)
-
-        # sof
-        if path.sof.exists():
-            self._logger.debug('> remove {}'.format(path.sof))
-            shutil.rmtree(path.sof, ignore_errors=True)
-
-        # calib
-        if path.calib.exists():
-            self._logger.debug('> remove {}'.format(path.calib))
-            shutil.rmtree(path.calib, ignore_errors=True)
-
-        # preproc
-        if path.preproc.exists():
-            self._logger.debug('> remove {}'.format(path.preproc))
-            shutil.rmtree(path.preproc, ignore_errors=True)
-
-        # raw
-        if delete_raw:
-            if path.raw.exists():
-                self._logger.debug('> remove {}'.format(path.raw))
-                self._logger.warning('   ==> delete raw files')
-                shutil.rmtree(path.raw, ignore_errors=True)
-
-        # products
-        if delete_products:
-            if path.products.exists():
-                self._logger.debug('> remove {}'.format(path.products))
-                self._logger.warning('   ==> delete products')
-                shutil.rmtree(path.products, ignore_errors=True)
+        # remove sub-directories
+        self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
         # update recipe execution
         self._update_recipe_status('sph_ifs_clean', sphere.SUCCESS)

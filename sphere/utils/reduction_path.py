@@ -1,4 +1,9 @@
+import shutil
+import logging
+
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 
 class ReductionPath(object):
@@ -97,3 +102,57 @@ class ReductionPath(object):
             self._products.mkdir(exist_ok=True)
             
         return self._products
+
+    ##################################################
+    # Properties
+    ##################################################
+
+    def remove(self, delete_raw=False, delete_products=False, logger=_log):
+        '''
+        Remove sub-directories
+
+        Parameters
+        ----------
+        delete_raw : bool
+            Delete raw data. Default is False
+
+        delete_products : bool
+            Delete science products. Default is False
+
+        logger : logHandler object
+            Log handler for the reduction. Default is root logger
+        '''
+
+        # tmp
+        if self._tmp.exists():
+            logger.debug('> remove {}'.format(self._tmp))
+            shutil.rmtree(self._tmp, ignore_errors=True)
+
+        # sof
+        if self._sof.exists():
+            logger.debug('> remove {}'.format(self._sof))
+            shutil.rmtree(self._sof, ignore_errors=True)
+
+        # calib
+        if self._calib.exists():
+            logger.debug('> remove {}'.format(self._calib))
+            shutil.rmtree(self._calib, ignore_errors=True)
+
+        # preproc
+        if self._preproc.exists():
+            logger.debug('> remove {}'.format(self._preproc))
+            shutil.rmtree(self._preproc, ignore_errors=True)
+
+        # raw
+        if delete_raw:
+            if self._raw.exists():
+                logger.debug('> remove {}'.format(self._raw))
+                logger.warning('   ==> delete raw files')
+                shutil.rmtree(self._raw, ignore_errors=True)
+
+        # products
+        if delete_products:
+            if self._products.exists():
+                logger.debug('> remove {}'.format(self._products))
+                logger.warning('   ==> delete products')
+                shutil.rmtree(self._products, ignore_errors=True)
