@@ -234,13 +234,24 @@ class Reduction(object):
 
         self._logger.info('====> Init <====')
 
+        self.sort_files()
+
+        
     def process_science(self):
         '''
-        
+        Process the SPARTA files
         '''
         
         self._logger.info('====> Science processing <====')
 
+        config = self._config
+
+        self.sph_sparta_process()
+
+        if config['misc_query_database']:
+            self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
+
+        
     def clean(self):
         '''
         Clean the reduction directory
@@ -248,6 +259,7 @@ class Reduction(object):
 
         self._logger.info('====> Clean-up <====')
 
+        
     def full_reduction(self):
         '''
         
@@ -374,7 +386,7 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_sparta_query_databases(self):
+    def sph_sparta_query_databases(self, timeout=5):
         '''
         '''
         
