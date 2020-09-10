@@ -895,7 +895,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
                 axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
                 axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
                            cmap=global_cmap)
-                axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
+                axs.plot([par[0].x_mean.value], [par[0].y_mean.value], marker='D', color=col[s])
                 axs.set_xticks([])
                 axs.set_yticks([])
 
