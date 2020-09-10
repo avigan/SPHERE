@@ -576,7 +576,7 @@ class Reduction(object):
         '''
 
         # dictionary
-        dico = self._config
+        dico = self.config
 
         # misc parameters
         print()
@@ -621,9 +621,6 @@ class Reduction(object):
 
         self._logger.info('====> Init <====')
         
-        # make sure we have sub-directories
-        self._path.create_subdirectories()
-
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
@@ -636,7 +633,7 @@ class Reduction(object):
 
         self._logger.info('====> Static calibrations <====')        
         
-        config = self._config
+        config = self.config
 
         self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ifs_cal_detector_flat(silent=config['misc_silent_esorex'])
@@ -652,7 +649,7 @@ class Reduction(object):
 
         self._logger.info('====> Science pre-processing <====')
         
-        config = self._config
+        config = self.config
 
         self.sph_ifs_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -674,7 +671,7 @@ class Reduction(object):
 
         self._logger.info('====> Science processing <====')
         
-        config = self._config
+        config = self.config
 
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
                                               offset=config['center_offset'],
@@ -702,7 +699,7 @@ class Reduction(object):
 
         self._logger.info('====> Clean-up <====')
         
-        config = self._config
+        config = self.config
 
         if config['clean']:
             self.sph_ifs_clean(delete_raw=config['clean_delete_raw'],
@@ -747,7 +744,7 @@ class Reduction(object):
         self._logger.info('Read existing reduction information')
         
         # path
-        path = self._path
+        path = self.path
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -909,7 +906,7 @@ class Reduction(object):
         self._update_recipe_status('sort_files', sphere.NOTSET)
         
         # parameters
-        path = self._path
+        path = self.path
 
         # list files
         files = path.raw.glob('*.fits')
@@ -1022,8 +1019,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
@@ -1126,8 +1123,8 @@ class Reduction(object):
             return
         
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
@@ -1389,8 +1386,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1507,8 +1504,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1614,8 +1611,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         specpos_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'SPECPOS,LAMP')]
@@ -1719,8 +1716,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'WAVE,LAMP')]
@@ -1851,8 +1848,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # IFS obs mode
         mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
@@ -2054,9 +2051,9 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info
+        path = self.path
+        files_info = self.files_info
+        frames_info = self.frames_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -2270,8 +2267,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # bpm
         bpm_files = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
@@ -2355,8 +2352,8 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -2533,13 +2530,13 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        pixel = self._pixel
+        path = self.path
+        nwave = self.nwave
+        pixel = self.pixel
         orientation_offset = self._orientation_offset
         center_guess = np.full((nwave, 2), self._default_center)
-        files_info = self._files_info
-        frames_info = self._frames_info_preproc
+        files_info = self.files_info
+        frames_info = self.frames_info_preproc
 
         # remove old file
         self._logger.debug('> remove old recalibrated wavelength calibration')
@@ -2770,12 +2767,12 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        pixel = self._pixel
+        path = self.path
+        nwave = self.nwave
+        pixel = self.pixel
         orientation_offset = self._orientation_offset
         center_guess = np.full((nwave, 2), self._default_center)
-        frames_info = self._frames_info_preproc
+        frames_info = self.frames_info_preproc
 
         # start with OBJECT,FLUX
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
@@ -2961,9 +2958,9 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        frames_info = self._frames_info_preproc
+        path = self.path
+        nwave = self.nwave
+        frames_info = self.frames_info_preproc
 
         # read final wavelength calibration
         self._logger.debug('> save final wavelength')
@@ -3350,7 +3347,7 @@ class Reduction(object):
             return
         
         # parameters
-        path = self._path
+        path = self.path
 
         # tmp
         if path.tmp.exists():

@@ -296,7 +296,7 @@ class SpectroReduction(object):
         '''
 
         # dictionary
-        dico = self._config
+        dico = self.config
 
         # misc parameters
         print()
@@ -362,7 +362,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Static calibrations <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
@@ -376,7 +376,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Science pre-processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -393,7 +393,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Science processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  box_psf=config['center_box_psf'],
@@ -418,7 +418,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Clean-up <====')
 
-        config = self._config
+        config = self.config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
@@ -463,7 +463,7 @@ class SpectroReduction(object):
         self._logger.info('Read existing reduction information')
 
         # path
-        path = self._path
+        path = self.path
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -604,7 +604,7 @@ class SpectroReduction(object):
         self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
-        path = self._path
+        path = self.path
 
         # list files
         files = path.raw.glob('*.fits')
@@ -717,8 +717,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
@@ -821,8 +821,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
@@ -950,8 +950,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1080,8 +1080,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1195,8 +1195,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
@@ -1402,9 +1402,9 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info
+        path = self.path
+        files_info = self.files_info
+        frames_info = self.frames_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -1628,10 +1628,10 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        pixel = self._pixel
-        files_info  = self._files_info
-        frames_info = self._frames_info_preproc
+        path = self.path
+        pixel = self.pixel
+        files_info  = self.files_info
+        frames_info = self.frames_info_preproc
 
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1748,10 +1748,10 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
+        path = self.path
         lasers = self._wave_cal_lasers
-        files_info  = self._files_info
-        frames_info = self._frames_info_preproc
+        files_info  = self.files_info
+        frames_info = self.frames_info_preproc
 
         # remove old files
         self._logger.debug('> remove old recalibrated wavelength calibration')
@@ -2004,9 +2004,9 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        frames_info = self._frames_info_preproc
+        path = self.path
+        nwave = self.nwave
+        frames_info = self.frames_info_preproc
 
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -2425,7 +2425,7 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
+        path = self.path
 
         # tmp
         if path.tmp.exists():

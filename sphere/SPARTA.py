@@ -437,7 +437,7 @@ class Reduction(object):
             return
 
         # parameters
-        path = self._path
+        path = self.path
 
         # tmp
         if path.tmp.exists():

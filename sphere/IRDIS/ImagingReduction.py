@@ -241,7 +241,7 @@ class ImagingReduction(object):
         '''
 
         # dictionary
-        dico = self._config
+        dico = self.config
 
         # misc parameters
         print()
@@ -301,7 +301,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Static calibrations <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
@@ -314,7 +314,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Science pre-processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -333,7 +333,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Science processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
@@ -358,7 +358,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Clean-up <====')
 
-        config = self._config
+        config = self.config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
@@ -403,7 +403,7 @@ class ImagingReduction(object):
         self._logger.info('Read existing reduction information')
 
         # path
-        path = self._path
+        path = self.path
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -532,7 +532,7 @@ class ImagingReduction(object):
         self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
-        path = self._path
+        path = self.path
 
         # list files
         files = path.raw.glob('*.fits')
@@ -645,8 +645,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
@@ -749,7 +749,7 @@ class ImagingReduction(object):
             return
 
         # parameters
-        files_info = self._files_info
+        files_info = self.files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
@@ -849,8 +849,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -979,8 +979,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1129,9 +1129,9 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info
+        path = self.path
+        files_info = self.files_info
+        frames_info = self.frames_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -1390,11 +1390,11 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        pixel = self._pixel
+        path = self.path
+        pixel = self.pixel
         orientation_offset = self._orientation_offset
         center_guess = self._default_center
-        frames_info = self._frames_info_preproc
+        frames_info = self.frames_info_preproc
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1573,9 +1573,9 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        frames_info = self._frames_info_preproc
+        path = self.path
+        nwave = self.nwave
+        frames_info = self.frames_info_preproc
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1967,7 +1967,7 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
+        path = self.path
 
         # tmp
         if path.tmp.exists():
