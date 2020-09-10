@@ -926,7 +926,7 @@ class Reduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords_irdifs.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
