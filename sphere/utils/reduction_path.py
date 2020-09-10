@@ -23,9 +23,6 @@ class ReductionPath(object):
         self._preproc  = self._root / 'preproc'
         self._products = self._root / 'products'
 
-        # create directories
-        self.create_subdirectories()
-
     ##################################################
     # Representation
     ##################################################
@@ -53,53 +50,50 @@ class ReductionPath(object):
         self._preproc  = self._root / 'preproc'
         self._products = self._root / 'products'
 
-        # create directories
-        self.create_subdirectories()
-
     @property
     def raw(self):
+        # create sub-directory if needed
+        if not self._raw.exists():
+            self._raw.mkdir(exist_ok=True)
+
         return self._raw
 
     @property
     def calib(self):
+        # create sub-directory if needed
+        if not self._calib.exists():
+            self._calib.mkdir(exist_ok=True)
+
         return self._calib
 
     @property
     def sof(self):
+        # create sub-directory if needed
+        if not self._sof.exists():
+            self._sof.mkdir(exist_ok=True)
+            
         return self._sof
 
     @property
     def tmp(self):
+        # create sub-directory if needed
+        if not self._tmp.exists():
+            self._tmp.mkdir(exist_ok=True)
+
         return self._tmp
 
     @property
     def preproc(self):
+        # create sub-directory if needed
+        if not self._preproc.exists():
+            self._preproc.mkdir(exist_ok=True)
+            
         return self._preproc
 
     @property
     def products(self):
-        return self._products
-
-    ##################################################
-    # Methods
-    ##################################################
-
-    def create_subdirectories(self):
-        # create sub-directories if needed
-        if not self._raw.exists():
-            self._raw.mkdir(exist_ok=True)
-
-        if not self._calib.exists():
-            self._calib.mkdir(exist_ok=True)
-
-        if not self._sof.exists():
-            self._sof.mkdir(exist_ok=True)
-
-        if not self._tmp.exists():
-            self._tmp.mkdir(exist_ok=True)
-
-        if not self._preproc.exists():
-            self._preproc.mkdir(exist_ok=True)
-
+        # create sub-directory if needed
         if not self._products.exists():
             self._products.mkdir(exist_ok=True)
+            
+        return self._products
