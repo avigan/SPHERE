@@ -2,6 +2,7 @@ import pandas as pd
 import logging
 import numpy as np
 import collections
+import configparser
 
 from astropy.io import fits
 from pathlib import Path
@@ -111,6 +112,25 @@ class Reduction(object):
         reduction._logger.info('Creating SPARTA reduction at path {}'.format(path))
 
         #
+        # configuration
+        #
+        reduction._logger.debug('> read default configuration')
+        configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
+        config = configparser.ConfigParser()
+
+        reduction._logger.debug('Read configuration')
+        config.read(configfile)
+
+        # reduction parameters
+        reduction._config = dict(config.items('reduction'))
+        for key, value in reduction._config.items():
+            try:
+                val = eval(value)
+            except NameError:
+                val = value
+            reduction._config[key] = val
+
+        #
         # reduction status
         #
         reduction._status = sphere.INIT
@@ -185,7 +205,27 @@ class Reduction(object):
         '''
         Shows the reduction configuration
         '''
-        pass
+
+        # dictionary
+        dico = self._config
+
+        # misc parameters
+        print()
+        print('{0:<30s}{1}'.format('Parameter', 'Value'))
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('misc')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
+        # clean
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('clean')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+        print('-'*35)
+
+        print()
+
 
     def init_reduction(self):
         '''
