@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import collections
 import configparser
+import shutil
 
 from astropy.io import fits
 from pathlib import Path
@@ -259,10 +260,10 @@ class Reduction(object):
 
         self._logger.info('====> Clean-up <====')
 
-        
+    
     def full_reduction(self):
         '''
-        
+        Performs a full reduction of a SPARTA data set
         '''
         
         self._logger.info('====> Full reduction <====')
@@ -366,6 +367,7 @@ class Reduction(object):
 
     def sph_sparta_process(self):
         '''
+        Process SPARTA files
         '''
         
         self._logger.info('Process SPARTA files')
@@ -388,6 +390,12 @@ class Reduction(object):
 
     def sph_sparta_query_databases(self, timeout=5):
         '''
+        Query ESO databases for additional atmospheric information
+
+        Parameters
+        ----------
+        timeout : float
+            Network request timeout, in seconds. Default is 5
         '''
         
         self._logger.info('Query ESO databases')
@@ -408,8 +416,17 @@ class Reduction(object):
         self._status = sphere.COMPLETE
     
 
-    def sph_sparta_clean(self):
+    def sph_sparta_clean(self, delete_raw=False, delete_products=False):
         '''
+        Clean everything except for raw data and science products (by default)
+
+        Parameters
+        ----------
+        delete_raw : bool
+            Delete raw data. Default is False
+
+        delete_products : bool
+            Delete science products. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -419,9 +436,42 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        #
-        # TO BE IMPLEMENTED
-        #
+        # parameters
+        path = self._path
+
+        # tmp
+        if path.tmp.exists():
+            self._logger.debug('> remove {}'.format(path.tmp))
+            shutil.rmtree(path.tmp, ignore_errors=True)
+
+        # sof
+        if path.sof.exists():
+            self._logger.debug('> remove {}'.format(path.sof))
+            shutil.rmtree(path.sof, ignore_errors=True)
+
+        # calib
+        if path.calib.exists():
+            self._logger.debug('> remove {}'.format(path.calib))
+            shutil.rmtree(path.calib, ignore_errors=True)
+
+        # preproc
+        if path.preproc.exists():
+            self._logger.debug('> remove {}'.format(path.preproc))
+            shutil.rmtree(path.preproc, ignore_errors=True)
+
+        # raw
+        if delete_raw:
+            if path.raw.exists():
+                self._logger.debug('> remove {}'.format(path.raw))
+                self._logger.warning('   ==> delete raw files')
+                shutil.rmtree(path.raw, ignore_errors=True)
+
+        # products
+        if delete_products:
+            if path.products.exists():
+                self._logger.debug('> remove {}'.format(path.products))
+                self._logger.warning('   ==> delete products')
+                shutil.rmtree(path.products, ignore_errors=True)
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_clean', sphere.SUCCESS)
