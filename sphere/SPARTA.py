@@ -238,6 +238,24 @@ class Reduction(object):
         self.sort_files()
 
         
+    def create_static_calibrations(self):
+        '''
+        Create static calibrations
+        '''
+        
+        self._logger.info('====> Static calibrations <====')                
+        self._logger.warning('No static calibrations for SPARTA data')
+
+        
+    def preprocess_science(self):
+        '''
+        Pre-processing of data
+        '''
+
+        self._logger.info('====> Science pre-processing <====')
+        self._logger.warning('No pre-processing required for SPARTA data')
+
+        
     def process_science(self):
         '''
         Process the SPARTA files
