@@ -1,3 +1,7 @@
+#################################
+# Basic keywords
+#################################
+
 # standard
 INSTRUME 
 OBJECT
@@ -29,6 +33,10 @@ HIERARCH ESO INS1 OPTI2 NAME
 HIERARCH ESO DET SEQ1 DIT
 HIERARCH ESO DET NDIT
 
+# programme
+HIERARCH ESO OBS PROG ID
+HIERARCH ESO OBS ID
+HIERARCH ESO OBS NAME
 
 #################################
 # Additional keywords
