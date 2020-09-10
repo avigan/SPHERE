@@ -14,6 +14,14 @@ _log = logging.getLogger(__name__)
 class Reduction(object):
     '''
     SPHERE/SPARTA dataset reduction class
+
+    The analysis and plotting code of this class was originally
+    developed by Julien Milli (ESO/IPAG) and based on SAXO tools
+    from Jean-François Sauvage (ONERA). See:
+
+    https://github.com/jmilou/sparta
+
+    for the code from Julien Milli.
     '''
 
     ##################################################
