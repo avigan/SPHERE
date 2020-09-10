@@ -347,9 +347,6 @@ class SpectroReduction(object):
 
         self._logger.info('====> Init <====')
 
-        # make sure we have sub-directories
-        self._path.create_subdirectories()
-
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
