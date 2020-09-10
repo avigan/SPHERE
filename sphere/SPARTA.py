@@ -140,6 +140,14 @@ class Reduction(object):
         # reload any existing data frames
         # FIXME: to be implemented
         # reduction._read_info()
+
+        reduction._logger.warning('#########################################################')
+        reduction._logger.warning('#                        WARNING!                       #')
+        reduction._logger.warning('# Support for SPARTA files is preliminary. The current  #')
+        reduction._logger.warning('# format of product files may change in future versions #')
+        reduction._logger.warning('# of the pipeline until an appropriate format is found. #')
+        reduction._logger.warning('# Please do not blindly rely on the current format.     #')
+        reduction._logger.warning('#########################################################')
         
         #
         # return instance
