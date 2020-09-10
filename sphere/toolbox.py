@@ -589,7 +589,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/np.nanmax(img), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/np.nanmax(img), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
                        interpolation='nearest', cmap=global_cmap)
             plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
             plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
@@ -696,7 +696,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_pat
         if save_path:
             plt.subplot(1, 2, fidx+1)
 
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/img.max(), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
                        interpolation='nearest', cmap=global_cmap)
             plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='dodgerblue', linestyle='none',
                      ms=2, alpha=0.5)
@@ -840,18 +840,14 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
             plt.clf()
 
             if high_pass:
-                norm = colors.PowerNorm(gamma=1)
-                vmin = -1e-1
-                vmax = 1e-1
+                norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
-                norm = colors.LogNorm()
-                vmin = 1e-2
-                vmax = 1
+                norm = colors.LogNorm(vmin=1e-2, vmax=1)
             
             col = ['green', 'blue', 'deepskyblue', 'purple']
             ax = fig.add_subplot(111)
-            ax.imshow(img/img.max(), aspect='equal', vmin=vmin, vmax=vmax, norm=norm,
-                      interpolation='nearest', cmap=global_cmap)
+            ax.imshow(img/img.max(), aspect='equal', norm=norm, interpolation='nearest',
+                      cmap=global_cmap)
             ax.set_title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
             ax.set_xlabel('x position [pix]')
             ax.set_ylabel('y position [pix]')
@@ -1062,17 +1058,13 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             
         if save_path:            
             if high_pass or (cube_sci is not None):
-                norm = colors.PowerNorm(gamma=1)
-                vmin = -1e-1
-                vmax = 1e-1
+                norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
-                norm = colors.LogNorm()
-                vmin = 1e-5
-                vmax = 1
+                norm = colors.LogNorm(vmin=1e-5, vmax=1)
             
             plt.subplot(1, 2, fidx+1)
-            plt.imshow(img/img.max(), aspect='equal', vmin=vmin, vmax=vmax, interpolation='nearest',
-                       cmap=global_cmap, norm=norm)
+            plt.imshow(img/img.max(), aspect='equal', interpolation='nearest', cmap=global_cmap,
+                       norm=norm)
             plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='dodgerblue', 
                      linestyle='none', ms=2, alpha=1)
             plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='dodgerblue', 
