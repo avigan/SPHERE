@@ -327,7 +327,7 @@ class Reduction(object):
 
         config = self._config
 
-        self.sph_sparta_process()
+        self.sph_sparta_process(plot=config['misc_plot'])
 
         if config['misc_query_database']:
             self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
@@ -451,9 +451,14 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_sparta_process(self):
+    def sph_sparta_process(self, plot=True):
         '''
         Process SPARTA files
+
+        Parameters
+        ----------
+        plot : bool
+            Display and save diagnostic plot for quality check. Default is True
         '''
         
         self._logger.info('Process SPARTA files')
