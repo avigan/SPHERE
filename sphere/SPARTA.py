@@ -184,9 +184,58 @@ class Reduction(object):
     def path(self):
         return self._path
 
+    @property
+    def files_info(self):
+        return self._files_info
+
+    @property
+    def recipe_status(self):
+        return self._recipes_status
+
     ##################################################
     # Private methods
     ##################################################
+
+    def _read_info(self):
+        '''
+        Read the files, calibs and frames information from disk
+
+        files_info : dataframe
+            The data frame with all the information on files
+
+        This function is not supposed to be called directly by the user.
+        '''
+
+        self._logger.info('Read existing reduction information')
+        
+        # path
+        path = self.path
+
+        # files info
+        fname = path.preproc / 'files.csv'
+        if fname.exists():
+            self._logger.debug('> read files.csv')
+            
+            files_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            files_info['DATE-OBS'] = pd.to_datetime(files_info['DATE-OBS'], utc=False)
+            files_info['DATE'] = pd.to_datetime(files_info['DATE'], utc=False)
+
+            # update recipe execution
+            self._update_recipe_status('sort_files', sphere.SUCCESS)
+
+            # update instrument mode
+            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+        else:
+            files_info = None
+
+        # save data frames in instance variables
+        self._files_info = files_info
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
+
 
     def _update_recipe_status(self, recipe, status):
         '''Update execution status for reduction and recipe
@@ -404,8 +453,10 @@ class Reduction(object):
             return
 
         #
-        # TO BE IMPLEMENTED
+        # DTTS images
         #
+
+        
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
