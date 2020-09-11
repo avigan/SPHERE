@@ -456,10 +456,14 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
+        # parameters
+        path = self.path
+        files_info = self.files_info
+
         #
         # DTTS images
         #
-
+        self._logger.debug('> DTTS images')
         
 
         # update recipe execution
