@@ -1046,7 +1046,7 @@ class Reduction(object):
         frames_info = frames_info.align(files_info, level=0)[1]
 
         # compute timestamps
-        toolbox.compute_times(frames_info, instrument='IRDIFS', logger=self._logger)
+        toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(frames_info, logger=self._logger)

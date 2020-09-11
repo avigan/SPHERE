@@ -498,7 +498,7 @@ class Reduction(object):
 
         # updates times and compute timestamps
         dtts_frames_info['TIME'] = times
-        toolbox.compute_times(dtts_frames_info, instrument='SPARTA', logger=self._logger)
+        toolbox.compute_times(dtts_frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(dtts_frames_info, logger=self._logger)

@@ -104,7 +104,7 @@ def parallatic_angle(ha, dec, geolat):
     return np.degrees(pa)
 
 
-def compute_times(frames_info, instrument='IRDIFS', logger=_log):
+def compute_times(frames_info, logger=_log):
     '''
     Compute the various timestamps associated to frames
 
@@ -113,15 +113,20 @@ def compute_times(frames_info, instrument='IRDIFS', logger=_log):
     frames_info : dataframe
         The data frame with all the information on science frames
 
-    mode : str
-        Current instrument: IRDIFS or SPARTA. Default is IRDIFS
-
     logger : logHandler object
         Log handler for the reduction. Default is root logger
 
     '''
 
     logger.debug('> compute time stamps')
+
+    # get instrument
+    instrument = frames_info['SEQ ARM'].unique()
+
+    # telescope location
+    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
+    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
+    geoelev = frames_info['TEL GEOELEV'].values[0]
 
     if instrument == 'IRDIFS':
         # get necessary values
@@ -135,35 +140,38 @@ def compute_times(frames_info, instrument='IRDIFS', logger=_log):
         ts_start = time_start + time_delta * idx
         ts       = time_start + time_delta * idx + DIT/2
         ts_end   = time_start + time_delta * idx + DIT
+
+        # mjd
+        utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        mjd_start = utc.mjd
+
+        utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        mjd = utc.mjd
+
+        utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        mjd_end = utc.mjd
+
+        # update frames_info
+        frames_info['TIME START'] = ts_start
+        frames_info['TIME']       = ts
+        frames_info['TIME END']   = ts_end
+
+        frames_info['MJD START']  = mjd_start
+        frames_info['MJD']        = mjd
+        frames_info['MJD END']    = mjd_end
     elif instrument == 'SPARTA':
         # get times directly from data frame
         ts = frames_info['TIME'].values
         ts_start = ts
         ts_end   = ts
 
-    # telescope location
-    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
-    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
-    geoelev = frames_info['TEL GEOELEV'].values[0]
+        # mjd
+        utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        mjd = utc.mjd
 
-    # mjd
-    utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd_start = utc.mjd
-
-    utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd = utc.mjd
-
-    utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd_end = utc.mjd
-
-    # update frames_info
-    frames_info['TIME START'] = ts_start
-    frames_info['TIME']       = ts
-    frames_info['TIME END']   = ts_end
-
-    frames_info['MJD START']  = mjd_start
-    frames_info['MJD']        = mjd
-    frames_info['MJD END']    = mjd_end
+        # update frames_info
+        frames_info['TIME'] = ts
+        frames_info['MJD']  = mjd
 
 
 def compute_angles(frames_info, logger=_log):
@@ -182,6 +190,9 @@ def compute_angles(frames_info, logger=_log):
     '''
 
     logger.debug('> compute angles')
+
+    # get instrument
+    instrument = frames_info['SEQ ARM'].unique()
     
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
@@ -216,14 +227,6 @@ def compute_angles(frames_info, logger=_log):
     geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
     geoelev = frames_info['TEL GEOELEV'].values[0]
 
-    utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    lst = utc.sidereal_time('apparent')
-    ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
-    frames_info['PARANG START'] = pa.value + pa_correction
-    frames_info['HOUR ANGLE START'] = ha
-    frames_info['LST START'] = lst
-
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra_hour
@@ -232,13 +235,23 @@ def compute_angles(frames_info, logger=_log):
     frames_info['HOUR ANGLE'] = ha
     frames_info['LST'] = lst
 
-    utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    lst = utc.sidereal_time('apparent')
-    ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
-    frames_info['PARANG END'] = pa.value + pa_correction
-    frames_info['HOUR ANGLE END'] = ha
-    frames_info['LST END'] = lst
+    # START/END only applicable for IRDIFS data
+    if (instrument == 'IRDIS') or (instrument == 'IFS'):
+        utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        lst = utc.sidereal_time('apparent')
+        ha  = lst - ra_hour
+        pa  = parallatic_angle(ha, dec[0], geolat)
+        frames_info['PARANG START'] = pa.value + pa_correction
+        frames_info['HOUR ANGLE START'] = ha
+        frames_info['LST START'] = lst
+
+        utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        lst = utc.sidereal_time('apparent')
+        ha  = lst - ra_hour
+        pa  = parallatic_angle(ha, dec[0], geolat)
+        frames_info['PARANG END'] = pa.value + pa_correction
+        frames_info['HOUR ANGLE END'] = ha
+        frames_info['LST END'] = lst
 
     #
     # Derotation angles
@@ -249,18 +262,17 @@ def compute_angles(frames_info, logger=_log):
     #   IFS = +100.48 ± 0.10
     #   IRD =    0.00 ± 0.00
     #
-    instru = frames_info['SEQ ARM'].unique()
-    if len(instru) != 1:
-        logger.error('Sequence is mixing different instruments: {0}'.format(instru))
+    if len(instrument) != 1:
+        logger.error('Sequence is mixing different instruments: {0}'.format(instrument))
         return sphere.ERROR
-    if instru == 'IFS':
+    if instrument == 'IFS':
         instru_offset = -100.48
-    elif instru == 'IRDIS':
+    elif instrument == 'IRDIS':
         instru_offset = 0.0
-    elif instru == 'SPARTA':
+    elif instrument == 'SPARTA':
         instru_offset = 0.0
     else:
-        logger.error('Unkown instrument {0}'.format(instru))
+        logger.error('Unkown instrument {0}'.format(instrument))
         return sphere.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
