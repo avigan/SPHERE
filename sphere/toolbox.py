@@ -104,7 +104,7 @@ def parallatic_angle(ha, dec, geolat):
     return np.degrees(pa)
 
 
-def compute_times(frames_info, logger=_log):
+def compute_times(frames_info, instrument='IRDIFS', logger=_log):
     '''
     Compute the various timestamps associated to frames
 
@@ -113,30 +113,40 @@ def compute_times(frames_info, logger=_log):
     frames_info : dataframe
         The data frame with all the information on science frames
 
+    mode : str
+        Current instrument: IRDIFS or SPARTA. Default is IRDIFS
+
     logger : logHandler object
         Log handler for the reduction. Default is root logger
 
     '''
 
     logger.debug('> compute time stamps')
-    
-    # get necessary values
-    time_start = frames_info['DATE-OBS'].values
-    time_end   = frames_info['DET FRAM UTC'].values
-    time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
-    DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
 
-    # calculate UTC time stamps
-    idx = frames_info.index.get_level_values(1).values
-    ts_start = time_start + time_delta * idx
-    ts       = time_start + time_delta * idx + DIT/2
-    ts_end   = time_start + time_delta * idx + DIT
+    if instrument == 'IRDIFS':
+        # get necessary values
+        time_start = frames_info['DATE-OBS'].values
+        time_end   = frames_info['DET FRAM UTC'].values
+        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
+        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
 
-    # calculate mjd
+        # calculate UTC time stamps
+        idx = frames_info.index.get_level_values(1).values
+        ts_start = time_start + time_delta * idx
+        ts       = time_start + time_delta * idx + DIT/2
+        ts_end   = time_start + time_delta * idx + DIT
+    elif instrument == 'SPARTA':
+        # get times directly from data frame
+        ts = frames_info['TIME'].values
+        ts_start = ts
+        ts_end   = ts
+
+    # telescope location
     geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
     geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
     geoelev = frames_info['TEL GEOELEV'].values[0]
 
+    # mjd
     utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
     mjd_start = utc.mjd
 
