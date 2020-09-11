@@ -476,18 +476,22 @@ class Reduction(object):
         files = []
         img   = []
         times = []
+        nimg  = 0
         for file, finfo in files_info.iterrows():
             self._logger.debug(f' * {file}')
             hdu = fits.open(f'{path.raw}/{file}.fits')
-
+            
             data = hdu['IRPixelAvgFrame']
             NDIT = data.header['NAXIS2']
             time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
             time.format = 'isot'
+            nimg += NDIT
             
             files.extend(np.repeat(file, NDIT))
             img.extend(list(np.arange(NDIT)))
             times.extend([str(t) for t in time])
+
+            hdu.close()
 
         # create new dataframe
         self._logger.debug('> create frames_info data frame')
@@ -507,10 +511,26 @@ class Reduction(object):
             self._status = sphere.FATAL
             return
 
+        # extract data cube
+        dtts_cube = np.zeros((nimg, 32, 32))
+        nimg = 0
+        for file, finfo in files_info.iterrows():
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+
+            data = hdu['IRPixelAvgFrame']
+            NDIT   = data.header['NAXIS2']
+            pixels = data.data['Pixels'].reshape((-1, 32, 32))
+            
+            dtts_cube[nimg:nimg+NDIT] = pixels
+
+            nimg += NDIT
+            
+            hdu.close()
+            
         # save
         self._logger.debug('> save dtts_frames.csv')
-        dtts_frames_info.to_csv(path.preproc / 'dtts_frames.csv')
-        # self._frames_info = frames_info
+        dtts_frames_info.to_csv(path.products / 'dtts_frames.csv')
+        fits.writeto(path.products / 'dtts_cube.fits', dtts_cube, overwrite=True)
         
         # update recipe execution
         self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
