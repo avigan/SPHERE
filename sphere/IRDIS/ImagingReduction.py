@@ -224,6 +224,10 @@ class ImagingReduction(object):
         return self._recipes_status
 
     @property
+    def status(self):
+        return self._status
+    
+    @property
     def config(self):
         return self._config
 
