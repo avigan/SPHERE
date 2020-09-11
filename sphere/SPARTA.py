@@ -36,8 +36,8 @@ class Reduction(object):
     # specify for each recipe which other recipes need to have been executed before
     recipe_requirements = {
         'sort_files': [],
-        'sph_sparta_process': ['sort_files'],
-        'sph_sparta_query_databases': ['sort_file', 'sph_sparta_process'],
+        'sph_sparta_dtts': ['sort_files'],
+        'sph_sparta_query_databases': ['sort_file', 'sph_sparta_dtts'],
         'sph_ifs_clean': []
     }
 
@@ -327,7 +327,7 @@ class Reduction(object):
 
         config = self._config
 
-        self.sph_sparta_process(plot=config['misc_plot'])
+        self.sph_sparta_dtts(plot=config['misc_plot'])
 
         if config['misc_query_database']:
             self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
@@ -451,9 +451,9 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_sparta_process(self, plot=True):
+    def sph_sparta_dtts(self, plot=True):
         '''
-        Process SPARTA files
+        Process SPARTA files for DTTS images
 
         Parameters
         ----------
