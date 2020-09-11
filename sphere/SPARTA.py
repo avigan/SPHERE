@@ -6,6 +6,7 @@ import configparser
 import shutil
 
 from astropy.io import fits
+from astropy.time import Time
 from pathlib import Path
 
 import sphere
@@ -469,8 +470,40 @@ class Reduction(object):
         # DTTS images
         #
         self._logger.debug('> DTTS images')
-        
 
+        # build indices
+        files = []
+        img   = []
+        times = []
+        for file, finfo in files_info.iterrows():
+            self._logger.debug(f' * {file}')
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+
+            data = hdu['IRPixelAvgFrame']
+            NDIT = data.header['NAXIS2']
+            time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
+            time.format = 'isot'
+            
+            files.extend(np.repeat(file, NDIT))
+            img.extend(list(np.arange(NDIT)))
+            times.extend([str(t) for t in time])
+
+        # create new dataframe
+        self._logger.debug('> create frames_info data frame')
+        dtts_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+
+        # expand files_info into frames_info
+        dtts_frames_info = dtts_frames_info.align(files_info, level=0)[1]
+
+        # updates times and compute timestamps
+        dtts_frames_info['TIME'] = times
+        toolbox.compute_times(dtts_frames_info, instrument='SPARTA', logger=self._logger)
+        
+        # save
+        self._logger.debug('> save dtts_frames.csv')
+        dtts_frames_info.to_csv(path.preproc / 'dtts_frames.csv')
+        # self._frames_info = frames_info
+        
         # update recipe execution
         self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
 
