@@ -257,6 +257,8 @@ def compute_angles(frames_info, logger=_log):
         instru_offset = -100.48
     elif instru == 'IRDIS':
         instru_offset = 0.0
+    elif instru == 'SPARTA':
+        instru_offset = 0.0
     else:
         logger.error('Unkown instrument {0}'.format(instru))
         return sphere.ERROR
