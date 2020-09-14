@@ -39,8 +39,8 @@ class Reduction(object):
     recipe_requirements = {
         'sort_files': [],
         'sph_sparta_dtts': ['sort_files'],
-        'sph_sparta_wfs_flux': ['sort_files'],
-        'sph_sparta_atm_parameters': ['sort_files'],
+        'sph_sparta_wfs_parameters': ['sort_files'],
+        'sph_sparta_atmospheric_parameters': ['sort_files'],
         'sph_sparta_query_databases': ['sort_file', 'sph_sparta_dtts'],
         'sph_ifs_clean': []
     }
@@ -333,7 +333,7 @@ class Reduction(object):
 
         self.sph_sparta_dtts(plot=config['misc_plot'])
         self.sph_spart_wfs_flux()
-        self.sph_sparta_atm_parameters()
+        self.sph_sparta_atmospheric_parameters()
 
         if config['misc_query_database']:
             self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
@@ -591,34 +591,126 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
         
-    def sph_spart_wfs_flux(self):
+    def sph_sparta_wfs_parameters(self):
         '''
         Process SPARTA files for Vis and IR WFS fluxes
         '''
 
-        self._logger.info('Process Vis and IR WFS fluxes')
-
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_wfs_flux', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_wfs_parameters', 
                                          self.recipe_requirements, logger=self._logger):
             return
 
         # parameters
         path = self.path
         files_info = self.files_info
-    
+
         #
-        # IMPLEMENTATION
+        # VisLoop
+        #
+        
+        self._logger.info('Process visible loop parameters')
+        
+        # build indices
+        files = []
+        img   = []
+        times = []
+        nimg  = 0
+        for file, finfo in files_info.iterrows():
+            self._logger.debug(f' * {file}')
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+            
+            data = hdu['VisLoopParams']
+            NDIT = data.header['NAXIS2']
+            time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
+            time.format = 'isot'
+            nimg += NDIT
+            
+            files.extend(np.repeat(file, NDIT))
+            img.extend(list(np.arange(NDIT)))
+            times.extend([str(t) for t in time])
+
+            hdu.close()
+
+        # create new dataframe
+        self._logger.debug('> create frames_info data frame')
+        visloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+
+        # expand files_info into frames_info
+        visloop_frames_info = visloop_frames_info.align(files_info, level=0)[1]
+
+        # updates times and compute timestamps
+        visloop_frames_info['TIME'] = times
+        toolbox.compute_times(visloop_frames_info, logger=self._logger)
+
+        # compute angles (ra, dec, parang)
+        ret = toolbox.compute_angles(visloop_frames_info, logger=self._logger)
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
+            return
+
+        # save
+        self._logger.debug('> save visloop_frames.csv')
+        visloop_frames_info.to_csv(path.products / 'visloop_frames.csv')
+
+        #
+        # IRLoop
         #
 
+        self._logger.info('Process IR loop parameters')
+        
+        # build indices
+        files = []
+        img   = []
+        times = []
+        nimg  = 0
+        for file, finfo in files_info.iterrows():
+            self._logger.debug(f' * {file}')
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+            
+            data = hdu['IRLoopParams']
+            NDIT = data.header['NAXIS2']
+            time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
+            time.format = 'isot'
+            nimg += NDIT
+            
+            files.extend(np.repeat(file, NDIT))
+            img.extend(list(np.arange(NDIT)))
+            times.extend([str(t) for t in time])
+
+            hdu.close()
+
+        # create new dataframe
+        self._logger.debug('> create frames_info data frame')
+        irloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+
+        # expand files_info into frames_info
+        irloop_frames_info = irloop_frames_info.align(files_info, level=0)[1]
+
+        # updates times and compute timestamps
+        irloop_frames_info['TIME'] = times
+        toolbox.compute_times(irloop_frames_info, logger=self._logger)
+
+        # compute angles (ra, dec, parang)
+        ret = toolbox.compute_angles(irloop_frames_info, logger=self._logger)
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
+            return
+
+        # save
+        self._logger.debug('> save irloop_frames.csv')
+        irloop_frames_info.to_csv(path.products / 'irloop_frames.csv')
+
         # update recipe execution
-        self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
+        self._update_recipe_status('sph_sparta_wfs_parameters', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.INCOMPLETE
         
 
-    def sph_sparta_atm_parameters(self):
+    def sph_sparta_atmospheric_parameters(self):
         '''
         Process SPARTA files for atmospheric parameters
         '''
@@ -626,7 +718,7 @@ class Reduction(object):
         self._logger.info('Process atmospheric parameters')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_atm_parameters', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_atmospheric_parameters', 
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -639,7 +731,7 @@ class Reduction(object):
         #
 
         # update recipe execution
-        self._update_recipe_status('sph_sparta_atm_parameters', sphere.SUCCESS)
+        self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.INCOMPLETE
