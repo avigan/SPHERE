@@ -4,10 +4,12 @@ import numpy as np
 import collections
 import configparser
 import shutil
+import matplotlib.pyplot as plt
 
 from astropy.io import fits
 from astropy.time import Time
 from pathlib import Path
+from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
@@ -37,6 +39,8 @@ class Reduction(object):
     recipe_requirements = {
         'sort_files': [],
         'sph_sparta_dtts': ['sort_files'],
+        'sph_sparta_wfs_flux': ['sort_files'],
+        'sph_sparta_atm_parameters': ['sort_files'],
         'sph_sparta_query_databases': ['sort_file', 'sph_sparta_dtts'],
         'sph_ifs_clean': []
     }
@@ -328,6 +332,8 @@ class Reduction(object):
         config = self._config
 
         self.sph_sparta_dtts(plot=config['misc_plot'])
+        self.sph_spart_wfs_flux()
+        self.sph_sparta_atm_parameters()
 
         if config['misc_query_database']:
             self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
@@ -461,21 +467,16 @@ class Reduction(object):
             Display and save diagnostic plot for quality check. Default is True
         '''
         
-        self._logger.info('Process SPARTA files')
+        self._logger.info('Process DTTS images')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_process', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_dtts', 
                                          self.recipe_requirements, logger=self._logger):
             return
 
         # parameters
         path = self.path
         files_info = self.files_info
-
-        #
-        # DTTS images
-        #
-        self._logger.debug('> DTTS images')
 
         # build indices
         files = []
@@ -536,13 +537,113 @@ class Reduction(object):
         self._logger.debug('> save dtts_frames.csv')
         dtts_frames_info.to_csv(path.products / 'dtts_frames.csv')
         fits.writeto(path.products / 'dtts_cube.fits', dtts_cube, overwrite=True)
-        
+
+        # plot
+        if plot:
+            self._logger.debug('> plot DTTS images')
+            
+            ncol  = 10
+            nrow  = 10
+            npage = int(np.ceil(nimg / (ncol*nrow)))+1
+            vmax  = dtts_cube.max(axis=(1, 2)).mean()
+
+            with PdfPages(path.products / 'dtts_images.pdf') as pdf:
+                for page in range(npage):
+                    self._logger.debug(f'  * page {page+1}/{npage}')
+
+                    plt.figure(figsize=(3*ncol, 3*nrow))
+                    plt.subplot(111)
+                    
+                    # master image
+                    dtts_master = np.full((nrow*32, ncol*32), np.nan)
+                    for row in range(nrow):
+                        for col in range(ncol):
+                            idx = page*nrow*ncol + row*ncol + col
+                            
+                            if idx < nimg:
+                                xmin = col*32
+                                xmax = (col+1)*32
+                                ymin = (nrow-row-1)*32
+                                ymax = (nrow-row)*32
+                                
+                                dtts_master[ymin:ymax, xmin:xmax] = dtts_cube[idx]
+
+                                ts  = dtts_frames_info['TIME'].values[idx]
+                                date = ts[:10]
+                                time = ts[11:]
+                                plt.text(xmin+1, ymax-2, f'Date: {date}', size=14, weight='bold', color='w', ha='left', va='top', zorder=100)
+                                plt.text(xmin+1, ymax-5, f'Time: {time}', size=14, weight='bold', color='w', ha='left', va='top', zorder=100)
+
+                    plt.imshow(dtts_master, interpolation='nearest', vmin=0, vmax=vmax, cmap='inferno', zorder=0)
+
+                    plt.xticks([])
+                    plt.yticks([])
+
+                    plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.98)
+                    
+                    pdf.savefig()
+                    plt.close()
+
         # update recipe execution
         self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.INCOMPLETE
 
+        
+    def sph_spart_wfs_flux(self):
+        '''
+        Process SPARTA files for Vis and IR WFS fluxes
+        '''
+
+        self._logger.info('Process Vis and IR WFS fluxes')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_wfs_flux', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
+        # parameters
+        path = self.path
+        files_info = self.files_info
+    
+        #
+        # IMPLEMENTATION
+        #
+
+        # update recipe execution
+        self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
+        
+
+    def sph_sparta_atm_parameters(self):
+        '''
+        Process SPARTA files for atmospheric parameters
+        '''
+
+        self._logger.info('Process atmospheric parameters')
+
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_atm_parameters', 
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
+        # parameters
+        path = self.path
+        files_info = self.files_info
+    
+        #
+        # IMPLEMENTATION
+        #
+
+        # update recipe execution
+        self._update_recipe_status('sph_sparta_atm_parameters', sphere.SUCCESS)
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
+        
 
     def sph_sparta_query_databases(self, timeout=5):
         '''
