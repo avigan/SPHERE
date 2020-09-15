@@ -238,7 +238,7 @@ def compute_angles(frames_info, logger=_log):
     altaz = j2000.transform_to(coordinates.AltAz(location=sphere.location))
 
     frames_info['ALTITUDE'] = altaz.alt.value
-    frames_info['ALZIMUTH'] = altaz.az.value
+    frames_info['AZIMUTH']  = altaz.az.value
     frames_info['AIRMASS']  = altaz.secz.value
 
     # START/END only applicable for IRDIFS data
