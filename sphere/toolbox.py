@@ -122,8 +122,10 @@ def compute_times(frames_info, logger=_log):
 
     # get instrument
     instrument = frames_info['SEQ ARM'].unique()
-
-    if instrument == 'IRDIFS':
+    
+    if (instrument == 'IRDIS') or (instrument == 'IFS'):
+        logger.debug('   ==> IRDIFS mode')
+        
         # get necessary values
         time_start = frames_info['DATE-OBS'].values
         time_end   = frames_info['DET FRAM UTC'].values
