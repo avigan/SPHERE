@@ -494,7 +494,7 @@ class Reduction(object):
             hdu.close()
 
         # create new dataframe
-        self._logger.debug('> create frames_info data frame')
+        self._logger.debug('> create data frame')
         dtts_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
@@ -628,7 +628,7 @@ class Reduction(object):
             hdu.close()
 
         # create new dataframe
-        self._logger.debug('> create frames_info data frame')
+        self._logger.debug('> create data frame')
         visloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
@@ -695,7 +695,7 @@ class Reduction(object):
             hdu.close()
 
         # create new dataframe
-        self._logger.debug('> create frames_info data frame')
+        self._logger.debug('> create data frame')
         irloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
@@ -759,9 +759,70 @@ class Reduction(object):
         files_info = self.files_info
     
         #
-        # IMPLEMENTATION
+        # Atmospheric parameters
         #
+        
+        self._logger.info('Process atmospheric parameters')
+        
+        # build indices
+        files = []
+        img   = []
+        for file, finfo in files_info.iterrows():
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+            
+            data = hdu['AtmPerfParams']
+            NDIT = data.header['NAXIS2']
 
+            self._logger.debug(f' * {file} ==> {NDIT} records')
+
+            files.extend(np.repeat(file, NDIT))
+            img.extend(list(np.arange(NDIT)))
+
+            hdu.close()
+
+        # create new dataframe
+        self._logger.debug('> create data frame')
+        atm_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+
+        # expand files_info into frames_info
+        atm_frames_info = atm_frames_info.align(files_info, level=0)[1]
+
+        # extract data
+        for file, finfo in files_info.iterrows():
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+
+            ext  = hdu['AtmPerfParams']
+            NDIT = ext.header['NAXIS2']
+            
+            if NDIT:
+                # timestamps
+                time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
+                time.format = 'isot'
+                atm_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
+
+                # Atm parameters
+                atm_frames_info.loc[file, 'r0']          = ext.data['R0']
+                atm_frames_info.loc[file, 't0']          = ext.data['T0']
+                atm_frames_info.loc[file, 'L0']          = ext.data['L0']
+                atm_frames_info.loc[file, 'WindSpeed']   = ext.data['WindSpeed']
+                atm_frames_info.loc[file, 'StrehlRatio'] = ext.data['StrehlRatio']
+                
+            hdu.close()
+        
+        # updates times and compute timestamps
+        toolbox.compute_times(atm_frames_info, logger=self._logger)
+
+        # compute angles (ra, dec, parang)
+        ret = toolbox.compute_angles(atm_frames_info, logger=self._logger)
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
+            return
+
+        # save
+        self._logger.debug('> save atm_frames.csv')
+        atm_frames_info.to_csv(path.products / 'atm_frames.csv')
+    
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
 
