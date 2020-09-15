@@ -43,8 +43,8 @@ INCOMPLETE = ReductionStatus.INCOMPLETE
 #
 # Paranal location
 #
-longitude = -26.6268*u.degree
-latitude  = -70.4045*u.degree
+latitude  = -24.6268*u.degree
+longitude = -70.4045*u.degree
 altitude  = 2648*u.meter
 location  = coordinates.EarthLocation(lon=longitude, lat=latitude, height=altitude)
 
