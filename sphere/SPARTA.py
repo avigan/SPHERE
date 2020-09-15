@@ -855,10 +855,10 @@ class Reduction(object):
 
         # create new dataframe
         self._logger.debug('> create data frame')
-        atm_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+        atmos_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        atm_frames_info = atm_frames_info.align(files_info, level=0)[1]
+        atmos_frames_info = atmos_frames_info.align(files_info, level=0)[1]
 
         # extract data
         for file, finfo in files_info.iterrows():
@@ -871,35 +871,35 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                atm_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
+                atmos_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # Atm parameters
-                atm_frames_info.loc[file, 'r0']        = ext.data['R0']
-                atm_frames_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
-                atm_frames_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
+                atmos_frames_info.loc[file, 'r0']        = ext.data['R0']
+                atmos_frames_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
+                atmos_frames_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
                 
             hdu.close()
         
         # remove bad values
-        atm_frames_info.loc[np.logical_or(atm_frames_info['strehl'] <= 0.05, atm_frames_info['strehl'] > 0.98), 'strehl'] = np.nan
-        atm_frames_info.loc[np.logical_or(atm_frames_info['r0'] <= 0, atm_frames_info['r0'] > 0.9), 'r0'] = np.nan
-        atm_frames_info.loc[np.logical_or(atm_frames_info['windspeed'] <= 0, atm_frames_info['windspeed'] > 50), 'windspeed'] = np.nan
+        atmos_frames_info.loc[np.logical_or(atmos_frames_info['strehl'] <= 0.05, atmos_frames_info['strehl'] > 0.98), 'strehl'] = np.nan
+        atmos_frames_info.loc[np.logical_or(atmos_frames_info['r0'] <= 0, atmos_frames_info['r0'] > 0.9), 'r0'] = np.nan
+        atmos_frames_info.loc[np.logical_or(atmos_frames_info['windspeed'] <= 0, atmos_frames_info['windspeed'] > 50), 'windspeed'] = np.nan
 
         # tau0 and the seeing from r0
-        atm_frames_info['tau0']   = 0.314*atm_frames_info['r0'] / atm_frames_info['windspeed']
-        atm_frames_info['seeing'] = np.rad2deg(wave_wfs / atm_frames_info['r0']) * 3600
+        atmos_frames_info['tau0']   = 0.314*atmos_frames_info['r0'] / atmos_frames_info['windspeed']
+        atmos_frames_info['seeing'] = np.rad2deg(wave_wfs / atmos_frames_info['r0']) * 3600
 
         # IMPLEMENT:
-        # we compute the zenith seeing: seeing(zenith) = seeing(AM) AM^(3/5)
-        # atmos_param_df['seeing_zenith_sparta'] = atmos_param_df['seeing_los_sparta']/np.power(atmos_param_df['airmass_sparta'], 3./5.)
-        # atmos_param_df['r0_zenith_sparta'] = atmos_param_df['r0_los_sparta']*np.power(atmos_param_df['airmass_sparta'], 3./5.)
-        # atmos_param_df['tau0_zenith_sparta'] = atmos_param_df['tau0_los_sparta']*np.power(atmos_param_df['airmass_sparta'], 3./5.)
+        # we compute the zenith seeing: seeing(zenith) = seeing(AM)/AM^(3/5)
+        # atmos_frames_info['seeing_zenith'] = atmos_frames_info['seeing'] / np.power(atmos_frames_info['AIRMASS'], 3/5)
+        # atmos_frames_info['r0_zenith']     = atmos_frames_info['r0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
+        # atmos_frames_info['tau0_zenith']   = atmos_frames_info['tau0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
         
         # updates times and compute timestamps
-        toolbox.compute_times(atm_frames_info, logger=self._logger)
+        toolbox.compute_times(atmos_frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(atm_frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(atmos_frames_info, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
@@ -907,7 +907,7 @@ class Reduction(object):
 
         # save
         self._logger.debug('> save atmospheric_frames.csv')
-        atm_frames_info.to_csv(path.products / 'atmospheric_frames.csv')
+        atmos_frames_info.to_csv(path.products / 'atmospheric_frames.csv')
     
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
