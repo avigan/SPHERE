@@ -39,14 +39,14 @@ class Reduction(object):
     ##################################################
 
     # specify for each recipe which other recipes need to have been executed before
-    recipe_requirements = {
-        'sort_files': [],
-        'sph_sparta_dtts': ['sort_files'],
-        'sph_sparta_wfs_parameters': ['sort_files'],
-        'sph_sparta_atmospheric_parameters': ['sort_files'],
-        'sph_sparta_query_databases': ['sort_file', 'sph_sparta_dtts'],
-        'sph_ifs_clean': []
-    }
+    recipe_requirements = collections.OrderedDict([
+        ('sort_files', []),
+        ('sph_sparta_dtts', ['sort_files']),
+        ('sph_sparta_wfs_parameters', ['sort_files']),
+        ('sph_sparta_atmospheric_parameters', ['sort_files']),
+        ('sph_sparta_query_databases', ['sort_file', 'sph_sparta_dtts']),
+        ('sph_ifs_clean', [])
+    ])
 
     ##################################################
     # Constructor
@@ -140,10 +140,13 @@ class Reduction(object):
             reduction._config[key] = val
 
         #
-        # reduction status
+        # reduction and recipe status
         #
         reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
+
+        for recipe in reduction.recipe_requirements.keys():
+            reduction._update_recipe_status(recipe, sphere.NOTSET)
         
         # reload any existing data frames
         reduction._read_info()
@@ -331,7 +334,6 @@ class Reduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-        self._recipes_status.move_to_end(recipe)
     
     ##################################################
     # Generic class methods
@@ -904,8 +906,8 @@ class Reduction(object):
             return
 
         # save
-        self._logger.debug('> save atmosheric_frames.csv')
-        atm_frames_info.to_csv(path.products / 'atmosheric_frames.csv')
+        self._logger.debug('> save atmospheric_frames.csv')
+        atm_frames_info.to_csv(path.products / 'atmospheric_frames.csv')
     
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)

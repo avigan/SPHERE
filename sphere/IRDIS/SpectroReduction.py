@@ -84,20 +84,20 @@ class SpectroReduction(object):
     ##################################################
 
     # specify for each recipe which other recipes need to have been executed before
-    recipe_requirements = {
-        'sort_files': [],
-        'sort_frames': ['sort_files'],
-        'check_files_association': ['sort_files'],
-        'sph_ird_cal_dark': ['sort_files'],
-        'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_cal_wave': ['sort_files', 'sph_ird_cal_detector_flat'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
-                                       'sph_ird_cal_detector_flat'],
-        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
-        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_clean': []
-    }
+    recipe_requirements = collections.OrderedDict([
+        ('sort_files', []),
+        ('sort_frames', ['sort_files']),
+        ('check_files_association', ['sort_files']),
+        ('sph_ird_cal_dark', ['sort_files']),
+        ('sph_ird_cal_detector_flat', ['sort_files']),
+        ('sph_ird_cal_wave', ['sort_files', 'sph_ird_cal_detector_flat']),
+        ('sph_ird_preprocess_science', ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
+                                        'sph_ird_cal_detector_flat']),
+        ('sph_ird_star_center', ['sort_files', 'sort_frames', 'sph_ird_cal_wave']),
+        ('sph_ird_wavelength_recalibration', ['sort_files', 'sort_frames', 'sph_ird_cal_wave']),
+        ('sph_ird_combine_data', ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']),
+        ('sph_ird_clean', [])
+    ])
 
     ##################################################
     # Constructor
@@ -212,10 +212,13 @@ class SpectroReduction(object):
                 reduction._config[key] = val
 
         #
-        # reduction status
+        # reduction and recipes status
         #
         reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
+
+        for recipe in reduction.recipe_requirements.keys():
+            reduction._update_recipe_status(recipe, sphere.NOTSET)
 
         # reload any existing data frames
         reduction._read_info()
@@ -586,7 +589,6 @@ class SpectroReduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-        self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
