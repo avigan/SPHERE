@@ -481,21 +481,15 @@ class Reduction(object):
         # build indices
         files = []
         img   = []
-        times = []
-        nimg  = 0
         for file, finfo in files_info.iterrows():
             self._logger.debug(f' * {file}')
             hdu = fits.open(f'{path.raw}/{file}.fits')
             
-            data = hdu['IRPixelAvgFrame']
-            NDIT = data.header['NAXIS2']
-            time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
-            time.format = 'isot'
-            nimg += NDIT
+            ext  = hdu['IRPixelAvgFrame']
+            NDIT = ext.header['NAXIS2']
             
             files.extend(np.repeat(file, NDIT))
             img.extend(list(np.arange(NDIT)))
-            times.extend([str(t) for t in time])
 
             hdu.close()
 
@@ -506,8 +500,30 @@ class Reduction(object):
         # expand files_info into frames_info
         dtts_frames_info = dtts_frames_info.align(files_info, level=0)[1]
 
+        # extract data cube
+        dtts_cube = np.zeros((len(dtts_frames_info), 32, 32))
+        nimg = 0
+        for file, finfo in files_info.iterrows():
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+
+            ext    = hdu['IRPixelAvgFrame']
+            NDIT   = ext.header['NAXIS2']
+            pixels = ext.data['Pixels'].reshape((-1, 32, 32))
+
+            if NDIT:
+                # timestamps
+                time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
+                time.format = 'isot'
+                dtts_frames_info.loc[file, 'TIME']        = [str(t) for t in time]
+
+                # DTTS images
+                dtts_cube[nimg:nimg+NDIT] = pixels
+
+                nimg += NDIT
+
+            hdu.close()
+            
         # updates times and compute timestamps
-        dtts_frames_info['TIME'] = times
         toolbox.compute_times(dtts_frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
@@ -516,23 +532,7 @@ class Reduction(object):
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
             return
-
-        # extract data cube
-        dtts_cube = np.zeros((nimg, 32, 32))
-        nimg = 0
-        for file, finfo in files_info.iterrows():
-            hdu = fits.open(f'{path.raw}/{file}.fits')
-
-            data = hdu['IRPixelAvgFrame']
-            NDIT   = data.header['NAXIS2']
-            pixels = data.data['Pixels'].reshape((-1, 32, 32))
-            
-            dtts_cube[nimg:nimg+NDIT] = pixels
-
-            nimg += NDIT
-            
-            hdu.close()
-            
+        
         # save
         self._logger.debug('> save dtts_frames.csv')
         dtts_frames_info.to_csv(path.products / 'dtts_frames.csv')
@@ -645,7 +645,6 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                
                 visloop_frames_info.loc[file, 'TIME']        = [str(t) for t in time]
 
                 # VisLoop parameters
