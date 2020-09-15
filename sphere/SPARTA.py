@@ -146,8 +146,7 @@ class Reduction(object):
         reduction._recipes_status = collections.OrderedDict()
         
         # reload any existing data frames
-        # FIXME: to be implemented
-        # reduction._read_info()
+        reduction._read_info()
 
         reduction._logger.warning('#########################################################')
         reduction._logger.warning('#                        WARNING!                       #')
@@ -224,7 +223,7 @@ class Reduction(object):
         path = self.path
 
         # files info
-        fname = path.preproc / 'files.csv'
+        fname = path.products / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
             
@@ -236,11 +235,78 @@ class Reduction(object):
 
             # update recipe execution
             self._update_recipe_status('sort_files', sphere.SUCCESS)
-
-            # update instrument mode
-            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
         else:
             files_info = None
+
+        # DTTS info
+        fname = path.products / 'dtts_frames.csv'
+        if fname.exists():
+            self._logger.debug('> read dtts_frames.csv')
+            
+            dtts_frames_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            dtts_frames_info['DATE-OBS'] = pd.to_datetime(dtts_frames_info['DATE-OBS'], utc=False)
+            dtts_frames_info['DATE'] = pd.to_datetime(dtts_frames_info['DATE'], utc=False)
+            dtts_frames_info['TIME'] = pd.to_datetime(dtts_frames_info['TIME'], utc=False)
+
+            # update recipe execution
+            self._update_recipe_status('sph_sparta_dtts', sphere.SUCCESS)
+        else:
+            dtts_frames_info = None
+
+        # VisLoop info
+        fname = path.products / 'visloop_frames.csv'
+        visloop = False
+        if fname.exists():
+            self._logger.debug('> read visloop_frames.csv')
+            
+            visloop_frames_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            visloop_frames_info['DATE-OBS'] = pd.to_datetime(visloop_frames_info['DATE-OBS'], utc=False)
+            visloop_frames_info['DATE'] = pd.to_datetime(visloop_frames_info['DATE'], utc=False)
+            visloop_frames_info['TIME'] = pd.to_datetime(visloop_frames_info['TIME'], utc=False)
+        else:
+            visloop_frames_info = None
+
+        # IRLoop info
+        fname = path.products / 'irloop_frames.csv'
+        irloop = False
+        if fname.exists():
+            self._logger.debug('> read irloop_frames.csv')
+            
+            irloop_frames_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            irloop_frames_info['DATE-OBS'] = pd.to_datetime(irloop_frames_info['DATE-OBS'], utc=False)
+            irloop_frames_info['DATE'] = pd.to_datetime(irloop_frames_info['DATE'], utc=False)
+            irloop_frames_info['TIME'] = pd.to_datetime(irloop_frames_info['TIME'], utc=False)
+        else:
+            irloop_frames_info = None
+
+        # update recipe execution
+        if visloop and irloop:
+            self._update_recipe_status('sph_sparta_wfs_parameters', sphere.SUCCESS)
+        else:
+            self._update_recipe_status('sph_sparta_wfs_parameters', sphere.NOTSET)
+
+        # Atmospheric info
+        fname = path.products / 'atmospheric_frames.csv'
+        if fname.exists():
+            self._logger.debug('> read atmospheric_frames.csv')
+            
+            atm_frames_info = pd.read_csv(fname, index_col=0)
+
+            # convert times
+            atm_frames_info['DATE-OBS'] = pd.to_datetime(atm_frames_info['DATE-OBS'], utc=False)
+            atm_frames_info['DATE'] = pd.to_datetime(atm_frames_info['DATE'], utc=False)
+            atm_frames_info['TIME'] = pd.to_datetime(atm_frames_info['TIME'], utc=False)
+
+            # update recipe execution
+            self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
+        else:
+            atm_frames_info = None
 
         # save data frames in instance variables
         self._files_info = files_info
@@ -447,7 +513,7 @@ class Reduction(object):
 
         # save files_info
         self._logger.debug('> save files.csv')
-        files_info.to_csv(path.preproc / 'files.csv')
+        files_info.to_csv(path.products / 'files.csv')
         self._files_info = files_info
 
         # update recipe execution
@@ -585,7 +651,7 @@ class Reduction(object):
                     plt.close()
 
         # update recipe execution
-        self._update_recipe_status('sph_sparta_process', sphere.SUCCESS)
+        self._update_recipe_status('sph_sparta_dtts', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.INCOMPLETE
@@ -838,8 +904,8 @@ class Reduction(object):
             return
 
         # save
-        self._logger.debug('> save atm_frames.csv')
-        atm_frames_info.to_csv(path.products / 'atm_frames.csv')
+        self._logger.debug('> save atmosheric_frames.csv')
+        atm_frames_info.to_csv(path.products / 'atmosheric_frames.csv')
     
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
