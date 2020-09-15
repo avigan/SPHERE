@@ -123,11 +123,6 @@ def compute_times(frames_info, logger=_log):
     # get instrument
     instrument = frames_info['SEQ ARM'].unique()
 
-    # telescope location
-    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
-    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
-    geoelev = frames_info['TEL GEOELEV'].values[0]
-
     if instrument == 'IRDIFS':
         # get necessary values
         time_start = frames_info['DATE-OBS'].values
@@ -142,13 +137,13 @@ def compute_times(frames_info, logger=_log):
         ts_end   = time_start + time_delta * idx + DIT
 
         # mjd
-        utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
         mjd_start = utc.mjd
 
-        utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(ts.astype(str), scale='utc', location=sphere.location)
         mjd = utc.mjd
 
-        utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(ts_end.astype(str), scale='utc', location=sphere.location)
         mjd_end = utc.mjd
 
         # update frames_info
@@ -166,7 +161,7 @@ def compute_times(frames_info, logger=_log):
         ts_end   = ts
 
         # mjd
-        utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(ts.astype(str), scale='utc', location=sphere.location)
         mjd = utc.mjd
 
         # update frames_info
@@ -223,32 +218,28 @@ def compute_angles(frames_info, logger=_log):
     frames_info['DEC'] = dec
 
     # calculate parallactic angles
-    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
-    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
-    geoelev = frames_info['TEL GEOELEV'].values[0]
-
-    utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=sphere.location)
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
+    pa  = parallatic_angle(ha, dec[0], sphere.latitude)
     frames_info['PARANG'] = pa.value + pa_correction
     frames_info['HOUR ANGLE'] = ha
     frames_info['LST'] = lst
 
     # START/END only applicable for IRDIFS data
     if (instrument == 'IRDIS') or (instrument == 'IFS'):
-        utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=sphere.location)
         lst = utc.sidereal_time('apparent')
         ha  = lst - ra_hour
-        pa  = parallatic_angle(ha, dec[0], geolat)
+        pa  = parallatic_angle(ha, dec[0], sphere.latitude)
         frames_info['PARANG START'] = pa.value + pa_correction
         frames_info['HOUR ANGLE START'] = ha
         frames_info['LST START'] = lst
 
-        utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+        utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=sphere.location)
         lst = utc.sidereal_time('apparent')
         ha  = lst - ra_hour
-        pa  = parallatic_angle(ha, dec[0], geolat)
+        pa  = parallatic_angle(ha, dec[0], sphere.latitude)
         frames_info['PARANG END'] = pa.value + pa_correction
         frames_info['HOUR ANGLE END'] = ha
         frames_info['LST END'] = lst

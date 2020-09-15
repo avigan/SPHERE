@@ -426,12 +426,6 @@ class Reduction(object):
 
             hdu.close()
 
-        # artificially add arm and telescope keywords
-        files_info.insert(files_info.columns.get_loc('DPR TECH')+1, 'SEQ ARM', 'SPARTA')
-        files_info.insert(files_info.columns.get_loc('INS4 DROT2 RA'), 'TEL GEOLON', -26.6268)
-        files_info.insert(files_info.columns.get_loc('INS4 DROT2 RA'), 'TEL GEOLAT', -70.4045)
-        files_info.insert(files_info.columns.get_loc('INS4 DROT2 RA'), 'TEL GEOELEV', 2648)
-            
         # drop files that are not handled, based on DPR keywords
         self._logger.debug('> drop unsupported file types')
         files_info.dropna(subset=['DPR TYPE'], inplace=True)

@@ -5,6 +5,8 @@ __version__   = '1.2'
 
 import logging
 import enum
+import astropy.units as u
+import astropy.coordinates as coordinates
 
 #
 # recipe execution status
@@ -37,6 +39,14 @@ class ReductionStatus(enum.IntEnum):
 COMPLETE   = ReductionStatus.COMPLETE
 INIT       = ReductionStatus.INIT
 INCOMPLETE = ReductionStatus.INCOMPLETE
+
+#
+# Paranal location
+#
+longitude = -26.6268*u.degree
+latitude  = -70.4045*u.degree
+altitude  = 2648*u.meter
+location  = coordinates.EarthLocation(lon=longitude, lat=latitude, height=altitude)
 
 #
 # logging
