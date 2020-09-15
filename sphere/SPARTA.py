@@ -879,7 +879,17 @@ class Reduction(object):
                 atmos_frames_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
                 
             hdu.close()
-        
+
+        # updates times and compute timestamps
+        toolbox.compute_times(atmos_frames_info, logger=self._logger)
+
+        # compute angles (ra, dec, parang)
+        ret = toolbox.compute_angles(atmos_frames_info, logger=self._logger)
+        if ret == sphere.ERROR:
+            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._status = sphere.FATAL
+            return
+
         # remove bad values
         atmos_frames_info.loc[np.logical_or(atmos_frames_info['strehl'] <= 0.05, atmos_frames_info['strehl'] > 0.98), 'strehl'] = np.nan
         atmos_frames_info.loc[np.logical_or(atmos_frames_info['r0'] <= 0, atmos_frames_info['r0'] > 0.9), 'r0'] = np.nan
@@ -891,20 +901,10 @@ class Reduction(object):
 
         # IMPLEMENT:
         # we compute the zenith seeing: seeing(zenith) = seeing(AM)/AM^(3/5)
-        # atmos_frames_info['seeing_zenith'] = atmos_frames_info['seeing'] / np.power(atmos_frames_info['AIRMASS'], 3/5)
-        # atmos_frames_info['r0_zenith']     = atmos_frames_info['r0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
-        # atmos_frames_info['tau0_zenith']   = atmos_frames_info['tau0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
+        atmos_frames_info['seeing_zenith'] = atmos_frames_info['seeing'] / np.power(atmos_frames_info['AIRMASS'], 3/5)
+        atmos_frames_info['r0_zenith']     = atmos_frames_info['r0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
+        atmos_frames_info['tau0_zenith']   = atmos_frames_info['tau0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
         
-        # updates times and compute timestamps
-        toolbox.compute_times(atmos_frames_info, logger=self._logger)
-
-        # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(atmos_frames_info, logger=self._logger)
-        if ret == sphere.ERROR:
-            self._update_recipe_status('sort_frames', sphere.ERROR)
-            self._status = sphere.FATAL
-            return
-
         # save
         self._logger.debug('> save atmospheric_frames.csv')
         atmos_frames_info.to_csv(path.products / 'atmospheric_frames.csv')
