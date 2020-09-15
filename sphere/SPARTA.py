@@ -614,21 +614,16 @@ class Reduction(object):
         # build indices
         files = []
         img   = []
-        times = []
-        nimg  = 0
         for file, finfo in files_info.iterrows():
-            self._logger.debug(f' * {file}')
             hdu = fits.open(f'{path.raw}/{file}.fits')
             
             data = hdu['VisLoopParams']
             NDIT = data.header['NAXIS2']
-            time = Time(data.data['Sec'] + data.data['USec']*1e-6, format='unix')
-            time.format = 'isot'
-            nimg += NDIT
-            
+
+            self._logger.debug(f' * {file} ==> {NDIT} records')
+
             files.extend(np.repeat(file, NDIT))
             img.extend(list(np.arange(NDIT)))
-            times.extend([str(t) for t in time])
 
             hdu.close()
 
@@ -639,8 +634,32 @@ class Reduction(object):
         # expand files_info into frames_info
         visloop_frames_info = visloop_frames_info.align(files_info, level=0)[1]
 
+        # extract data
+        for file, finfo in files_info.iterrows():
+            hdu = fits.open(f'{path.raw}/{file}.fits')
+
+            ext  = hdu['VisLoopParams']
+            NDIT = ext.header['NAXIS2']
+            
+            if NDIT:
+                # timestamps
+                time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
+                time.format = 'isot'
+                
+                visloop_frames_info.loc[file, 'TIME']        = [str(t) for t in time]
+
+                # VisLoop parameters
+                visloop_frames_info.loc[file, 'Focus_avg']   = ext.data['Focus_avg']
+                visloop_frames_info.loc[file, 'TTx_avg']     = ext.data['TTx_avg']
+                visloop_frames_info.loc[file, 'TTy_avg']     = ext.data['TTy_avg']
+                visloop_frames_info.loc[file, 'DMPos_avg']   = ext.data['DMPos_avg']
+                visloop_frames_info.loc[file, 'ITTMPos_avg'] = ext.data['ITTMPos_avg']
+                visloop_frames_info.loc[file, 'DMSatur_avg'] = ext.data['DMSatur_avg']
+                visloop_frames_info.loc[file, 'DMAberr_avg'] = ext.data['DMAberr_avg']
+                
+            hdu.close()
+        
         # updates times and compute timestamps
-        visloop_frames_info['TIME'] = times
         toolbox.compute_times(visloop_frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
@@ -654,6 +673,8 @@ class Reduction(object):
         self._logger.debug('> save visloop_frames.csv')
         visloop_frames_info.to_csv(path.products / 'visloop_frames.csv')
 
+        stop
+        
         #
         # IRLoop
         #
