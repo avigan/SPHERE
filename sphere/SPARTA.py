@@ -17,6 +17,9 @@ import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
+# WFS wavelength
+wave_wfs = 500e-9
+
 
 class Reduction(object):
     '''
@@ -648,17 +651,22 @@ class Reduction(object):
                 visloop_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # VisLoop parameters
-                visloop_frames_info.loc[file, 'Focus_avg']   = ext.data['Focus_avg']
-                visloop_frames_info.loc[file, 'TTx_avg']     = ext.data['TTx_avg']
-                visloop_frames_info.loc[file, 'TTy_avg']     = ext.data['TTy_avg']
-                visloop_frames_info.loc[file, 'DMPos_avg']   = ext.data['DMPos_avg']
-                visloop_frames_info.loc[file, 'ITTMPos_avg'] = ext.data['ITTMPos_avg']
-                visloop_frames_info.loc[file, 'DMSatur_avg'] = ext.data['DMSatur_avg']
-                visloop_frames_info.loc[file, 'DMAberr_avg'] = ext.data['DMAberr_avg']
-                visloop_frames_info.loc[file, 'Flux_avg']    = ext.data['Flux_avg']
+                visloop_frames_info.loc[file, 'focus_avg']      = ext.data['Focus_avg']
+                visloop_frames_info.loc[file, 'TTx_avg']        = ext.data['TTx_avg']
+                visloop_frames_info.loc[file, 'TTy_avg']        = ext.data['TTy_avg']
+                visloop_frames_info.loc[file, 'DMPos_avg']      = ext.data['DMPos_avg']
+                visloop_frames_info.loc[file, 'ITTMPos_avg']    = ext.data['ITTMPos_avg']
+                visloop_frames_info.loc[file, 'DMSatur_avg']    = ext.data['DMSatur_avg']
+                visloop_frames_info.loc[file, 'DMAberr_avg']    = ext.data['DMAberr_avg']
+                visloop_frames_info.loc[file, 'flux_total_avg'] = ext.data['Flux_avg']
                 
             hdu.close()
-        
+
+        # convert VisWFS flux in photons per subaperture. Flux_avg is the flux on the whole pupil made of 1240 subapertures
+        photon_to_ADU = 17     # from Jean-François Sauvage
+        gain = visloop_frames_info['AOS VISWFS MODE'].str.split('_', expand=True)[1].astype(float)
+        visloop_frames_info['flux_subap_avg'] = visloop_frames_info['flux_total_avg'] / gain / photon_to_ADU  # in photons per subaperture
+
         # updates times and compute timestamps
         toolbox.compute_times(visloop_frames_info, logger=self._logger)
 
@@ -717,7 +725,7 @@ class Reduction(object):
                 # VisLoop parameters
                 irloop_frames_info.loc[file, 'DTTPPos_avg'] = ext.data['DTTPPos_avg']
                 irloop_frames_info.loc[file, 'DTTPRes_avg'] = ext.data['DTTPRes_avg']
-                irloop_frames_info.loc[file, 'Flux_avg']    = ext.data['Flux_avg']
+                irloop_frames_info.loc[file, 'flux_avg']    = ext.data['Flux_avg']
                 
             hdu.close()
     
@@ -801,13 +809,26 @@ class Reduction(object):
                 atm_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # Atm parameters
-                atm_frames_info.loc[file, 'r0']          = ext.data['R0']
-                atm_frames_info.loc[file, 't0']          = ext.data['T0']
-                atm_frames_info.loc[file, 'L0']          = ext.data['L0']
-                atm_frames_info.loc[file, 'WindSpeed']   = ext.data['WindSpeed']
-                atm_frames_info.loc[file, 'StrehlRatio'] = ext.data['StrehlRatio']
+                atm_frames_info.loc[file, 'r0']        = ext.data['R0']
+                atm_frames_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
+                atm_frames_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
                 
             hdu.close()
+        
+        # remove bad values
+        atm_frames_info.loc[np.logical_or(atm_frames_info['strehl'] <= 0.05, atm_frames_info['strehl'] > 0.98), 'strehl'] = np.nan
+        atm_frames_info.loc[np.logical_or(atm_frames_info['r0'] <= 0, atm_frames_info['r0'] > 0.9), 'r0'] = np.nan
+        atm_frames_info.loc[np.logical_or(atm_frames_info['windspeed'] <= 0, atm_frames_info['windspeed'] > 50), 'windspeed'] = np.nan
+
+        # tau0 and the seeing from r0
+        atm_frames_info['tau0']   = 0.314*atm_frames_info['r0'] / atm_frames_info['windspeed']
+        atm_frames_info['seeing'] = np.rad2deg(wave_wfs / atm_frames_info['r0']) * 3600
+
+        # IMPLEMENT:
+        # we compute the zenith seeing: seeing(zenith) = seeing(AM) AM^(3/5)
+        # atmos_param_df['seeing_zenith_sparta'] = atmos_param_df['seeing_los_sparta']/np.power(atmos_param_df['airmass_sparta'], 3./5.)
+        # atmos_param_df['r0_zenith_sparta'] = atmos_param_df['r0_los_sparta']*np.power(atmos_param_df['airmass_sparta'], 3./5.)
+        # atmos_param_df['tau0_zenith_sparta'] = atmos_param_df['tau0_los_sparta']*np.power(atmos_param_df['airmass_sparta'], 3./5.)
         
         # updates times and compute timestamps
         toolbox.compute_times(atm_frames_info, logger=self._logger)
