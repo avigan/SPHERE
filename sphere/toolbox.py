@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import astropy.coordinates as coord
+import astropy.coordinates as coordinates
 import astropy.units as units
 import scipy.ndimage as ndimage
 import matplotlib
@@ -141,7 +141,7 @@ def compute_times(frames_info, logger=_log):
         # mjd
         utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
         mjd_start = utc.mjd
-
+        
         utc = Time(ts.astype(str), scale='utc', location=sphere.location)
         mjd = utc.mjd
 
@@ -157,6 +157,8 @@ def compute_times(frames_info, logger=_log):
         frames_info['MJD']        = mjd
         frames_info['MJD END']    = mjd_end
     elif instrument == 'SPARTA':
+        logger.debug('   ==> SPARTA mode')
+
         # get times directly from data frame
         ts = frames_info['TIME'].values
         ts_start = ts
@@ -194,9 +196,12 @@ def compute_angles(frames_info, logger=_log):
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
-        alt = frames_info['TEL ALT'].values.astype(np.float)
-        drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
-        pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
+        try:
+            alt = frames_info['TEL ALT'].values.astype(np.float)
+            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
+            pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
+        except KeyError:
+            pa_correction = 0
     else:
         pa_correction = 0
 
@@ -205,7 +210,7 @@ def compute_angles(frames_info, logger=_log):
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-    ra_hour = coord.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
+    ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
     ra_deg  = ra_hour*15
     frames_info['RA'] = ra_deg
 
@@ -216,7 +221,7 @@ def compute_angles(frames_info, logger=_log):
     dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
     dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
     dec_drot_d *= sign
-    dec = coord.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
+    dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
     frames_info['DEC'] = dec
 
     # calculate parallactic angles
@@ -227,6 +232,14 @@ def compute_angles(frames_info, logger=_log):
     frames_info['PARANG'] = pa.value + pa_correction
     frames_info['HOUR ANGLE'] = ha
     frames_info['LST'] = lst
+
+    # Altitude and airmass
+    j2000 = coordinates.SkyCoord(ra=ra_hour, dec=dec, frame='icrs', obstime=utc)
+    altaz = j2000.transform_to(coordinates.AltAz(location=sphere.location))
+
+    frames_info['ALTITUDE'] = altaz.alt.value
+    frames_info['ALZIMUTH'] = altaz.az.value
+    frames_info['AIRMASS']  = altaz.secz.value
 
     # START/END only applicable for IRDIFS data
     if (instrument == 'IRDIS') or (instrument == 'IFS'):
