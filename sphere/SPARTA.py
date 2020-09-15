@@ -426,6 +426,9 @@ class Reduction(object):
 
             hdu.close()
 
+        # artificially add arm keyword
+        files_info.insert(files_info.columns.get_loc('DPR TECH')+1, 'SEQ ARM', 'SPARTA')
+            
         # drop files that are not handled, based on DPR keywords
         self._logger.debug('> drop unsupported file types')
         files_info.dropna(subset=['DPR TYPE'], inplace=True)
