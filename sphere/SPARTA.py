@@ -968,7 +968,7 @@ class Reduction(object):
         #
         # MASS-DIMM
         #
-        self._logger.debug('> Query MASS-DIMM')
+        self._logger.info('Query MASS-DIMM')
 
         url = f'http://archive.eso.org/wdb/wdb/asm/mass_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_fwhmerr=0&tab_tau=1&tab_tauerr=0&tab_tet=0&tab_teterr=0&tab_alt=0&tab_alterr=0&tab_fracgl=1&tab_turbfwhm=1&tab_tau0=1&tab_tet0=0&tab_turb_alt=0&tab_turb_speed=1'
 
@@ -988,10 +988,36 @@ class Reduction(object):
                                                'Free Atmosphere Seeing ["]': 'MASS_freeatmos_seeing'}, inplace=True)
                 mass_dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
             else:
-                self._logger.debug('  ==> Error in query')
+                self._logger.debug('  ==> Query error')
         except requests.ReadTimeout:
-            self._logger.error('Request to MASS-DIMM timed out')
-        
+            self._logger.error('  ==> Request to MASS-DIMM timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty MASS-DIMM data')
+
+        #
+        # DIMM
+        #
+        self._logger.info('Query DIMM')
+
+        url = f'http://archive.eso.org/wdb/wdb/asm/dimm_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_rfl=0&tab_rfl_time=0'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                dimm_info = pd.read_csv(data, index_col=0, comment='#')
+                dimm_info.rename(columns={'Date time': 'date',
+                                          'DIMM Seeing ["]': 'dimm_seeing'}, inplace=True)
+                dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
+            else:
+                self._logger.debug('  ==> Query error')
+        except requests.ReadTimeout:
+            self._logger.error('  ==> Request to DIMM timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty DIMM data')
+
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
