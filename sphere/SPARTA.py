@@ -291,6 +291,8 @@ class Reduction(object):
             visloop_info['DATE-OBS'] = pd.to_datetime(visloop_info['DATE-OBS'], utc=False)
             visloop_info['DATE'] = pd.to_datetime(visloop_info['DATE'], utc=False)
             visloop_info['TIME'] = pd.to_datetime(visloop_info['TIME'], utc=False)
+
+            visloop = True
         else:
             visloop_info = None
 
@@ -306,6 +308,8 @@ class Reduction(object):
             irloop_info['DATE-OBS'] = pd.to_datetime(irloop_info['DATE-OBS'], utc=False)
             irloop_info['DATE'] = pd.to_datetime(irloop_info['DATE'], utc=False)
             irloop_info['TIME'] = pd.to_datetime(irloop_info['TIME'], utc=False)
+
+            irloop = True
         else:
             irloop_info = None
 
@@ -992,7 +996,7 @@ class Reduction(object):
                 mass_dimm_info = pd.read_csv(data, index_col=0, comment='#')
                 mass_dimm_info.rename(columns={'Date time': 'date',
                                                'MASS Tau0 [s]': 'mass_tau0',
-                                               'MASS-DIMM Cn2 fraction at ground': 'mass-dim_Cn2_frac_gl',
+                                               'MASS-DIMM Cn2 fraction at ground': 'mass-dimm_Cn2_frac_gl',
                                                'MASS-DIMM Tau0 [s]': 'mass-dimm_tau0',
                                                'MASS-DIMM Turb Velocity [m/s]': 'mass-dimm_turb_speed',
                                                'MASS-DIMM Seeing ["]': 'mass-dimm_seeing',
@@ -1221,10 +1225,10 @@ class Reduction(object):
         #
         dateFormatter = mdates.DateFormatter('%H:%M')
         
-        fig = plt.figure(1, figsize=(12, 15))
+        fig = plt.figure(1, figsize=(12, 10))
         plt.rcParams.update({'font.size': 14})
 
-        gs = gridspec.GridSpec(4, 2, height_ratios=[1, 1, 1, 1], width_ratios=[1, 1])
+        gs = gridspec.GridSpec(3, 2, height_ratios=[1, 1, 1], width_ratios=[1, 1])
 
         # seeing
         ax = plt.subplot(gs[0, 0])
@@ -1241,11 +1245,13 @@ class Reduction(object):
             ax.plot_date(Time(sphere_info.index).plot_date, sphere_info['TEL IA FWHMLIN'], '.', color='rosybrown', markeredgecolor='none', label='TEL.IA.FWHMLIN')
 
         ax.tick_params(axis='x', labelrotation=45, labelsize='small')
-        ax.set_ylabel('Seeing ["]')
         ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylabel('Seeing ["]')
+        ax.xaxis.set_ticklabels([])
+        # ax.xaxis.set_major_formatter(dateFormatter)
+        
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-        ax.xaxis.set_major_formatter(dateFormatter)
         
         # r0
         ax = plt.subplot(gs[0, 1])
@@ -1256,30 +1262,92 @@ class Reduction(object):
             ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass_tau0']*1000., '.', color='dimgrey', label='MASS', markeredgecolor='none')
 
         ax.tick_params(axis='x', labelrotation=45, labelsize='small')
-        ax.set_ylabel('$\\tau_0$ [ms]')
         ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylabel('$\\tau_0$ [ms]')
+        ax.xaxis.set_ticklabels([])
+        # ax.xaxis.set_major_formatter(dateFormatter)
+
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-        ax.xaxis.set_major_formatter(dateFormatter)
             
-        # flux
+        # Vis and NIR WFS fluxes
         ax = plt.subplot(gs[1, 0])
 
+        flux_visloop = visloop_info['flux_subap_avg']
+        flux_irloop  = irloop_info['flux_avg']
+        
+        ax.plot_date(Time(visloop_info['TIME']).plot_date, flux_visloop, '.', color='blue', markeredgecolor='none', label='Vis WFS')
+        ax.plot_date(Time(irloop_info['TIME']).plot_date, flux_irloop, '.', color='red', markeredgecolor='none', label='IR DTTS')
+
+        ymin = np.percentile(np.append(flux_irloop, flux_visloop), 10)/10
+        ymax = np.percentile(np.append(flux_irloop, flux_visloop), 90)*10
+        
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylim(ymin, ymax)
+        ax.set_yscale('log', nonpositive='clip')
+        ax.set_ylabel('Flux in photons/aperture')
+        ax.xaxis.set_ticklabels([])
+        # ax.xaxis.set_major_formatter(dateFormatter)
+
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
+        
         # Strehl
         ax = plt.subplot(gs[1, 1])
 
-        # combine plot
-        ax = plt.subplot(gs[2:4, 0])
+        ax.plot_date(Time(atmos_info['TIME']).plot_date, atmos_info['strehl']*100, '.', color='darkorchid', markeredgecolor='none', label='SPARTA')
 
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylim(0, 100)
+        ax.set_ylabel('Strehl ratio [%]')
+        ax.xaxis.set_ticklabels([])
+        # ax.xaxis.set_major_formatter(dateFormatter)
+
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
+        
         # ground-layer fraction
-        ax = plt.subplot(gs[2, 1])
+        ax = plt.subplot(gs[2, 0])
+
+        if mass_dimm_info is not None:
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass-dimm_Cn2_frac_gl']*100, '.', color='palevioletred', label='MASS-DIMM', markeredgecolor='none')
+        if slodar_info is not None:
+            ax.plot_date(Time(slodar_info.index).plot_date, slodar_info['slodar_surface_layer_frac']*100, '.', color='black', markeredgecolor='none', label='SLODAR surface layer')
+            ax.plot_date(Time(slodar_info.index).plot_date, slodar_info['slodar_frac_below_500m']*100, '.', color='red', markeredgecolor='none', label='SLODAR <500 m')
+            ax.plot_date(Time(slodar_info.index).plot_date, slodar_info['slodar_frac_below_300m']*100, '.', color='blue', markeredgecolor='none', label='SLODAR <300 m')
+
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylim(0, 100)
+        ax.set_ylabel('Ground layer fraction [%]')
+        ax.xaxis.set_major_formatter(dateFormatter)
+
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
 
         # wind speed
-        ax = plt.subplot(gs[3, 1])
+        ax = plt.subplot(gs[2, 1])
 
-        plt.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.98, wspace=0.2, hspace=0.3)
+        ax.plot_date(Time(atmos_info['TIME']).plot_date, atmos_info['windspeed'], '.', color='darkgreen', markeredgecolor='none', label='SPARTA')
+        if mass_dimm_info is not None:
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass-dimm_turb_speed'], '.', color='palevioletred', label='MASS', markeredgecolor='none')
+        if meteo_info is not None:
+            ax.plot_date(Time(meteo_info.index).plot_date, meteo_info['windspeed_30m'], '.', color='rosybrown', label='ASM 30 m', markeredgecolor='none')
 
-        plt.savefig(path.products / 'plot.pdf')
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.set_ylabel('Wind speed [m/s]')
+        ax.xaxis.set_major_formatter(dateFormatter)
+        
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
+
+        # tweak
+        plt.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.98, wspace=0.25, hspace=0.12)
+
+        plt.savefig(path.products / 'sparta_plot.pdf')
         
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
