@@ -5,6 +5,8 @@ import collections
 import configparser
 import shutil
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib.dates as mdates
 import requests
 import io
 
@@ -47,6 +49,7 @@ class Reduction(object):
         ('sph_sparta_wfs_parameters', ['sort_files']),
         ('sph_sparta_atmospheric_parameters', ['sort_files']),
         ('sph_query_databases', ['sort_files']),
+        ('sph_sparta_plot', ['sort_files', 'sph_sparta_dtts', 'sph_sparta_wfs_parameters', 'sph_sparta_atmospheric_parameters']),
         ('sph_ifs_clean', [])
     ])
 
@@ -405,7 +408,7 @@ class Reduction(object):
         self._logger.info('====> Static calibrations <====')                
         self._logger.warning('No static calibrations for SPARTA data')
 
-        
+
     def preprocess_science(self):
         '''
         Pre-processing of data
@@ -425,13 +428,13 @@ class Reduction(object):
         config = self._config
 
         self.sph_sparta_dtts(plot=config['misc_plot'])
-        self.sph_spart_wfs_flux()
+        self.sph_sparta_wfs_parameters()
         self.sph_sparta_atmospheric_parameters()
-
-        if config['misc_query_database']:
+        if config['misc_query_databases']:
             self.sph_query_databases(timeout=config['misc_query_timeout'])
+        self.sph_sparta_plot()
 
-        
+
     def clean(self):
         '''
         Clean the reduction directory
@@ -988,12 +991,12 @@ class Reduction(object):
                 data = io.StringIO(req.text)
                 mass_dimm_info = pd.read_csv(data, index_col=0, comment='#')
                 mass_dimm_info.rename(columns={'Date time': 'date',
-                                               'MASS Tau0 [s]': 'MASS_tau0',
-                                               'MASS-DIMM Cn2 fraction at ground': 'MASS-DIMM_Cn2_frac_gl',
-                                               'MASS-DIMM Tau0 [s]': 'MASS-DIMM_tau0',
-                                               'MASS-DIMM Turb Velocity [m/s]': 'MASS-DIMM_turb_speed',
-                                               'MASS-DIMM Seeing ["]': 'MASS-DIMM_seeing',
-                                               'Free Atmosphere Seeing ["]': 'MASS_freeatmos_seeing'}, inplace=True)
+                                               'MASS Tau0 [s]': 'mass_tau0',
+                                               'MASS-DIMM Cn2 fraction at ground': 'mass-dim_Cn2_frac_gl',
+                                               'MASS-DIMM Tau0 [s]': 'mass-dimm_tau0',
+                                               'MASS-DIMM Turb Velocity [m/s]': 'mass-dimm_turb_speed',
+                                               'MASS-DIMM Seeing ["]': 'mass-dimm_seeing',
+                                               'Free Atmosphere Seeing ["]': 'mass_freeatmos_seeing'}, inplace=True)
                 mass_dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
             else:
                 self._logger.debug('  ==> Query error')
@@ -1078,11 +1081,12 @@ class Reduction(object):
                 self._logger.debug('  ==> Valid response received')
 
                 data = io.StringIO(req.text)
-                sphere_info = pd.read_csv(data, index_col=0, comment='#')
-
-                keys_to_drop = ['Object', 'RA', 'DEC', 'Target Ra Dec', 'Target l b', 'OBS Target Name']
+                sphere_info = pd.read_csv(data, index_col=6, comment='#')
+                
+                keys_to_drop = ['Release Date', 'Object', 'RA', 'DEC', 'Target Ra Dec', 'Target l b', 'OBS Target Name']
                 for key in keys_to_drop:
-                    sphere_info.drop(key, axis=1, inplace=True)                
+                    sphere_info.drop(key, axis=1, inplace=True)
+                    
                 sphere_info.to_csv(path.products / 'ambi_info.csv')
             else:
                 self._logger.debug('  ==> Query error')
@@ -1144,6 +1148,139 @@ class Reduction(object):
         except pd.errors.EmptyDataError:
             self._logger.error('  ==> Empty meteo tower data')
 
+        # update recipe execution
+        self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
+
+        # reduction status
+        self._status = sphere.INCOMPLETE
+    
+
+    def sph_sparta_plot(self):
+        '''
+        Plot results of the SPARTA file analysis
+        '''
+
+        self._logger.info('Plot SPARTA and atmospheric data')
+        
+        # check if recipe can be executed
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_plot',
+                                         self.recipe_requirements, logger=self._logger):
+            return
+
+        # parameters
+        path = self.path
+        files_info   = self.files_info
+        dtts_info    = self.dtts_info
+        visloop_info = self.visloop_info
+        irloop_info  = self.irloop_info
+        atmos_info   = self.atmospheric_info
+
+        # additional databases
+        file = path.products / 'mass-dimm_info.csv'
+        if file.exists():
+            mass_dimm_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            mass_dimm_info = None
+
+        file = path.products / 'dimm_info.csv'
+        if file.exists():
+            dimm_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            dimm_info = None
+
+        file = path.products / 'slodar_info.csv'
+        if file.exists():
+            slodar_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            slodar_info = None
+
+        file = path.products / 'ambi_info.csv'
+        if file.exists():
+            sphere_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            sphere_info = None
+
+        file = path.products / 'meteo_info.csv'
+        if file.exists():
+            meteo_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            meteo_info = None
+
+        file = path.products / 'lathpro_info.csv'
+        if file.exists():
+            lathpro_info = pd.read_csv(file, index_col=0, parse_dates=True)
+        else:
+            lathpro_info = None
+
+        # times
+        time_start = Time(files_info['DATE'].min())
+        time_end   = Time(files_info['DATE-OBS'].max())
+
+        #
+        # plot
+        #
+        dateFormatter = mdates.DateFormatter('%H:%M')
+        
+        fig = plt.figure(1, figsize=(12, 15))
+        plt.rcParams.update({'font.size': 14})
+
+        gs = gridspec.GridSpec(4, 2, height_ratios=[1, 1, 1, 1], width_ratios=[1, 1])
+
+        # seeing
+        ax = plt.subplot(gs[0, 0])
+
+        ax.plot_date(Time(atmos_info['TIME']).plot_date, atmos_info['seeing_zenith'], '.', color='darkorange', markeredgecolor='none', label='SPARTA')
+        if mass_dimm_info is not None:
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass-dimm_seeing'], '.', color='palevioletred', markeredgecolor='none', label='MASS-DIMM')
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass_freeatmos_seeing'], '.', color='lime', markeredgecolor='none', label='MASS')
+        if dimm_info is not None:
+            ax.plot_date(Time(dimm_info.index).plot_date, dimm_info['dimm_seeing'], '.', color='dimgrey', markeredgecolor='none', label='DIMM')
+        if slodar_info is not None:
+            ax.plot_date(Time(slodar_info.index).plot_date, slodar_info['slodar_seeing_above_UT'], '.', color='magenta', markeredgecolor='none', label='SLODAR above UT')
+        if sphere_info is not None:
+            ax.plot_date(Time(sphere_info.index).plot_date, sphere_info['TEL IA FWHMLIN'], '.', color='rosybrown', markeredgecolor='none', label='TEL.IA.FWHMLIN')
+
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_ylabel('Seeing ["]')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
+        ax.xaxis.set_major_formatter(dateFormatter)
+        
+        # r0
+        ax = plt.subplot(gs[0, 1])
+
+        ax.plot_date(Time(atmos_info['TIME']).plot_date, atmos_info['tau0_zenith']*1000, '.', color='darkgreen', markeredgecolor='none', label='SPARTA')
+        if mass_dimm_info is not None:
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass-dimm_tau0']*1000, '.', color='palevioletred', label='MASS-DIMM', markeredgecolor='none')
+            ax.plot_date(Time(mass_dimm_info.index).plot_date, mass_dimm_info['mass_tau0']*1000., '.', color='dimgrey', label='MASS', markeredgecolor='none')
+
+        ax.tick_params(axis='x', labelrotation=45, labelsize='small')
+        ax.set_ylabel('$\\tau_0$ [ms]')
+        ax.set_xlim(time_start.plot_date, time_end.plot_date)
+        ax.grid(True)
+        ax.legend(frameon=True, loc='best', fontsize='x-small')
+        ax.xaxis.set_major_formatter(dateFormatter)
+            
+        # flux
+        ax = plt.subplot(gs[1, 0])
+
+        # Strehl
+        ax = plt.subplot(gs[1, 1])
+
+        # combine plot
+        ax = plt.subplot(gs[2:4, 0])
+
+        # ground-layer fraction
+        ax = plt.subplot(gs[2, 1])
+
+        # wind speed
+        ax = plt.subplot(gs[3, 1])
+
+        plt.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.98, wspace=0.2, hspace=0.3)
+
+        plt.savefig(path.products / 'plot.pdf')
+        
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
