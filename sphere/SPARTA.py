@@ -199,6 +199,22 @@ class Reduction(object):
         return self._files_info
 
     @property
+    def dtts_info(self):
+        return self._dtts_info
+        
+    @property
+    def visloop_info(self):
+        return self._visloop_info
+        
+    @property
+    def irloop_info(self):
+        return self._irloop_info
+        
+    @property
+    def atmospheric_info(self):
+        return self._atmos_info
+    
+    @property
     def recipe_status(self):
         return self._recipes_status
 
@@ -246,17 +262,17 @@ class Reduction(object):
         if fname.exists():
             self._logger.debug('> read dtts_frames.csv')
             
-            dtts_frames_info = pd.read_csv(fname, index_col=0)
+            dtts_info = pd.read_csv(fname, index_col=0)
 
             # convert times
-            dtts_frames_info['DATE-OBS'] = pd.to_datetime(dtts_frames_info['DATE-OBS'], utc=False)
-            dtts_frames_info['DATE'] = pd.to_datetime(dtts_frames_info['DATE'], utc=False)
-            dtts_frames_info['TIME'] = pd.to_datetime(dtts_frames_info['TIME'], utc=False)
+            dtts_info['DATE-OBS'] = pd.to_datetime(dtts_info['DATE-OBS'], utc=False)
+            dtts_info['DATE'] = pd.to_datetime(dtts_info['DATE'], utc=False)
+            dtts_info['TIME'] = pd.to_datetime(dtts_info['TIME'], utc=False)
 
             # update recipe execution
             self._update_recipe_status('sph_sparta_dtts', sphere.SUCCESS)
         else:
-            dtts_frames_info = None
+            dtts_info = None
 
         # VisLoop info
         fname = path.products / 'visloop_frames.csv'
@@ -264,14 +280,14 @@ class Reduction(object):
         if fname.exists():
             self._logger.debug('> read visloop_frames.csv')
             
-            visloop_frames_info = pd.read_csv(fname, index_col=0)
+            visloop_info = pd.read_csv(fname, index_col=0)
 
             # convert times
-            visloop_frames_info['DATE-OBS'] = pd.to_datetime(visloop_frames_info['DATE-OBS'], utc=False)
-            visloop_frames_info['DATE'] = pd.to_datetime(visloop_frames_info['DATE'], utc=False)
-            visloop_frames_info['TIME'] = pd.to_datetime(visloop_frames_info['TIME'], utc=False)
+            visloop_info['DATE-OBS'] = pd.to_datetime(visloop_info['DATE-OBS'], utc=False)
+            visloop_info['DATE'] = pd.to_datetime(visloop_info['DATE'], utc=False)
+            visloop_info['TIME'] = pd.to_datetime(visloop_info['TIME'], utc=False)
         else:
-            visloop_frames_info = None
+            visloop_info = None
 
         # IRLoop info
         fname = path.products / 'irloop_frames.csv'
@@ -279,14 +295,14 @@ class Reduction(object):
         if fname.exists():
             self._logger.debug('> read irloop_frames.csv')
             
-            irloop_frames_info = pd.read_csv(fname, index_col=0)
+            irloop_info = pd.read_csv(fname, index_col=0)
 
             # convert times
-            irloop_frames_info['DATE-OBS'] = pd.to_datetime(irloop_frames_info['DATE-OBS'], utc=False)
-            irloop_frames_info['DATE'] = pd.to_datetime(irloop_frames_info['DATE'], utc=False)
-            irloop_frames_info['TIME'] = pd.to_datetime(irloop_frames_info['TIME'], utc=False)
+            irloop_info['DATE-OBS'] = pd.to_datetime(irloop_info['DATE-OBS'], utc=False)
+            irloop_info['DATE'] = pd.to_datetime(irloop_info['DATE'], utc=False)
+            irloop_info['TIME'] = pd.to_datetime(irloop_info['TIME'], utc=False)
         else:
-            irloop_frames_info = None
+            irloop_info = None
 
         # update recipe execution
         if visloop and irloop:
@@ -299,20 +315,24 @@ class Reduction(object):
         if fname.exists():
             self._logger.debug('> read atmospheric_frames.csv')
             
-            atm_frames_info = pd.read_csv(fname, index_col=0)
+            atmos_info = pd.read_csv(fname, index_col=0)
 
             # convert times
-            atm_frames_info['DATE-OBS'] = pd.to_datetime(atm_frames_info['DATE-OBS'], utc=False)
-            atm_frames_info['DATE'] = pd.to_datetime(atm_frames_info['DATE'], utc=False)
-            atm_frames_info['TIME'] = pd.to_datetime(atm_frames_info['TIME'], utc=False)
+            atmos_info['DATE-OBS'] = pd.to_datetime(atmos_info['DATE-OBS'], utc=False)
+            atmos_info['DATE'] = pd.to_datetime(atmos_info['DATE'], utc=False)
+            atmos_info['TIME'] = pd.to_datetime(atmos_info['TIME'], utc=False)
 
             # update recipe execution
             self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
         else:
-            atm_frames_info = None
+            atmos_info = None
 
         # save data frames in instance variables
-        self._files_info = files_info
+        self._files_info   = files_info
+        self._dtts_info    = dtts_info
+        self._visloop_info = visloop_info
+        self._irloop_info  = irloop_info
+        self._atmos_info   = atmos_info
 
         # reduction status
         self._status = sphere.INCOMPLETE
@@ -563,13 +583,13 @@ class Reduction(object):
 
         # create new dataframe
         self._logger.debug('> create data frame')
-        dtts_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+        dtts_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        dtts_frames_info = dtts_frames_info.align(files_info, level=0)[1]
+        dtts_info = dtts_info.align(files_info, level=0)[1]
 
         # extract data cube
-        dtts_cube = np.zeros((len(dtts_frames_info), 32, 32))
+        dtts_cube = np.zeros((len(dtts_info), 32, 32))
         nimg = 0
         for file, finfo in files_info.iterrows():
             hdu = fits.open(f'{path.raw}/{file}.fits')
@@ -582,7 +602,7 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                dtts_frames_info.loc[file, 'TIME']        = [str(t) for t in time]
+                dtts_info.loc[file, 'TIME']        = [str(t) for t in time]
 
                 # DTTS images
                 dtts_cube[nimg:nimg+NDIT] = pixels
@@ -592,10 +612,10 @@ class Reduction(object):
             hdu.close()
             
         # updates times and compute timestamps
-        toolbox.compute_times(dtts_frames_info, logger=self._logger)
+        toolbox.compute_times(dtts_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(dtts_frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(dtts_info, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
@@ -603,7 +623,7 @@ class Reduction(object):
         
         # save
         self._logger.debug('> save dtts_frames.csv')
-        dtts_frames_info.to_csv(path.products / 'dtts_frames.csv')
+        dtts_info.to_csv(path.products / 'dtts_frames.csv')
         fits.writeto(path.products / 'dtts_cube.fits', dtts_cube, overwrite=True)
 
         # plot
@@ -636,7 +656,7 @@ class Reduction(object):
                                 
                                 dtts_master[ymin:ymax, xmin:xmax] = dtts_cube[idx]
 
-                                ts  = dtts_frames_info['TIME'].values[idx]
+                                ts  = dtts_info['TIME'].values[idx]
                                 date = ts[:10]
                                 time = ts[11:]
                                 plt.text(xmin+1, ymax-2, f'Date: {date}', size=14, weight='bold', color='w', ha='left', va='top', zorder=100)
@@ -697,10 +717,10 @@ class Reduction(object):
 
         # create new dataframe
         self._logger.debug('> create data frame')
-        visloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+        visloop_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        visloop_frames_info = visloop_frames_info.align(files_info, level=0)[1]
+        visloop_info = visloop_info.align(files_info, level=0)[1]
 
         # extract data
         for file, finfo in files_info.iterrows():
@@ -713,30 +733,30 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                visloop_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
+                visloop_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # VisLoop parameters
-                visloop_frames_info.loc[file, 'focus_avg']      = ext.data['Focus_avg']
-                visloop_frames_info.loc[file, 'TTx_avg']        = ext.data['TTx_avg']
-                visloop_frames_info.loc[file, 'TTy_avg']        = ext.data['TTy_avg']
-                visloop_frames_info.loc[file, 'DMPos_avg']      = ext.data['DMPos_avg']
-                visloop_frames_info.loc[file, 'ITTMPos_avg']    = ext.data['ITTMPos_avg']
-                visloop_frames_info.loc[file, 'DMSatur_avg']    = ext.data['DMSatur_avg']
-                visloop_frames_info.loc[file, 'DMAberr_avg']    = ext.data['DMAberr_avg']
-                visloop_frames_info.loc[file, 'flux_total_avg'] = ext.data['Flux_avg']
+                visloop_info.loc[file, 'focus_avg']      = ext.data['Focus_avg']
+                visloop_info.loc[file, 'TTx_avg']        = ext.data['TTx_avg']
+                visloop_info.loc[file, 'TTy_avg']        = ext.data['TTy_avg']
+                visloop_info.loc[file, 'DMPos_avg']      = ext.data['DMPos_avg']
+                visloop_info.loc[file, 'ITTMPos_avg']    = ext.data['ITTMPos_avg']
+                visloop_info.loc[file, 'DMSatur_avg']    = ext.data['DMSatur_avg']
+                visloop_info.loc[file, 'DMAberr_avg']    = ext.data['DMAberr_avg']
+                visloop_info.loc[file, 'flux_total_avg'] = ext.data['Flux_avg']
                 
             hdu.close()
 
         # convert VisWFS flux in photons per subaperture. Flux_avg is the flux on the whole pupil made of 1240 subapertures
         photon_to_ADU = 17     # from Jean-François Sauvage
-        gain = visloop_frames_info['AOS VISWFS MODE'].str.split('_', expand=True)[1].astype(float)
-        visloop_frames_info['flux_subap_avg'] = visloop_frames_info['flux_total_avg'] / gain / photon_to_ADU  # in photons per subaperture
+        gain = visloop_info['AOS VISWFS MODE'].str.split('_', expand=True)[1].astype(float)
+        visloop_info['flux_subap_avg'] = visloop_info['flux_total_avg'] / gain / photon_to_ADU  # in photons per subaperture
 
         # updates times and compute timestamps
-        toolbox.compute_times(visloop_frames_info, logger=self._logger)
+        toolbox.compute_times(visloop_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(visloop_frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(visloop_info, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
@@ -744,7 +764,7 @@ class Reduction(object):
 
         # save
         self._logger.debug('> save visloop_frames.csv')
-        visloop_frames_info.to_csv(path.products / 'visloop_frames.csv')
+        visloop_info.to_csv(path.products / 'visloop_frames.csv')
     
         #
         # IRLoop
@@ -769,10 +789,10 @@ class Reduction(object):
 
         # create new dataframe
         self._logger.debug('> create data frame')
-        irloop_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+        irloop_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        irloop_frames_info = irloop_frames_info.align(files_info, level=0)[1]
+        irloop_info = irloop_info.align(files_info, level=0)[1]
 
         # extract data
         for file, finfo in files_info.iterrows():
@@ -785,20 +805,20 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                irloop_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
+                irloop_info.loc[file, 'TIME'] = [str(t) for t in time]
                 
                 # VisLoop parameters
-                irloop_frames_info.loc[file, 'DTTPPos_avg'] = ext.data['DTTPPos_avg']
-                irloop_frames_info.loc[file, 'DTTPRes_avg'] = ext.data['DTTPRes_avg']
-                irloop_frames_info.loc[file, 'flux_avg']    = ext.data['Flux_avg']
+                irloop_info.loc[file, 'DTTPPos_avg'] = ext.data['DTTPPos_avg']
+                irloop_info.loc[file, 'DTTPRes_avg'] = ext.data['DTTPRes_avg']
+                irloop_info.loc[file, 'flux_avg']    = ext.data['Flux_avg']
                 
             hdu.close()
     
         # updates times and compute timestamps
-        toolbox.compute_times(irloop_frames_info, logger=self._logger)
+        toolbox.compute_times(irloop_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(irloop_frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(irloop_info, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
@@ -806,7 +826,7 @@ class Reduction(object):
 
         # save
         self._logger.debug('> save irloop_frames.csv')
-        irloop_frames_info.to_csv(path.products / 'irloop_frames.csv')
+        irloop_info.to_csv(path.products / 'irloop_frames.csv')
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_wfs_parameters', sphere.SUCCESS)
@@ -855,10 +875,10 @@ class Reduction(object):
 
         # create new dataframe
         self._logger.debug('> create data frame')
-        atmos_frames_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
+        atmos_info = pd.DataFrame(columns=files_info.columns, index=pd.MultiIndex.from_arrays([files, img], names=['FILE', 'IMG']))
 
         # expand files_info into frames_info
-        atmos_frames_info = atmos_frames_info.align(files_info, level=0)[1]
+        atmos_info = atmos_info.align(files_info, level=0)[1]
 
         # extract data
         for file, finfo in files_info.iterrows():
@@ -871,43 +891,43 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                atmos_frames_info.loc[file, 'TIME'] = [str(t) for t in time]
+                atmos_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # Atm parameters
-                atmos_frames_info.loc[file, 'r0']        = ext.data['R0']
-                atmos_frames_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
-                atmos_frames_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
+                atmos_info.loc[file, 'r0']        = ext.data['R0']
+                atmos_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
+                atmos_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
                 
             hdu.close()
 
         # updates times and compute timestamps
-        toolbox.compute_times(atmos_frames_info, logger=self._logger)
+        toolbox.compute_times(atmos_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(atmos_frames_info, logger=self._logger)
+        ret = toolbox.compute_angles(atmos_info, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
             return
 
         # remove bad values
-        atmos_frames_info.loc[np.logical_or(atmos_frames_info['strehl'] <= 0.05, atmos_frames_info['strehl'] > 0.98), 'strehl'] = np.nan
-        atmos_frames_info.loc[np.logical_or(atmos_frames_info['r0'] <= 0, atmos_frames_info['r0'] > 0.9), 'r0'] = np.nan
-        atmos_frames_info.loc[np.logical_or(atmos_frames_info['windspeed'] <= 0, atmos_frames_info['windspeed'] > 50), 'windspeed'] = np.nan
+        atmos_info.loc[np.logical_or(atmos_info['strehl'] <= 0.05, atmos_info['strehl'] > 0.98), 'strehl'] = np.nan
+        atmos_info.loc[np.logical_or(atmos_info['r0'] <= 0, atmos_info['r0'] > 0.9), 'r0'] = np.nan
+        atmos_info.loc[np.logical_or(atmos_info['windspeed'] <= 0, atmos_info['windspeed'] > 50), 'windspeed'] = np.nan
 
         # tau0 and the seeing from r0
-        atmos_frames_info['tau0']   = 0.314*atmos_frames_info['r0'] / atmos_frames_info['windspeed']
-        atmos_frames_info['seeing'] = np.rad2deg(wave_wfs / atmos_frames_info['r0']) * 3600
+        atmos_info['tau0']   = 0.314*atmos_info['r0'] / atmos_info['windspeed']
+        atmos_info['seeing'] = np.rad2deg(wave_wfs / atmos_info['r0']) * 3600
 
         # IMPLEMENT:
         # we compute the zenith seeing: seeing(zenith) = seeing(AM)/AM^(3/5)
-        atmos_frames_info['seeing_zenith'] = atmos_frames_info['seeing'] / np.power(atmos_frames_info['AIRMASS'], 3/5)
-        atmos_frames_info['r0_zenith']     = atmos_frames_info['r0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
-        atmos_frames_info['tau0_zenith']   = atmos_frames_info['tau0'] * np.power(atmos_frames_info['AIRMASS'], 3/5)
+        atmos_info['seeing_zenith'] = atmos_info['seeing'] / np.power(atmos_info['AIRMASS'], 3/5)
+        atmos_info['r0_zenith']     = atmos_info['r0'] * np.power(atmos_info['AIRMASS'], 3/5)
+        atmos_info['tau0_zenith']   = atmos_info['tau0'] * np.power(atmos_info['AIRMASS'], 3/5)
         
         # save
         self._logger.debug('> save atmospheric_frames.csv')
-        atmos_frames_info.to_csv(path.products / 'atmospheric_frames.csv')
+        atmos_info.to_csv(path.products / 'atmospheric_frames.csv')
     
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
@@ -918,7 +938,9 @@ class Reduction(object):
 
     def sph_sparta_query_databases(self, timeout=5):
         '''
-        Query ESO databases for additional atmospheric information
+        Query ESO databases for additional atmospheric information:
+            - MASS-DIMM for the tau0
+            - 
 
         Parameters
         ----------
@@ -933,10 +955,8 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        #
-        # TO BE IMPLEMENTED
-        #
-
+        
+        
         # update recipe execution
         self._update_recipe_status('sph_sparta_query_databases', sphere.SUCCESS)
 
