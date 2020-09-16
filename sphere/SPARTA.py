@@ -275,10 +275,10 @@ class Reduction(object):
             dtts_info = None
 
         # VisLoop info
-        fname = path.products / 'visloop_frames.csv'
+        fname = path.products / 'visloop_info.csv'
         visloop = False
         if fname.exists():
-            self._logger.debug('> read visloop_frames.csv')
+            self._logger.debug('> read visloop_info.csv')
             
             visloop_info = pd.read_csv(fname, index_col=0)
 
@@ -290,10 +290,10 @@ class Reduction(object):
             visloop_info = None
 
         # IRLoop info
-        fname = path.products / 'irloop_frames.csv'
+        fname = path.products / 'irloop_info.csv'
         irloop = False
         if fname.exists():
-            self._logger.debug('> read irloop_frames.csv')
+            self._logger.debug('> read irloop_info.csv')
             
             irloop_info = pd.read_csv(fname, index_col=0)
 
@@ -311,9 +311,9 @@ class Reduction(object):
             self._update_recipe_status('sph_sparta_wfs_parameters', sphere.NOTSET)
 
         # Atmospheric info
-        fname = path.products / 'atmospheric_frames.csv'
+        fname = path.products / 'atmospheric_info.csv'
         if fname.exists():
-            self._logger.debug('> read atmospheric_frames.csv')
+            self._logger.debug('> read atmospheric_info.csv')
             
             atmos_info = pd.read_csv(fname, index_col=0)
 
@@ -617,7 +617,7 @@ class Reduction(object):
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(dtts_info, logger=self._logger)
         if ret == sphere.ERROR:
-            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._update_recipe_status('sph_sparta_dtts', sphere.ERROR)
             self._status = sphere.FATAL
             return
         
@@ -758,13 +758,13 @@ class Reduction(object):
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(visloop_info, logger=self._logger)
         if ret == sphere.ERROR:
-            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._update_recipe_status('sph_sparta_wfs_parameters', sphere.ERROR)
             self._status = sphere.FATAL
             return
 
         # save
-        self._logger.debug('> save visloop_frames.csv')
-        visloop_info.to_csv(path.products / 'visloop_frames.csv')
+        self._logger.debug('> save visloop_info.csv')
+        visloop_info.to_csv(path.products / 'visloop_info.csv')
     
         #
         # IRLoop
@@ -820,13 +820,13 @@ class Reduction(object):
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(irloop_info, logger=self._logger)
         if ret == sphere.ERROR:
-            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._update_recipe_status('sph_sparta_wfs_parameters', sphere.ERROR)
             self._status = sphere.FATAL
             return
 
         # save
-        self._logger.debug('> save irloop_frames.csv')
-        irloop_info.to_csv(path.products / 'irloop_frames.csv')
+        self._logger.debug('> save irloop_info.csv')
+        irloop_info.to_csv(path.products / 'irloop_info.csv')
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_wfs_parameters', sphere.SUCCESS)
@@ -906,7 +906,7 @@ class Reduction(object):
         # compute angles (ra, dec, parang)
         ret = toolbox.compute_angles(atmos_info, logger=self._logger)
         if ret == sphere.ERROR:
-            self._update_recipe_status('sort_frames', sphere.ERROR)
+            self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.ERROR)
             self._status = sphere.FATAL
             return
 
@@ -926,8 +926,8 @@ class Reduction(object):
         atmos_info['tau0_zenith']   = atmos_info['tau0'] * np.power(atmos_info['AIRMASS'], 3/5)
         
         # save
-        self._logger.debug('> save atmospheric_frames.csv')
-        atmos_info.to_csv(path.products / 'atmospheric_frames.csv')
+        self._logger.debug('> save atmospheric_info.csv')
+        atmos_info.to_csv(path.products / 'atmospheric_info.csv')
     
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
