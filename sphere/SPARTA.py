@@ -5,6 +5,8 @@ import collections
 import configparser
 import shutil
 import matplotlib.pyplot as plt
+import requests
+import io
 
 from astropy.io import fits
 from astropy.time import Time
@@ -44,7 +46,7 @@ class Reduction(object):
         ('sph_sparta_dtts', ['sort_files']),
         ('sph_sparta_wfs_parameters', ['sort_files']),
         ('sph_sparta_atmospheric_parameters', ['sort_files']),
-        ('sph_sparta_query_databases', ['sort_file', 'sph_sparta_dtts']),
+        ('sph_query_databases', ['sort_files']),
         ('sph_ifs_clean', [])
     ])
 
@@ -427,7 +429,7 @@ class Reduction(object):
         self.sph_sparta_atmospheric_parameters()
 
         if config['misc_query_database']:
-            self.sph_sparta_query_databases(timeout=config['misc_query_timeout'])
+            self.sph_query_databases(timeout=config['misc_query_timeout'])
 
         
     def clean(self):
@@ -936,7 +938,7 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
         
 
-    def sph_sparta_query_databases(self, timeout=5):
+    def sph_query_databases(self, timeout=5):
         '''
         Query ESO databases for additional atmospheric information:
             - MASS-DIMM for the tau0
@@ -951,14 +953,40 @@ class Reduction(object):
         self._logger.info('Query ESO databases')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_query_databases', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_query_databases', 
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        
+        # parameters
+        path = self.path
+        files_info = self.files_info
+
+        # times
+        time_start = Time(files_info['DATE'].min()).isot
+        time_end   = Time(files_info['DATE-OBS'].max()).isot
+
+        #
+        # MASS-DIMM
+        #
+        self._logger.debug('> Query MASS-DIMM')
+
+        url = f'http://archive.eso.org/wdb/wdb/asm/mass_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_fwhmerr=0&tab_tau=1&tab_tauerr=0&tab_tet=0&tab_teterr=0&tab_alt=0&tab_alterr=0&tab_fracgl=1&tab_turbfwhm=1&tab_tau0=1&tab_tet0=0&tab_turb_alt=0&tab_turb_speed=1'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                mass_dimm_info = pd.read_csv(data, index_col=0, comment='#')
+                mass_dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
+            else:
+                self._logger.debug('  ==> Error in query')
+        except requests.ReadTimeout:
+            self._logger.error('Request to MASS-DIMM timed out')
         
         # update recipe execution
-        self._update_recipe_status('sph_sparta_query_databases', sphere.SUCCESS)
+        self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.COMPLETE
