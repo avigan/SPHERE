@@ -940,9 +940,17 @@ class Reduction(object):
 
     def sph_query_databases(self, timeout=5):
         '''
-        Query ESO databases for additional atmospheric information:
-            - MASS-DIMM for the tau0
-            - 
+        Query ESO databases for additional atmospheric information
+
+        See details on the ESO webpage:
+            http://archive.eso.org/cms/eso-data/ambient-conditions/paranal-ambient-query-forms.html
+
+        The following instruments are queried:
+            - DIMM: Differential Image Moption Monitor
+            - MASS: Multi-Aperture Scintillation Sensor
+            - SLODAR: SLOpe Detection And Ranging
+            - LHATPRO: Low Humidity And Temperature PROfiling microwave radiometer
+            - METEO
 
         Parameters
         ----------
@@ -1022,6 +1030,55 @@ class Reduction(object):
         except pd.errors.EmptyDataError:
             self._logger.error('  ==> Empty DIMM data')
 
+        #
+        # SLODAR
+        #
+
+        self._logger.info('Query SLODAR')
+
+        url = f'http://archive.eso.org/wdb/wdb/asm/slodar_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_cnsqs_uts=1&tab_fracgl300=1&tab_fracgl500=1&tab_hrsfit=1&tab_fwhm=1'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                slodar_info = pd.read_csv(data, index_col=0, comment='#')
+                slodar_info.rename(columns={'Date time': 'date', 'Cn2 above UTs [10**(-15)m**(1/3)]': 'Cn2_above_UT',
+                                            'Cn2 fraction below 300m': 'slodar_frac_below_300m',
+                                            'Cn2 fraction below 500m': 'slodar_frac_below_500m',
+                                            'Surface layer profile [10**(-15)m**(1/3)]': 'slodar_surface_layer',
+                                            'Seeing ["]': 'slodar_seeing'}, inplace=True)
+
+                wave_num = 2*np.pi/wave_wfs
+                slodar_info['slodar_r0_above_UT'] = np.power(0.423*(wave_num**2)*slodar_info['Cn2_above_UT']*1.e-15, -3/5)
+                slodar_info['slodar_seeing_above_UT'] = np.rad2deg(wave_wfs/slodar_info['slodar_r0_above_UT'])*3600
+                slodar_info['slodar_Cn2_total'] = np.power(slodar_info['slodar_seeing']/2e7, 1/0.6)  # in m^1/3
+                slodar_info['slodar_surface_layer_frac'] = slodar_info['slodar_surface_layer']*1e-15 / slodar_info['slodar_Cn2_total']
+                slodar_info.to_csv(path.products / 'slodar_info.csv')
+            else:
+                self._logger.debug('  ==> Query error')
+        except requests.ReadTimeout:
+            self._logger.error('  ==> Request to SLODAR timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty SLODAR data')
+
+        #
+        # Telescope seeing
+        #
+
+
+        #
+        # Meteo tower for wind speed/direction and temperature
+        #
+
+        
+        #
+        # Lathpro
+        #
+
+        
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
