@@ -979,6 +979,13 @@ class Reduction(object):
 
                 data = io.StringIO(req.text)
                 mass_dimm_info = pd.read_csv(data, index_col=0, comment='#')
+                mass_dimm_info.rename(columns={'Date time': 'date',
+                                               'MASS Tau0 [s]': 'MASS_tau0',
+                                               'MASS-DIMM Cn2 fraction at ground': 'MASS-DIMM_Cn2_frac_gl',
+                                               'MASS-DIMM Tau0 [s]': 'MASS-DIMM_tau0',
+                                               'MASS-DIMM Turb Velocity [m/s]': 'MASS-DIMM_turb_speed',
+                                               'MASS-DIMM Seeing ["]': 'MASS-DIMM_seeing',
+                                               'Free Atmosphere Seeing ["]': 'MASS_freeatmos_seeing'}, inplace=True)
                 mass_dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
             else:
                 self._logger.debug('  ==> Error in query')
