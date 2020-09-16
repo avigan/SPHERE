@@ -999,7 +999,10 @@ class Reduction(object):
         #
         self._logger.info('Query DIMM')
 
-        url = f'http://archive.eso.org/wdb/wdb/asm/dimm_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_rfl=0&tab_rfl_time=0'
+        if Time(time_end) <= Time('2016-04-05T00:00:00.000'):
+            url = f'http://archive.eso.org/wdb/wdb/asm/historical_ambient_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_airmass=0&tab_rfl=0&tab_tau=1&tab_tet=0&top=1000000'
+        else:
+            url = f'http://archive.eso.org/wdb/wdb/asm/dimm_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_fwhm=1&tab_rfl=0&tab_rfl_time=0'
 
         try:
             req = requests.get(url, timeout=timeout)
@@ -1009,8 +1012,9 @@ class Reduction(object):
                 data = io.StringIO(req.text)
                 dimm_info = pd.read_csv(data, index_col=0, comment='#')
                 dimm_info.rename(columns={'Date time': 'date',
-                                          'DIMM Seeing ["]': 'dimm_seeing'}, inplace=True)
-                dimm_info.to_csv(path.products / 'mass-dimm_info.csv')
+                                          'DIMM Seeing ["]': 'dimm_seeing',
+                                          'Tau0 [s]': 'old_dimm_tau0'}, inplace=True)
+                dimm_info.to_csv(path.products / 'dimm_info.csv')
             else:
                 self._logger.debug('  ==> Query error')
         except requests.ReadTimeout:
