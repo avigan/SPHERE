@@ -244,7 +244,7 @@ class Reduction(object):
         path = self.path
 
         # files info
-        fname = path.products / 'files.csv'
+        fname = path.preproc / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
             
@@ -537,7 +537,7 @@ class Reduction(object):
 
         # save files_info
         self._logger.debug('> save files.csv')
-        files_info.to_csv(path.products / 'files.csv')
+        files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
 
         # update recipe execution
