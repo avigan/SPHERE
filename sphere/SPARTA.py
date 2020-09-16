@@ -414,7 +414,7 @@ class Reduction(object):
         self._logger.info('====> Science pre-processing <====')
         self._logger.warning('No pre-processing required for SPARTA data')
 
-        
+
     def process_science(self):
         '''
         Process the SPARTA files
@@ -1068,17 +1068,82 @@ class Reduction(object):
         # Telescope seeing
         #
 
+        self._logger.info('Query telescope seeing from SPHERE data')
+
+        url = f'http://archive.eso.org/wdb/wdb/eso/sphere/query?wdbo=csv&night={time_start:s}..{time_end:s}&tab_prog_id=0&tab_dp_id=0&tab_ob_id=0&tab_exptime=0&tab_dp_cat=0&tab_tpl_start=0&tab_dp_type=0&tab_dp_tech=0&tab_seq_arm=0&tab_ins3_opti5_name=0&tab_ins3_opti6_name=0&tab_ins_comb_vcor=0&tab_ins_comb_iflt=0&tab_ins_comb_pola=0&tab_ins_comb_icor=0&tab_det_dit1=0&tab_det_seq1_dit=0&tab_det_ndit=0&tab_det_read_curname=0&tab_ins2_opti2_name=0&tab_det_chip_index=0&tab_ins4_comb_rot=0&tab_ins1_filt_name=0&tab_ins1_opti1_name=0&tab_ins1_opti2_name=0&tab_ins4_opti11_name=0&tab_tel_ia_fwhm=1&tab_tel_ia_fwhmlin=1&tab_tel_ia_fwhmlinobs=1&tab_tel_ambi_windsp=0&tab_night=1&tab_fwhm_avg=0&top=1000'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                sphere_info = pd.read_csv(data, index_col=0, comment='#')
+
+                keys_to_drop = ['Object', 'RA', 'DEC', 'Target Ra Dec', 'Target l b', 'OBS Target Name']
+                for key in keys_to_drop:
+                    sphere_info.drop(key, axis=1, inplace=True)                
+                sphere_info.to_csv(path.products / 'ambi_info.csv')
+            else:
+                self._logger.debug('  ==> Query error')
+        except requests.ReadTimeout:
+            self._logger.error('  ==> Request to SPHERE archive timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty SPHERE archive data')
 
         #
         # Meteo tower for wind speed/direction and temperature
         #
 
+        self._logger.info('Query meteo tower')
+
+        url = f'http://archive.eso.org/wdb/wdb/asm/meteo_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_press=0&tab_presqnh=0&tab_temp1=1&tab_temp2=0&tab_temp3=0&tab_temp4=0&tab_tempdew1=0&tab_tempdew2=0&tab_tempdew4=0&tab_dustl1=0&tab_dustl2=0&tab_dusts1=0&tab_dusts2=0&tab_rain=0&tab_rhum1=0&tab_rhum2=0&tab_rhum4=0&tab_wind_dir1=1&tab_wind_dir1_180=0&tab_wind_dir2=0&tab_wind_dir2_180=0&tab_wind_speed1=1&tab_wind_speed2=0&tab_wind_speedu=0&tab_wind_speedv=0&tab_wind_speedw=0'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                meteo_info = pd.read_csv(data, index_col=0, comment='#')
+                meteo_info.rename(columns={'Date time': 'date',
+                                           'Air Temperature at 30m [C]': 'air_temperature_30m',
+                                           'Wind Direction at 30m (0/360) [deg]': 'winddir_30m',
+                                           'Wind Speed at 30m [m/s]': 'windspeed_30m'}, inplace=True)
+                meteo_info.to_csv(path.products / 'meteo_info.csv')
+            else:
+                self._logger.debug('  ==> Query error')
+        except requests.ReadTimeout:
+            self._logger.error('  ==> Request to meteo tower timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty meteo tower data')
         
         #
-        # Lathpro
+        # LATHPRO
         #
 
-        
+        self._logger.info('Query LATHPRO')
+
+        url = f'http://archive.eso.org/wdb/wdb/asm/lhatpro_paranal/query?wdbo=csv&start_date={time_start:s}..{time_end:s}&tab_integration=0&tab_lwp0=0'
+
+        try:
+            req = requests.get(url, timeout=timeout)
+            if req.status_code == requests.codes.ok:
+                self._logger.debug('  ==> Valid response received')
+
+                data = io.StringIO(req.text)
+                lathpro_info = pd.read_csv(data, index_col=0, comment='#')
+                lathpro_info.rename(columns={'Date time': 'date',
+                                             'IR temperature [Celsius]': 'lathpro_IR_temperature',
+                                             'Precipitable Water Vapour [mm]': 'lathpro_pwv'}, inplace=True)
+                lathpro_info.to_csv(path.products / 'lathpro_info.csv')
+            else:
+                self._logger.debug('  ==> Query error')
+        except requests.ReadTimeout:
+            self._logger.error('  ==> Request to meteo tower timed out')
+        except pd.errors.EmptyDataError:
+            self._logger.error('  ==> Empty meteo tower data')
+
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
