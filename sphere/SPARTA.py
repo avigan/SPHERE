@@ -224,6 +224,10 @@ class Reduction(object):
         return self._recipes_status
 
     @property
+    def config(self):
+        return self._config
+
+    @property
     def status(self):
         return self._status
         
