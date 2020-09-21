@@ -61,7 +61,7 @@ Author and contributors
 
 Arthur Vigan <[arthur.vigan@lam.fr](mailto:arthur.vigan@lam.fr)>, Laboratoire d'Astrophysique de Marseille / CNRS
 
-with contributions from:
+With important contributions from:
  * Julien Milli (IPAG/UGA): Support of SPARTA files
  * Jean-Françoise Sauvage (ONERA): Support of SPARTA files
  * Dino Mesa (INAF/OAPD): IFS pre-processing
