@@ -1184,6 +1184,12 @@ class Reduction(object):
         irloop_info  = self.irloop_info
         atmos_info   = self.atmospheric_info
 
+        # make sure we have times where needed
+        self._logger.debug('> convert times')
+        atmos_info['TIME']   = pd.to_datetime(atmos_info['TIME'], utc=False)
+        visloop_info['TIME'] = pd.to_datetime(visloop_info['TIME'], utc=False)
+        irloop_info['TIME']  = pd.to_datetime(irloop_info['TIME'], utc=False)
+        
         # additional databases
         file = path.products / 'mass-dimm_info.csv'
         if file.exists():
