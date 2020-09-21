@@ -50,7 +50,7 @@ class Reduction(object):
         ('sph_sparta_atmospheric_parameters', ['sort_files']),
         ('sph_query_databases', ['sort_files']),
         ('sph_sparta_plot', ['sort_files', 'sph_sparta_dtts', 'sph_sparta_wfs_parameters', 'sph_sparta_atmospheric_parameters']),
-        ('sph_ifs_clean', [])
+        ('sph_sparta_clean', [])
     ])
 
     ##################################################
@@ -450,6 +450,11 @@ class Reduction(object):
 
         self._logger.info('====> Clean-up <====')
 
+        config = self._config
+        
+        if config['clean']:
+            self.sph_sparta_clean(delete_raw=config['clean_delete_raw'],
+                                  delete_products=config['clean_delete_products'])
     
     def full_reduction(self):
         '''
