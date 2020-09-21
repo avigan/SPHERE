@@ -634,7 +634,8 @@ class Reduction(object):
         self._logger.debug('> save dtts_frames.csv')
         dtts_info.to_csv(path.products / 'dtts_frames.csv')
         fits.writeto(path.products / 'dtts_cube.fits', dtts_cube, overwrite=True)
-
+        self._dtts_info = dtts_info
+        
         # plot
         if plot:
             self._logger.debug('> plot DTTS images')
@@ -774,6 +775,7 @@ class Reduction(object):
         # save
         self._logger.debug('> save visloop_info.csv')
         visloop_info.to_csv(path.products / 'visloop_info.csv')
+        self._visloop_info = visloop_info
     
         #
         # IRLoop
@@ -836,6 +838,7 @@ class Reduction(object):
         # save
         self._logger.debug('> save irloop_info.csv')
         irloop_info.to_csv(path.products / 'irloop_info.csv')
+        self._irloop_info = irloop_info
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_wfs_parameters', sphere.SUCCESS)
@@ -863,8 +866,6 @@ class Reduction(object):
         #
         # Atmospheric parameters
         #
-        
-        self._logger.info('Process atmospheric parameters')
         
         # build indices
         files = []
@@ -937,7 +938,8 @@ class Reduction(object):
         # save
         self._logger.debug('> save atmospheric_info.csv')
         atmos_info.to_csv(path.products / 'atmospheric_info.csv')
-    
+        self._atmos_info = atmos_info
+        
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
 
@@ -1174,7 +1176,6 @@ class Reduction(object):
         # parameters
         path = self.path
         files_info   = self.files_info
-        dtts_info    = self.dtts_info
         visloop_info = self.visloop_info
         irloop_info  = self.irloop_info
         atmos_info   = self.atmospheric_info
