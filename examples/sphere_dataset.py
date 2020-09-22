@@ -15,5 +15,11 @@ for red in ds.IFS_reductions:
     red.config['clean'] = True
 print()
 
+print('SPARTA reductions:')
+for red in ds.SPARTA_reductions:
+    print(red)
+    red.config['clean'] = True
+print()
+
 #%% full reduction with default parameters
 ds.full_reduction()

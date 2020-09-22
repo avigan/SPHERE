@@ -27,6 +27,7 @@ import sphere.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
+
 def get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max):
     '''
     Return the linear wavelength calibration for each IRDIS field
@@ -83,20 +84,20 @@ class SpectroReduction(object):
     ##################################################
 
     # specify for each recipe which other recipes need to have been executed before
-    recipe_requirements = {
-        'sort_files': [],
-        'sort_frames': ['sort_files'],
-        'check_files_association': ['sort_files'],
-        'sph_ird_cal_dark': ['sort_files'],
-        'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_cal_wave': ['sort_files', 'sph_ird_cal_detector_flat'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
-                                       'sph_ird_cal_detector_flat'],
-        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
-        'sph_ird_wavelength_recalibration': ['sort_files', 'sort_frames', 'sph_ird_cal_wave'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_clean': []
-    }
+    recipe_requirements = collections.OrderedDict([
+        ('sort_files', []),
+        ('sort_frames', ['sort_files']),
+        ('check_files_association', ['sort_files']),
+        ('sph_ird_cal_dark', ['sort_files']),
+        ('sph_ird_cal_detector_flat', ['sort_files']),
+        ('sph_ird_cal_wave', ['sort_files', 'sph_ird_cal_detector_flat']),
+        ('sph_ird_preprocess_science', ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
+                                        'sph_ird_cal_detector_flat']),
+        ('sph_ird_star_center', ['sort_files', 'sort_frames', 'sph_ird_cal_wave']),
+        ('sph_ird_wavelength_recalibration', ['sort_files', 'sort_frames', 'sph_ird_cal_wave']),
+        ('sph_ird_combine_data', ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']),
+        ('sph_ird_clean', [])
+    ])
 
     ##################################################
     # Constructor
@@ -211,10 +212,13 @@ class SpectroReduction(object):
                 reduction._config[key] = val
 
         #
-        # reduction status
+        # reduction and recipes status
         #
         reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
+
+        for recipe in reduction.recipe_requirements.keys():
+            reduction._update_recipe_status(recipe, sphere.NOTSET)
 
         # reload any existing data frames
         reduction._read_info()
@@ -279,6 +283,10 @@ class SpectroReduction(object):
         return self._recipes_status
 
     @property
+    def status(self):
+        return self._status
+    
+    @property
     def config(self):
         return self._config
 
@@ -296,7 +304,7 @@ class SpectroReduction(object):
         '''
 
         # dictionary
-        dico = self._config
+        dico = self.config
 
         # misc parameters
         print()
@@ -347,9 +355,6 @@ class SpectroReduction(object):
 
         self._logger.info('====> Init <====')
 
-        # make sure we have sub-directories
-        self._path.create_subdirectories()
-
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
@@ -362,7 +367,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Static calibrations <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
@@ -376,7 +381,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Science pre-processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -393,9 +398,11 @@ class SpectroReduction(object):
 
         self._logger.info('====> Science processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
+                                 box_psf=config['center_box_psf'],
+                                 box_waffle=config['center_box_waffle'],
                                  plot=config['misc_plot'])
         self.sph_ird_wavelength_recalibration(fit_scaling=config['wave_fit_scaling'],
                                               plot=config['misc_plot'])
@@ -416,7 +423,7 @@ class SpectroReduction(object):
 
         self._logger.info('====> Clean-up <====')
 
-        config = self._config
+        config = self.config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
@@ -461,7 +468,7 @@ class SpectroReduction(object):
         self._logger.info('Read existing reduction information')
 
         # path
-        path = self._path
+        path = self.path
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -582,7 +589,6 @@ class SpectroReduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-        self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
@@ -602,7 +608,7 @@ class SpectroReduction(object):
         self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
-        path = self._path
+        path = self.path
 
         # list files
         files = path.raw.glob('*.fits')
@@ -619,7 +625,7 @@ class SpectroReduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords_irdifs.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -715,8 +721,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
@@ -782,19 +788,24 @@ class SpectroReduction(object):
 
         date = str(cinfo['DATE'][0])[0:10]
 
-        self._logger.info(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
-        self._logger.info(' * RA / DEC:    {0} / {1}'.format(RA, DEC))
-        self._logger.info(' * Date:        {0}'.format(date))
-        self._logger.info(' * Instrument:  {0}'.format(cinfo['SEQ ARM'][0]))
-        self._logger.info(' * Derotator:   {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
-        self._logger.info(' * Coronagraph: {0}'.format(cinfo['INS COMB ICOR'][0]))
-        self._logger.info(' * Mode:        {0}'.format(cinfo['INS1 MODE'][0]))
-        self._logger.info(' * Filter:      {0}'.format(cinfo['INS COMB IFLT'][0]))
-        self._logger.info(' * DIT:         {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
-        self._logger.info(' * NDIT:        {0:.0f}'.format(cinfo['DET NDIT'][0]))
-        self._logger.info(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
-        self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
-        self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
+        self._logger.info(' * Programme ID: {0}'.format(cinfo['OBS PROG ID'][0]))
+        self._logger.info(' * OB name:      {0}'.format(cinfo['OBS NAME'][0]))
+        self._logger.info(' * OB ID:        {0}'.format(cinfo['OBS ID'][0]))
+        self._logger.info(' * Object:       {0}'.format(cinfo['OBJECT'][0]))
+        self._logger.info(' * RA / DEC:     {0} / {1}'.format(RA, DEC))
+        self._logger.info(' * Date:         {0}'.format(date))
+        self._logger.info(' * Instrument:   {0}'.format(cinfo['SEQ ARM'][0]))
+        self._logger.info(' * Derotator:    {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
+        self._logger.info(' * VIS WFS mode: {0}'.format(cinfo['AOS VISWFS MODE'][0]))
+        self._logger.info(' * IR WFS mode:  {0}'.format(cinfo['AOS IRWFS MODE'][0]))
+        self._logger.info(' * Coronagraph:  {0}'.format(cinfo['INS COMB ICOR'][0]))
+        self._logger.info(' * Mode:         {0}'.format(cinfo['INS1 MODE'][0]))
+        self._logger.info(' * Filter:       {0}'.format(cinfo['INS COMB IFLT'][0]))
+        self._logger.info(' * DIT:          {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
+        self._logger.info(' * NDIT:         {0:.0f}'.format(cinfo['DET NDIT'][0]))
+        self._logger.info(' * Texp:         {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
+        self._logger.info(' * PA:           {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
+        self._logger.info(' * POSANG:       {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
         # update recipe execution
         self._update_recipe_status('sort_frames', sphere.SUCCESS)
@@ -819,8 +830,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
@@ -948,8 +959,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1078,8 +1089,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1193,8 +1204,8 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         wave_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'LAMP,WAVE')]
@@ -1400,9 +1411,9 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info
+        path = self.path
+        files_info = self.files_info
+        frames_info = self.frames_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -1597,7 +1608,7 @@ class SpectroReduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ird_star_center(self, high_pass=False, plot=True):
+    def sph_ird_star_center(self, high_pass=False, box_psf=40, box_waffle=240, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1606,6 +1617,12 @@ class SpectroReduction(object):
         high_pass : bool
             Apply high-pass filter to the image before searching for the satelitte spots.
             Default is False
+
+        box_psf : int
+            Size of the box in which the PSF fit is performed. Default is 60 pixels
+
+        box_waffle : int
+            Size of the box in which the waffle fit is performed. Default is 16 pixels
 
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
@@ -1620,10 +1637,10 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        pixel = self._pixel
-        files_info  = self._files_info
-        frames_info = self._frames_info_preproc
+        path = self.path
+        pixel = self.pixel
+        files_info  = self.files_info
+        frames_info = self.frames_info_preproc
 
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1658,8 +1675,8 @@ class SpectroReduction(object):
                     save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, save_path=save_path,
-                                                                    logger=self._logger)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, box_size=box_psf,
+                                                                    save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -1696,7 +1713,7 @@ class SpectroReduction(object):
                 spot_centers, spot_dist, img_centers \
                     = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel,
                                                                 high_pass=high_pass, save_path=save_path,
-                                                                logger=self._logger)
+                                                                box_size=box_waffle, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -1740,10 +1757,10 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
+        path = self.path
         lasers = self._wave_cal_lasers
-        files_info  = self._files_info
-        frames_info = self._frames_info_preproc
+        files_info  = self.files_info
+        frames_info = self.frames_info_preproc
 
         # remove old files
         self._logger.debug('> remove old recalibrated wavelength calibration')
@@ -1996,9 +2013,9 @@ class SpectroReduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        frames_info = self._frames_info_preproc
+        path = self.path
+        nwave = self.nwave
+        frames_info = self.frames_info_preproc
 
         # resolution-specific parameters
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -2416,42 +2433,8 @@ class SpectroReduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        # parameters
-        path = self._path
-
-        # tmp
-        if path.tmp.exists():
-            self._logger.debug('> remove {}'.format(path.tmp))
-            shutil.rmtree(path.tmp, ignore_errors=True)
-
-        # sof
-        if path.sof.exists():
-            self._logger.debug('> remove {}'.format(path.sof))
-            shutil.rmtree(path.sof, ignore_errors=True)
-
-        # calib
-        if path.calib.exists():
-            self._logger.debug('> remove {}'.format(path.calib))
-            shutil.rmtree(path.calib, ignore_errors=True)
-
-        # preproc
-        if path.preproc.exists():
-            self._logger.debug('> remove {}'.format(path.preproc))
-            shutil.rmtree(path.preproc, ignore_errors=True)
-
-        # raw
-        if delete_raw:
-            if path.raw.exists():
-                self._logger.debug('> remove {}'.format(path.raw))
-                self._logger.warning('   ==> delete raw files')
-                shutil.rmtree(path.raw, ignore_errors=True)
-
-        # products
-        if delete_products:
-            if path.products.exists():
-                self._logger.debug('> remove {}'.format(path.products))
-                self._logger.warning('   ==> delete products')
-                shutil.rmtree(path.products, ignore_errors=True)
+        # remove sub-directories
+        self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
         # update recipe execution
         self._logger.debug('> update recipe execution')

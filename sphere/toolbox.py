@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import astropy.coordinates as coord
+import astropy.coordinates as coordinates
 import astropy.units as units
 import scipy.ndimage as ndimage
 import matplotlib
@@ -119,41 +119,58 @@ def compute_times(frames_info, logger=_log):
     '''
 
     logger.debug('> compute time stamps')
+
+    # get instrument
+    instrument = frames_info['SEQ ARM'].unique()
     
-    # get necessary values
-    time_start = frames_info['DATE-OBS'].values
-    time_end   = frames_info['DET FRAM UTC'].values
-    time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
-    DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+    if (instrument == 'IRDIS') or (instrument == 'IFS'):
+        logger.debug('   ==> IRDIFS mode')
+        
+        # get necessary values
+        time_start = frames_info['DATE-OBS'].values
+        time_end   = frames_info['DET FRAM UTC'].values
+        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
+        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
 
-    # calculate UTC time stamps
-    idx = frames_info.index.get_level_values(1).values
-    ts_start = time_start + time_delta * idx
-    ts       = time_start + time_delta * idx + DIT/2
-    ts_end   = time_start + time_delta * idx + DIT
+        # calculate UTC time stamps
+        idx = frames_info.index.get_level_values(1).values
+        ts_start = time_start + time_delta * idx
+        ts       = time_start + time_delta * idx + DIT/2
+        ts_end   = time_start + time_delta * idx + DIT
 
-    # calculate mjd
-    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
-    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
-    geoelev = frames_info['TEL GEOELEV'].values[0]
+        # mjd
+        utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
+        mjd_start = utc.mjd
+        
+        utc = Time(ts.astype(str), scale='utc', location=sphere.location)
+        mjd = utc.mjd
 
-    utc = Time(ts_start.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd_start = utc.mjd
+        utc = Time(ts_end.astype(str), scale='utc', location=sphere.location)
+        mjd_end = utc.mjd
 
-    utc = Time(ts.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd = utc.mjd
+        # update frames_info
+        frames_info['TIME START'] = ts_start
+        frames_info['TIME']       = ts
+        frames_info['TIME END']   = ts_end
 
-    utc = Time(ts_end.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    mjd_end = utc.mjd
+        frames_info['MJD START']  = mjd_start
+        frames_info['MJD']        = mjd
+        frames_info['MJD END']    = mjd_end
+    elif instrument == 'SPARTA':
+        logger.debug('   ==> SPARTA mode')
 
-    # update frames_info
-    frames_info['TIME START'] = ts_start
-    frames_info['TIME']       = ts
-    frames_info['TIME END']   = ts_end
+        # get times directly from data frame
+        ts = frames_info['TIME'].values
+        ts_start = ts
+        ts_end   = ts
 
-    frames_info['MJD START']  = mjd_start
-    frames_info['MJD']        = mjd
-    frames_info['MJD END']    = mjd_end
+        # mjd
+        utc = Time(ts.astype(str), scale='utc', location=sphere.location)
+        mjd = utc.mjd
+
+        # update frames_info
+        frames_info['TIME'] = ts
+        frames_info['MJD']  = mjd
 
 
 def compute_angles(frames_info, logger=_log):
@@ -172,13 +189,19 @@ def compute_angles(frames_info, logger=_log):
     '''
 
     logger.debug('> compute angles')
+
+    # get instrument
+    instrument = frames_info['SEQ ARM'].unique()
     
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
-        alt = frames_info['TEL ALT'].values.astype(np.float)
-        drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
-        pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
+        try:
+            alt = frames_info['TEL ALT'].values.astype(np.float)
+            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
+            pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
+        except KeyError:
+            pa_correction = 0
     else:
         pa_correction = 0
 
@@ -187,7 +210,7 @@ def compute_angles(frames_info, logger=_log):
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-    ra_hour = coord.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
+    ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
     ra_deg  = ra_hour*15
     frames_info['RA'] = ra_deg
 
@@ -198,37 +221,43 @@ def compute_angles(frames_info, logger=_log):
     dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
     dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
     dec_drot_d *= sign
-    dec = coord.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
+    dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
     frames_info['DEC'] = dec
 
     # calculate parallactic angles
-    geolon = coord.Angle(frames_info['TEL GEOLON'].values[0], units.degree)
-    geolat = coord.Angle(frames_info['TEL GEOLAT'].values[0], units.degree)
-    geoelev = frames_info['TEL GEOELEV'].values[0]
-
-    utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
+    utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=sphere.location)
     lst = utc.sidereal_time('apparent')
     ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
-    frames_info['PARANG START'] = pa.value + pa_correction
-    frames_info['HOUR ANGLE START'] = ha
-    frames_info['LST START'] = lst
-
-    utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    lst = utc.sidereal_time('apparent')
-    ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
+    pa  = parallatic_angle(ha, dec[0], sphere.latitude)
     frames_info['PARANG'] = pa.value + pa_correction
     frames_info['HOUR ANGLE'] = ha
     frames_info['LST'] = lst
 
-    utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=(geolon, geolat, geoelev))
-    lst = utc.sidereal_time('apparent')
-    ha  = lst - ra_hour
-    pa  = parallatic_angle(ha, dec[0], geolat)
-    frames_info['PARANG END'] = pa.value + pa_correction
-    frames_info['HOUR ANGLE END'] = ha
-    frames_info['LST END'] = lst
+    # Altitude and airmass
+    j2000 = coordinates.SkyCoord(ra=ra_hour, dec=dec, frame='icrs', obstime=utc)
+    altaz = j2000.transform_to(coordinates.AltAz(location=sphere.location))
+
+    frames_info['ALTITUDE'] = altaz.alt.value
+    frames_info['AZIMUTH']  = altaz.az.value
+    frames_info['AIRMASS']  = altaz.secz.value
+
+    # START/END only applicable for IRDIFS data
+    if (instrument == 'IRDIS') or (instrument == 'IFS'):
+        utc = Time(frames_info['TIME START'].values.astype(str), scale='utc', location=sphere.location)
+        lst = utc.sidereal_time('apparent')
+        ha  = lst - ra_hour
+        pa  = parallatic_angle(ha, dec[0], sphere.latitude)
+        frames_info['PARANG START'] = pa.value + pa_correction
+        frames_info['HOUR ANGLE START'] = ha
+        frames_info['LST START'] = lst
+
+        utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=sphere.location)
+        lst = utc.sidereal_time('apparent')
+        ha  = lst - ra_hour
+        pa  = parallatic_angle(ha, dec[0], sphere.latitude)
+        frames_info['PARANG END'] = pa.value + pa_correction
+        frames_info['HOUR ANGLE END'] = ha
+        frames_info['LST END'] = lst
 
     #
     # Derotation angles
@@ -239,16 +268,17 @@ def compute_angles(frames_info, logger=_log):
     #   IFS = +100.48 ± 0.10
     #   IRD =    0.00 ± 0.00
     #
-    instru = frames_info['SEQ ARM'].unique()
-    if len(instru) != 1:
-        logger.error('Sequence is mixing different instruments: {0}'.format(instru))
+    if len(instrument) != 1:
+        logger.error('Sequence is mixing different instruments: {0}'.format(instrument))
         return sphere.ERROR
-    if instru == 'IFS':
+    if instrument == 'IFS':
         instru_offset = -100.48
-    elif instru == 'IRDIS':
+    elif instrument == 'IRDIS':
+        instru_offset = 0.0
+    elif instrument == 'SPARTA':
         instru_offset = 0.0
     else:
-        logger.error('Unkown instrument {0}'.format(instru))
+        logger.error('Unkown instrument {0}'.format(instrument))
         return sphere.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
@@ -452,7 +482,7 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
+def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_size=60,
                                    save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
@@ -472,6 +502,9 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
         Exclude a fraction of the image borders to avoid getting
         biased by hot pixels close to the edges. Default is 10%
 
+    box_size : int
+        Size of the box in which the fit is performed. Default is 60 pixels
+
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
@@ -489,7 +522,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
     # standard parameters
     nwave = wave.size
     loD = wave*1e-9/8 * 180/np.pi * 3600*1000/pixel
-    box = 30
+    box = box_size // 2
 
     # spot fitting
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
@@ -586,7 +619,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/np.nanmax(img), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/np.nanmax(img), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
                        interpolation='nearest', cmap=global_cmap)
             plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
             plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
@@ -610,7 +643,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1,
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logger=_log):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_path=None, logger=_log):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -624,6 +657,9 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logge
 
     pixel : float
         Pixel scale, in mas/pixel
+
+    box_size : int
+        Width of the box in which the fit is performed. Default is 16 pixels
 
     save_path : str
         Path where to save the fit images. Default is None, which means
@@ -639,7 +675,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logge
     '''
 
     # standard parameters
-    box = 20
+    box = box_size // 2
 
     # prepare plot
     if save_path:
@@ -690,7 +726,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logge
         if save_path:
             plt.subplot(1, 2, fidx+1)
 
-            plt.imshow(img/img.max(), aspect='equal', vmin=1e-6, vmax=1, norm=colors.LogNorm(), 
+            plt.imshow(img/img.max(), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
                        interpolation='nearest', cmap=global_cmap)
             plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='dodgerblue', linestyle='none',
                      ms=2, alpha=0.5)
@@ -716,7 +752,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, save_path=None, logge
 
 def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
                                       orientation_offset,  high_pass=False, center_offset=(0, 0), 
-                                      smooth=0, coro=True, save_path=None, logger=_log):
+                                      box_size=16, smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -755,6 +791,9 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
         will move the search box of the waffle spots by the amount of
         specified pixels in each direction. Default is no offset
 
+    box_size : int
+        Size of the box in which the fit is performed. Default is 16 pixels
+
     coro : bool
         Observation was performed with a coronagraph. Default is True
 
@@ -784,7 +823,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
     # waffle parameters
     freq = 10 * np.sqrt(2) * 0.97
-    box = 8
+    box = box_size // 2
     if waffle_orientation == '+':
         orient = orientation_offset * np.pi / 180
     elif waffle_orientation == 'x':
@@ -831,18 +870,14 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
             plt.clf()
 
             if high_pass:
-                norm = colors.PowerNorm(gamma=1)
-                vmin = -1e-1
-                vmax = 1e-1
+                norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
-                norm = colors.LogNorm()
-                vmin = 1e-2
-                vmax = 1
+                norm = colors.LogNorm(vmin=1e-2, vmax=1)
             
             col = ['green', 'blue', 'deepskyblue', 'purple']
             ax = fig.add_subplot(111)
-            ax.imshow(img/img.max(), aspect='equal', vmin=vmin, vmax=vmax, norm=norm,
-                      interpolation='nearest', cmap=global_cmap)
+            ax.imshow(img/img.max(), aspect='equal', norm=norm, interpolation='nearest',
+                      cmap=global_cmap)
             ax.set_title(r'Image #{0} - {1:.0f} nm'.format(idx+1, wave))
             ax.set_xlabel('x position [pix]')
             ax.set_ylabel('y position [pix]')
@@ -886,7 +921,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
                 axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
                 axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
                            cmap=global_cmap)
-                axs.plot([par[0].x_mean], [par[0].y_mean], marker='D', color=col[s])
+                axs.plot([par[0].x_mean.value], [par[0].y_mean.value], marker='D', color=col[s])
                 axs.set_xticks([])
                 axs.set_yticks([])
 
@@ -936,7 +971,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
 
 
 def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_guess, pixel, high_pass=False,
-                                      save_path=None, logger=_log):
+                                      box_size=240, save_path=None, logger=_log):
     '''
     Compute star center from waffle LSS spectra (IRDIS LSS)
 
@@ -961,6 +996,9 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
         Apply high-pass filter to the image before searching for the
         satelitte spots. Default is False
 
+    box_size : int
+        With of the box in which the fit is performed. Default is 16 pixels
+
     save_path : str
         Path where to save the fit images. Default is None, which means
         that the plot is not produced
@@ -981,7 +1019,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
     '''
 
     # standard parameters
-    box = 120
+    box = box_size // 2
 
     # loop over fiels and wavelengths
     nimg = len(cube_cen)
@@ -1050,17 +1088,13 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             
         if save_path:            
             if high_pass or (cube_sci is not None):
-                norm = colors.PowerNorm(gamma=1)
-                vmin = -1e-1
-                vmax = 1e-1
+                norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
-                norm = colors.LogNorm()
-                vmin = 1e-5
-                vmax = 1
+                norm = colors.LogNorm(vmin=1e-5, vmax=1)
             
             plt.subplot(1, 2, fidx+1)
-            plt.imshow(img/img.max(), aspect='equal', vmin=vmin, vmax=vmax, interpolation='nearest',
-                       cmap=global_cmap, norm=norm)
+            plt.imshow(img/img.max(), aspect='equal', interpolation='nearest', cmap=global_cmap,
+                       norm=norm)
             plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='dodgerblue', 
                      linestyle='none', ms=2, alpha=1)
             plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='dodgerblue', 

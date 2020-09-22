@@ -56,7 +56,13 @@ IFS:
 
 We are grateful for your effort, and hope that these tools will contribute to your scientific work and discoveries. Please feel free to report any bug or possible improvement to the author(s).
 
-Author
-------
+Author and contributors
+-----------------------
 
 Arthur Vigan <[arthur.vigan@lam.fr](mailto:arthur.vigan@lam.fr)>, Laboratoire d'Astrophysique de Marseille / CNRS
+
+With important contributions from:
+ * Julien Milli (IPAG/UGA): Support of SPARTA files
+ * Jean-Françoise Sauvage (ONERA): Support of SPARTA files
+ * Dino Mesa (INAF/OAPD): IFS pre-processing
+ * ESO personnel in general: SPHERE pipeline and calibration procedures

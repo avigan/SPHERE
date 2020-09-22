@@ -35,18 +35,18 @@ class ImagingReduction(object):
     ##################################################
 
     # specify for each recipe which other recipes need to have been executed before
-    recipe_requirements = {
-        'sort_files': [],
-        'sort_frames': ['sort_files'],
-        'check_files_association': ['sort_files'],
-        'sph_ird_cal_dark': ['sort_files'],
-        'sph_ird_cal_detector_flat': ['sort_files'],
-        'sph_ird_preprocess_science': ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
-                                       'sph_ird_cal_detector_flat'],
-        'sph_ird_star_center': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_combine_data': ['sort_files', 'sort_frames', 'sph_ird_preprocess_science'],
-        'sph_ird_clean': []
-    }
+    recipe_requirements = collections.OrderedDict([
+        ('sort_files', []),
+        ('sort_frames', ['sort_files']),
+        ('check_files_association', ['sort_files']),
+        ('sph_ird_cal_dark', ['sort_files']),
+        ('sph_ird_cal_detector_flat', ['sort_files']),
+        ('sph_ird_preprocess_science', ['sort_files', 'sort_frames', 'sph_ird_cal_dark',
+                                        'sph_ird_cal_detector_flat']),
+        ('sph_ird_star_center', ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']),
+        ('sph_ird_combine_data', ['sort_files', 'sort_frames', 'sph_ird_preprocess_science']),
+        ('sph_ird_clean', [])
+    ])
 
     ##################################################
     # Constructor
@@ -156,11 +156,14 @@ class ImagingReduction(object):
                 reduction._config[key] = val
 
         #
-        # reduction status
+        # reduction and recipes status
         #
         reduction._status = sphere.INIT
         reduction._recipes_status = collections.OrderedDict()
 
+        for recipe in reduction.recipe_requirements.keys():
+            reduction._update_recipe_status(recipe, sphere.NOTSET)
+        
         # reload any existing data frames
         reduction._read_info()
 
@@ -224,6 +227,10 @@ class ImagingReduction(object):
         return self._recipes_status
 
     @property
+    def status(self):
+        return self._status
+    
+    @property
     def config(self):
         return self._config
 
@@ -241,7 +248,7 @@ class ImagingReduction(object):
         '''
 
         # dictionary
-        dico = self._config
+        dico = self.config
 
         # misc parameters
         print()
@@ -286,9 +293,6 @@ class ImagingReduction(object):
 
         self._logger.info('====> Init <====')
 
-        # make sure we have sub-directories
-        self._path.create_subdirectories()
-
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
@@ -301,7 +305,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Static calibrations <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_cal_dark(silent=config['misc_silent_esorex'])
         self.sph_ird_cal_detector_flat(silent=config['misc_silent_esorex'])
@@ -314,7 +318,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Science pre-processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_preprocess_science(subtract_background=config['preproc_subtract_background'],
                                         fix_badpix=config['preproc_fix_badpix'],
@@ -333,10 +337,12 @@ class ImagingReduction(object):
 
         self._logger.info('====> Science processing <====')
 
-        config = self._config
+        config = self.config
 
         self.sph_ird_star_center(high_pass=config['center_high_pass'],
                                  offset=config['center_offset'],
+                                 box_psf=config['center_box_psf'],
+                                 box_waffle=config['center_box_waffle'],
                                  plot=config['misc_plot'])
         self.sph_ird_combine_data(cpix=config['combine_cpix'],
                                   psf_dim=config['combine_psf_dim'],
@@ -356,7 +362,7 @@ class ImagingReduction(object):
 
         self._logger.info('====> Clean-up <====')
 
-        config = self._config
+        config = self.config
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
@@ -401,7 +407,7 @@ class ImagingReduction(object):
         self._logger.info('Read existing reduction information')
 
         # path
-        path = self._path
+        path = self.path
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -510,7 +516,6 @@ class ImagingReduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-        self._recipes_status.move_to_end(recipe)
 
     ##################################################
     # SPHERE/IRDIS methods
@@ -530,7 +535,7 @@ class ImagingReduction(object):
         self._update_recipe_status('sort_files', sphere.NOTSET)
 
         # parameters
-        path = self._path
+        path = self.path
 
         # list files
         files = path.raw.glob('*.fits')
@@ -547,7 +552,7 @@ class ImagingReduction(object):
         # read list of keywords
         self._logger.debug('> read keyword list')
         keywords = []
-        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords.dat', 'r')
+        file = open(Path(sphere.__file__).parent / 'instruments' / 'keywords_irdifs.dat', 'r')
         for line in file:
             line = line.strip()
             if line:
@@ -643,8 +648,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # science files
         sci_files = files_info[(files_info['DPR CATG'] == 'SCIENCE') & (files_info['DPR TYPE'] != 'SKY')]
@@ -710,19 +715,24 @@ class ImagingReduction(object):
 
         date = str(cinfo['DATE'][0])[0:10]
 
-        self._logger.info(' * Object:      {0}'.format(cinfo['OBJECT'][0]))
-        self._logger.info(' * RA / DEC:    {0} / {1}'.format(RA, DEC))
-        self._logger.info(' * Date:        {0}'.format(date))
-        self._logger.info(' * Instrument:  {0}'.format(cinfo['SEQ ARM'][0]))
-        self._logger.info(' * Derotator:   {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
-        self._logger.info(' * Coronagraph: {0}'.format(cinfo['INS COMB ICOR'][0]))
-        self._logger.info(' * Mode:        {0}'.format(cinfo['INS1 MODE'][0]))
-        self._logger.info(' * Filter:      {0}'.format(cinfo['INS COMB IFLT'][0]))
-        self._logger.info(' * DIT:         {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
-        self._logger.info(' * NDIT:        {0:.0f}'.format(cinfo['DET NDIT'][0]))
-        self._logger.info(' * Texp:        {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
-        self._logger.info(' * PA:          {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
-        self._logger.info(' * POSANG:      {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
+        self._logger.info(' * Programme ID: {0}'.format(cinfo['OBS PROG ID'][0]))
+        self._logger.info(' * OB name:      {0}'.format(cinfo['OBS NAME'][0]))
+        self._logger.info(' * OB ID:        {0}'.format(cinfo['OBS ID'][0]))
+        self._logger.info(' * Object:       {0}'.format(cinfo['OBJECT'][0]))
+        self._logger.info(' * RA / DEC:     {0} / {1}'.format(RA, DEC))
+        self._logger.info(' * Date:         {0}'.format(date))
+        self._logger.info(' * Instrument:   {0}'.format(cinfo['SEQ ARM'][0]))
+        self._logger.info(' * Derotator:    {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
+        self._logger.info(' * VIS WFS mode: {0}'.format(cinfo['AOS VISWFS MODE'][0]))
+        self._logger.info(' * IR WFS mode:  {0}'.format(cinfo['AOS IRWFS MODE'][0]))
+        self._logger.info(' * Coronagraph:  {0}'.format(cinfo['INS COMB ICOR'][0]))
+        self._logger.info(' * Mode:         {0}'.format(cinfo['INS1 MODE'][0]))
+        self._logger.info(' * Filter:       {0}'.format(cinfo['INS COMB IFLT'][0]))
+        self._logger.info(' * DIT:          {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
+        self._logger.info(' * NDIT:         {0:.0f}'.format(cinfo['DET NDIT'][0]))
+        self._logger.info(' * Texp:         {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
+        self._logger.info(' * PA:           {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
+        self._logger.info(' * POSANG:       {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
 
         # recipe execution status
         self._update_recipe_status('sort_frames', sphere.SUCCESS)
@@ -747,7 +757,7 @@ class ImagingReduction(object):
             return
 
         # parameters
-        files_info = self._files_info
+        files_info = self.files_info
 
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
@@ -847,8 +857,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -977,8 +987,8 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
+        path = self.path
+        files_info = self.files_info
 
         # get list of files
         calibs = files_info[np.logical_not(files_info['PROCESSED']) &
@@ -1127,9 +1137,9 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        files_info = self._files_info
-        frames_info = self._frames_info
+        path = self.path
+        files_info = self.files_info
+        frames_info = self.frames_info
 
         # clean before we start
         self._logger.debug('> remove old preproc files')
@@ -1354,7 +1364,7 @@ class ImagingReduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), plot=True):
+    def sph_ird_star_center(self, high_pass=False, offset=(0, 0), box_psf=60, box_waffle=16, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
@@ -1369,6 +1379,12 @@ class ImagingReduction(object):
             The offset will move the search box of the waffle spots by the amount of
             specified pixels in each direction. Default is no offset
 
+        box_psf : int
+            Size of the box in which the PSF fit is performed. Default is 60 pixels
+
+        box_waffle : int
+            Size of the box in which the waffle fit is performed. Default is 16 pixels
+
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
 
@@ -1382,11 +1398,11 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        pixel = self._pixel
+        path = self.path
+        pixel = self.pixel
         orientation_offset = self._orientation_offset
         center_guess = self._default_center
-        frames_info = self._frames_info_preproc
+        frames_info = self.frames_info_preproc
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1409,9 +1425,9 @@ class ImagingReduction(object):
                     save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel,
-                                                                    exclude_fraction=0.3,
-                                                                    save_path=save_path, logger=self._logger)
+                img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.3,
+                                                                    box_size=box_psf, save_path=save_path,
+                                                                    logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -1445,8 +1461,8 @@ class ImagingReduction(object):
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave, waffle_orientation, center_guess,
                                                                 pixel, orientation_offset, high_pass=high_pass,
-                                                                center_offset=offset, coro=coro, save_path=save_path,
-                                                                logger=self._logger)
+                                                                center_offset=offset, box_size=box_waffle,
+                                                                coro=coro, save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -1565,9 +1581,9 @@ class ImagingReduction(object):
             return
 
         # parameters
-        path = self._path
-        nwave = self._nwave
-        frames_info = self._frames_info_preproc
+        path = self.path
+        nwave = self.nwave
+        frames_info = self.frames_info_preproc
 
         # wavelength
         filter_comb = frames_info['INS COMB IFLT'].unique()[0]
@@ -1958,42 +1974,8 @@ class ImagingReduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        # parameters
-        path = self._path
-
-        # tmp
-        if path.tmp.exists():
-            self._logger.debug('> remove {}'.format(path.tmp))
-            shutil.rmtree(path.tmp, ignore_errors=True)
-
-        # sof
-        if path.sof.exists():
-            self._logger.debug('> remove {}'.format(path.sof))
-            shutil.rmtree(path.sof, ignore_errors=True)
-
-        # calib
-        if path.calib.exists():
-            self._logger.debug('> remove {}'.format(path.calib))
-            shutil.rmtree(path.calib, ignore_errors=True)
-
-        # preproc
-        if path.preproc.exists():
-            self._logger.debug('> remove {}'.format(path.preproc))
-            shutil.rmtree(path.preproc, ignore_errors=True)
-
-        # raw
-        if delete_raw:
-            if path.raw.exists():
-                self._logger.debug('> remove {}'.format(path.raw))
-                self._logger.warning('   ==> delete raw files')
-                shutil.rmtree(path.raw, ignore_errors=True)
-
-        # products
-        if delete_products:
-            if path.products.exists():
-                self._logger.debug('> remove {}'.format(path.products))
-                self._logger.warning('   ==> delete products')
-                shutil.rmtree(path.products, ignore_errors=True)
+        # remove sub-directories
+        self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
         # recipe execution status
         self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)

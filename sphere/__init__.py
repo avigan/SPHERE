@@ -1,26 +1,62 @@
 __author__    = 'Arthur Vigan'
 __copyright__ = 'Copyright (C) 2017-2020 Arthur Vigan'
 __license__   = 'MIT'
-__version__   = '1.2'
+__version__   = '1.3'
 
 import logging
+import enum
+import astropy.units as u
+import astropy.coordinates as coordinates
+
+#
+# recipe execution status
+#
+class RecipeStatus(enum.IntEnum):
+    NOTSET     = -1
+    SUCCESS    =  0
+    ERROR      =  1
+    FATAL      =  2
+
+    def __repr__(self):
+        return self.name
+
+NOTSET     = RecipeStatus.NOTSET
+SUCCESS    = RecipeStatus.SUCCESS
+ERROR      = RecipeStatus.ERROR
+FATAL      = RecipeStatus.FATAL
+
+#
+# reduction execution status
+#
+class ReductionStatus(enum.IntEnum):
+    COMPLETE   =   0
+    INIT       = -10
+    INCOMPLETE = -20
+
+    def __repr__(self):
+        return self.name
+
+COMPLETE   = ReductionStatus.COMPLETE
+INIT       = ReductionStatus.INIT
+INCOMPLETE = ReductionStatus.INCOMPLETE
+
+#
+# Paranal location
+#
+latitude  = -24.6268*u.degree
+longitude = -70.4045*u.degree
+altitude  = 2648*u.meter
+location  = coordinates.EarthLocation(lon=longitude, lat=latitude, height=altitude)
+
+#
+# logging
+#
 
 # define logging format for module
 logging.basicConfig(format='[%(levelname)8s] %(message)s')
 _log = logging.getLogger(__name__)
 _log.setLevel(logging.DEBUG)
 _log.info('vlt-sphere init')
-
-# recipe execution status
-NOTSET     = -1
-SUCCESS    =  0
-ERROR      =  1
-FATAL      =  2
-
-COMPLETE   =   0
-INIT       = -10
-INCOMPLETE = -20
-
 
 # log level
 def set_loglevel(level):
