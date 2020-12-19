@@ -1729,7 +1729,6 @@ class ImagingReduction(object):
             self._logger.debug('> save final cubes and metadata')
             flux_files.to_csv(path.products / 'psf_frames.csv')
             fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
-            fits.writeto(path.products / 'psf_parang.fits', psf_parang, overwrite=True)
             fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
@@ -1823,7 +1822,6 @@ class ImagingReduction(object):
             self._logger.debug('> save final cubes and metadata')
             starcen_files.to_csv(path.products / 'starcenter_frames.csv')
             fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
-            fits.writeto(path.products / 'starcenter_parang.fits', cen_parang, overwrite=True)
             fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
@@ -1959,7 +1957,6 @@ class ImagingReduction(object):
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
             fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
-            fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
             fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
