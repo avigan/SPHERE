@@ -406,7 +406,8 @@ class SpectroReduction(object):
 
         config = self.config
 
-        self.sph_ird_star_center(high_pass=config['center_high_pass'],
+        self.sph_ird_star_center(high_pass_psf=config['center_high_pass_psf'],
+                                 high_pass_waffle=config['center_high_pass_waffle'],
                                  box_psf=config['center_box_psf'],
                                  box_waffle=config['center_box_waffle'],
                                  plot=config['misc_plot'])
@@ -1616,14 +1617,18 @@ class SpectroReduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ird_star_center(self, high_pass=False, box_psf=40, box_waffle=240, plot=True):
+    def sph_ird_star_center(self, high_pass_psf=False, high_pass_waffle=False, box_psf=40, box_waffle=240, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
-        high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots.
+        high_pass_psf : bool
+            Apply high-pass filter to the PSF image before searching for the center.
+            Default is False
+
+        high_pass_waffle : bool
+            Apply high-pass filter to the center image before searching for the waffle spots.
             Default is False
 
         box_psf : int
@@ -1680,11 +1685,11 @@ class SpectroReduction(object):
 
                 # centers
                 if plot:
-                    save_path = path.products / '{}_PSF_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}_psf_fitting.pdf'.format(fname)
                 else:
                     save_path = None
-                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, box_size=box_psf,
-                                                                    save_path=save_path, logger=self._logger)
+                psf_center = toolbox.star_centers_from_PSF_lss_cube(cube, wave_lin, pixel, high_pass=high_pass_psf,
+                                                                    box_size=box_psf, save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -1715,12 +1720,12 @@ class SpectroReduction(object):
 
                 # centers
                 if plot:
-                    save_path = path.products / '{}_spots_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}_waffle_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_centers, spot_dist, img_centers \
                     = toolbox.star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_lin, centers, pixel,
-                                                                high_pass=high_pass, save_path=save_path,
+                                                                high_pass=high_pass_waffle, save_path=save_path,
                                                                 box_size=box_waffle, logger=self._logger)
 
                 # save

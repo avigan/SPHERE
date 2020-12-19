@@ -702,11 +702,12 @@ class Reduction(object):
         
         config = self.config
 
-        self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
+        self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass_waffle'],
                                               offset=config['center_offset'],
                                               box_waffle=config['center_box_waffle'],
                                               plot=config['misc_plot'])
-        self.sph_ifs_star_center(high_pass=config['center_high_pass'],
+        self.sph_ifs_star_center(high_pass_psf=config['center_high_pass_psf'],
+                                 high_pass_waffle=config['center_high_pass_waffle'],
                                  offset=config['center_offset'],
                                  box_psf=config['center_box_psf'],
                                  box_waffle=config['center_box_waffle'],
@@ -2541,7 +2542,7 @@ class Reduction(object):
         Parameters
         ----------
         high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots.
+            Apply high-pass filter to the image before searching for the waffle spots.
             Default is False
 
         offset : tuple
@@ -2598,12 +2599,12 @@ class Reduction(object):
         #
         # star center
         #
-        self._logger.info(' * fitting satellite spots')
+        self._logger.info(' * fitting waffle spots')
 
         # get first DIT of first OBJECT,CENTER in the sequence
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) == 0:
-            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
+            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pipeline will be used.')
             return
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
@@ -2623,7 +2624,7 @@ class Reduction(object):
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
         self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
         if plot:
-            save_path = path.products / '{}spots_fitting.pdf'.format(fname)
+            save_path = path.products / '{}waffle_fitting.pdf'.format(fname)
         else:
             save_path = None
         spot_center, spot_dist, img_center \
@@ -2769,14 +2770,20 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), box_psf=60, box_waffle=16, plot=True):
+    def sph_ifs_star_center(self, high_pass_psf=False, high_pass_waffle=False, offset=(0, 0),
+                            box_psf=60, box_waffle=16, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
-        high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots
+        high_pass_psf : bool
+            Apply high-pass filter to the PSF image before searching for the center.
+            Default is False
+
+        high_pass_waffle : bool
+            Apply high-pass filter to the image before searching for the waffle spots.
+            Default is False
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
@@ -2834,12 +2841,12 @@ class Reduction(object):
 
                 # centers
                 if plot:
-                    save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}psf_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, exclude_fraction=0.15,
-                                                                    box_size=box_psf, save_path=save_path,
-                                                                    logger=self._logger)
+                                                                    high_pass=high_pass_psf, box_size=box_psf,
+                                                                    save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -2867,12 +2874,12 @@ class Reduction(object):
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
                 self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
                 if plot:
-                    save_path = path.products / '{}spots_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}waffle_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
-                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                pixel, orientation_offset, high_pass=high_pass_waffle, 
                                                                 center_offset=offset, box_size=box_waffle,
                                                                 save_path=save_path, logger=self._logger)
 
