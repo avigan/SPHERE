@@ -13,6 +13,7 @@ reduction.config['combine_science_dim']      = 400
 reduction.config['combine_shift_method']     = 'fft'
 reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'mean'
+reduction.config['clean']                    = False
 reduction.show_config()
 
 #%% reduction

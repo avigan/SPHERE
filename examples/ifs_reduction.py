@@ -11,6 +11,7 @@ reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/', log_leve
 reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'coadd'
 reduction.config['preproc_coadd_value']      = 2
+reduction.config['clean']                    = False
 reduction.show_config()
 
 #%% reduction
