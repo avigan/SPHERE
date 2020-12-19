@@ -1,7 +1,7 @@
 VLT/SPHERE
 ==========
 
-<img src="https://img.shields.io/badge/Python->3.5-yellow.svg?style=flat"> [<img src="https://img.shields.io/pypi/v/vlt-sphere.svg?colorB=<brightgreen>">](https://pypi.org/project/vlt-sphere/) [<img src="https://img.shields.io/github/v/release/avigan/SPHERE?color=red">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/release-date/avigan/SPHERE">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/license/avigan/SPHERE?color=blue">](https://github.com/avigan/SPHERE/blob/master/LICENSE) [<img src="https://img.shields.io/badge/ascl-2009.002-blue.svg?colorB=262255" alt="ascl:2009.002" />](https://ascl.net/2009.002) [<img src="https://img.shields.io/badge/ADS%20citation-Vigan%20(2020)-blueviolet">](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
+<img src="https://img.shields.io/badge/Python->3.5-yellow.svg?style=flat"> [<img src="https://img.shields.io/pypi/v/vlt-sphere.svg?colorB=<brightgreen>">](https://pypi.org/project/vlt-sphere/) [<img src="https://img.shields.io/github/v/release/avigan/SPHERE?color=red">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/release-date/avigan/SPHERE">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/license/avigan/SPHERE?color=blue">](https://github.com/avigan/SPHERE/blob/master/LICENSE) [<img src="https://img.shields.io/badge/ascl-2009.002-blue.svg?colorB=262255" alt="ascl:2009.002" />](https://ascl.net/2009.002) [<img src="https://img.shields.io/badge/ADS%20reference-Vigan%20(2020)-blueviolet">](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
 
 Information
 -----------
