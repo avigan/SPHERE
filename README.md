@@ -43,7 +43,7 @@ Credits
 
 Please cite the following reference if you use this pipeline in a scientific publication:
 
-[Vigan, 2020, ASCL, ascl:2009.002](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
+* [Vigan, 2020, ASCL, ascl:2009.002](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
 
 Moreover, the development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
 
