@@ -173,7 +173,7 @@ def compute_times(frames_info, logger=_log):
         frames_info['MJD']  = mjd
 
 
-def compute_angles(frames_info, logger=_log):
+def compute_angles(frames_info, true_north, logger=_log):
     '''
     Compute the various angles associated to frames: RA, DEC, parang,
     pupil offset, final derotation angle
@@ -183,9 +183,11 @@ def compute_angles(frames_info, logger=_log):
     frames_info : dataframe
         The data frame with all the information on science frames
 
+    true_north : float
+        True North offset correction, in degrees
+
     logger : logHandler object
         Log handler for the reduction. Default is root logger
-
     '''
 
     logger.debug('> compute angles')
@@ -262,11 +264,13 @@ def compute_angles(frames_info, logger=_log):
     #
     # Derotation angles
     #
-    # PA_on-sky = PA_detector + PARANGLE + True_North + PUP_OFFSET + INSTRUMENT_OFFSET
-    #  PUP_OFFSET = -135.99 ± 0.11
+    # PA_on-sky = PA_detector + PARANGLE + True_North + PUP_OFFSET + INSTRUMENT_OFFSET + TRUE_NORTH
+    #
+    #  PUP_OFFSET = +135.99 ± 0.11
     #  INSTRUMENT_OFFSET
-    #   IFS = +100.48 ± 0.10
-    #   IRD =    0.00 ± 0.00
+    #     * IFS = -100.48 ± 0.10
+    #     * IRD =    0.00 ± 0.00
+    #  TRUE_NORTH = -1.75 ± 0.08
     #
     if len(instrument) != 1:
         logger.error('Sequence is mixing different instruments: {0}'.format(instrument))
@@ -298,7 +302,7 @@ def compute_angles(frames_info, logger=_log):
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
-    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset
+    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset + true_north
     
     return sphere.SUCCESS
 

@@ -747,7 +747,8 @@ class SpectroReduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(frames_info, logger=self._logger)
+        true_north = self.config['true_north']
+        ret = toolbox.compute_angles(frames_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL

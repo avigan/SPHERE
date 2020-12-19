@@ -124,6 +124,22 @@ class ImagingReduction(object):
         reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))
 
         #
+        # v1.4 - True North correction change
+        #
+        reduction._logger.warning('#################################################################')
+        reduction._logger.warning('Starting in the present version of the pipeline, the default     ')
+        reduction._logger.warning('-1.75° true North offset is automatically added to the derotation')
+        reduction._logger.warning('angles. The offset value can be modified in the configuration of ')
+        reduction._logger.warning('the reduction:                                                   ')
+        reduction._logger.warning('                                                                 ')
+        reduction._logger.warning('  >>> reduction.config[\'true_north\'] = xxx                     ')
+        reduction._logger.warning('                                                                 ')
+        reduction._logger.warning('To avoid any issues, make sure to:                               ')
+        reduction._logger.warning('  * either reprocess data previously processed with version <1.4 ')
+        reduction._logger.warning('  * or take into account the offset in your astrometric analysis ')
+        reduction._logger.warning('#################################################################')
+        
+        #
         # configuration
         #
         configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
@@ -674,7 +690,8 @@ class ImagingReduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(frames_info, logger=self._logger)
+        true_north = self.config['true_north']        
+        ret = toolbox.compute_angles(frames_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
