@@ -1,6 +1,9 @@
 VLT/SPHERE
 ==========
 
+<!--<a href="https://ascl.net/2009.002">-->
+<img src="https://img.shields.io/badge/ascl-2009.002-blue.svg?colorB=262255" alt="ascl:2009.002" />
+
 Information
 -----------
 
