@@ -314,6 +314,12 @@ class SpectroReduction(object):
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
 
+        # calibrations
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('cal')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
         # pre-processing
         print('-'*35)
         keys = [key for key in dico if key.startswith('preproc')]
@@ -747,7 +753,7 @@ class SpectroReduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        true_north = self.config['true_north']
+        true_north = self.config['cal_true_north']
         ret = toolbox.compute_angles(frames_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
@@ -1520,28 +1526,29 @@ class SpectroReduction(object):
                     img[:, :, 1966:]    = np.nan
 
                     # collapse
+                    true_north = self.config['cal_true_north']
                     if (typ == 'OBJECT,CENTER'):
                         if collapse_center:
                             self._logger.info('   ==> collapse: mean')
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
                     elif (typ == 'OBJECT,FLUX'):
                         if collapse_psf:
                             self._logger.info('   ==> collapse: mean')
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
                     elif (typ == 'OBJECT'):
                         if collapse_science:
                             self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
 
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
 
                     # check for any error during collapse of frame information
                     if frames_info_new is None:

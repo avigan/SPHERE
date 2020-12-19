@@ -346,7 +346,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
     return bpm
 
 
-def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log):
+def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2, logger=_log):
     '''
     Collapse frame info to match the collapse operated on the data
 
@@ -357,6 +357,9 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
 
     fname : str
        The name of the current file
+
+    true_north : float
+        True North offset correction, in degrees
 
     collapse_type : str
         Type of collapse. Possible values are mean or coadd. Default
@@ -402,7 +405,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
         
         # recompute angles
-        ret = compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
             return None
     elif collapse_type == 'coadd':
@@ -431,7 +434,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                              (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
             
         # recompute angles
-        ret = compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
             return None
     else:
