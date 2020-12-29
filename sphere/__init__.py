@@ -1,7 +1,7 @@
 __author__    = 'Arthur Vigan'
 __copyright__ = 'Copyright (C) 2017-2021 Arthur Vigan'
 __license__   = 'MIT'
-__version__   = '1.3'
+__version__   = '1.4'
 
 import logging
 import enum
