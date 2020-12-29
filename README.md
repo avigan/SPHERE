@@ -1,6 +1,8 @@
 VLT/SPHERE
 ==========
 
+<img src="https://img.shields.io/badge/Python->3.5-yellow.svg?style=flat"> [<img src="https://img.shields.io/pypi/v/vlt-sphere.svg?colorB=<brightgreen>">](https://pypi.org/project/vlt-sphere/) [<img src="https://img.shields.io/github/v/release/avigan/SPHERE?color=red">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/release-date/avigan/SPHERE">](https://github.com/avigan/SPHERE/releases/tag/v1.3) [<img src="https://img.shields.io/github/license/avigan/SPHERE?color=blue">](https://github.com/avigan/SPHERE/blob/master/LICENSE) [<img src="https://img.shields.io/badge/ascl-2009.002-blue.svg?colorB=262255" alt="ascl:2009.002" />](https://ascl.net/2009.002) [<img src="https://img.shields.io/badge/ADS%20reference-Vigan%20(2020)-blueviolet">](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
+
 Information
 -----------
 
@@ -39,7 +41,11 @@ The package is not fully documented, but [examples are provided](https://github.
 Credits
 -------
 
-The development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
+Please cite the following reference if you use this pipeline in a scientific publication:
+
+* [Vigan, 2020, ASCL, ascl:2009.002](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
+
+Moreover, the development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
 
 SPHERE:
  * General description: [Beuzit et al., 2019, A&A, 631, A155](https://ui.adsabs.harvard.edu/abs/2019A%26A...631A.155B/abstract)

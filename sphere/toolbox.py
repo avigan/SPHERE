@@ -173,7 +173,7 @@ def compute_times(frames_info, logger=_log):
         frames_info['MJD']  = mjd
 
 
-def compute_angles(frames_info, logger=_log):
+def compute_angles(frames_info, true_north, logger=_log):
     '''
     Compute the various angles associated to frames: RA, DEC, parang,
     pupil offset, final derotation angle
@@ -183,9 +183,11 @@ def compute_angles(frames_info, logger=_log):
     frames_info : dataframe
         The data frame with all the information on science frames
 
+    true_north : float
+        True North offset correction, in degrees
+
     logger : logHandler object
         Log handler for the reduction. Default is root logger
-
     '''
 
     logger.debug('> compute angles')
@@ -262,11 +264,13 @@ def compute_angles(frames_info, logger=_log):
     #
     # Derotation angles
     #
-    # PA_on-sky = PA_detector + PARANGLE + True_North + PUP_OFFSET + INSTRUMENT_OFFSET
-    #  PUP_OFFSET = -135.99 ± 0.11
+    # PA_on-sky = PA_detector + PARANGLE + True_North + PUP_OFFSET + INSTRUMENT_OFFSET + TRUE_NORTH
+    #
+    #  PUP_OFFSET = +135.99 ± 0.11
     #  INSTRUMENT_OFFSET
-    #   IFS = +100.48 ± 0.10
-    #   IRD =    0.00 ± 0.00
+    #     * IFS = -100.48 ± 0.10
+    #     * IRD =    0.00 ± 0.00
+    #  TRUE_NORTH = -1.75 ± 0.08
     #
     if len(instrument) != 1:
         logger.error('Sequence is mixing different instruments: {0}'.format(instrument))
@@ -298,7 +302,7 @@ def compute_angles(frames_info, logger=_log):
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
 
     # final derotation value
-    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset
+    frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset + true_north
     
     return sphere.SUCCESS
 
@@ -342,7 +346,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
     return bpm
 
 
-def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log):
+def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2, logger=_log):
     '''
     Collapse frame info to match the collapse operated on the data
 
@@ -353,6 +357,9 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
 
     fname : str
        The name of the current file
+
+    true_north : float
+        True North offset correction, in degrees
 
     collapse_type : str
         Type of collapse. Possible values are mean or coadd. Default
@@ -398,7 +405,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
         
         # recompute angles
-        ret = compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
             return None
     elif collapse_type == 'coadd':
@@ -427,7 +434,7 @@ def collapse_frames_info(finfo, fname, collapse_type, coadd_value=2, logger=_log
                                              (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
             
         # recompute angles
-        ret = compute_angles(nfinfo, logger=logger)
+        ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
             return None
     else:
@@ -482,8 +489,8 @@ def lines_intersect(a1, a2, b1, b2):
     return (num / denom)*db + b1
 
 
-def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_size=60,
-                                   save_path=None, logger=_log):
+def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high_pass=False,
+                                   box_size=60, save_path=None, logger=_log):
     '''
     Compute star center from PSF images (IRDIS CI, IRDIS DBI, IFS)
 
@@ -501,6 +508,10 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_
     exclude_fraction : float
         Exclude a fraction of the image borders to avoid getting
         biased by hot pixels close to the edges. Default is 10%
+
+    high_pass : bool
+        Apply high-pass filter to the PSF image before searching for the center.
+        Default is False
 
     box_size : int
         Size of the box in which the fit is performed. Default is 60 pixels
@@ -534,8 +545,13 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_
         logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, cwave))
 
         # remove any NaN
-        img = np.nan_to_num(img)        
-        
+        img = np.nan_to_num(cube[idx])
+
+        # optional high-pass filter
+        if high_pass:
+            img = img - ndimage.median_filter(img, 15, mode='mirror')
+            cube[idx] = img
+
         # center guess
         cy, cx = np.unravel_index(np.argmax(img), img.shape)
 
@@ -544,7 +560,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_
         lf = exclude_fraction
         hf = 1-exclude_fraction
         if (cx <= lf*dim[-1]) or (cx >= hf*dim[-1]) or \
-           (cy <= lf*dim[0])  or (cy >= hf*dim[0]):
+           (cy <= lf*dim[0]) or (cy >= hf*dim[0]):
             nimg = img.copy()
             nimg[:, :int(lf*dim[-1])] = 0
             nimg[:, int(hf*dim[-1]):] = 0
@@ -643,7 +659,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, box_
     return img_centers
 
 
-def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_path=None, logger=_log):
+def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_size=40, save_path=None, logger=_log):
     '''
     Compute star center from PSF LSS spectra (IRDIS LSS)
 
@@ -657,6 +673,10 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_pat
 
     pixel : float
         Pixel scale, in mas/pixel
+
+    high_pass : bool
+        Apply high-pass filter to the PSF image before searching for the center.
+        Default is False
 
     box_size : int
         Width of the box in which the fit is performed. Default is 16 pixels
@@ -690,6 +710,10 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_pat
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
+
+        # optional high-pass filter
+        if high_pass:
+            img = img - ndimage.median_filter(img, 15, mode='mirror')
 
         # approximate center
         prof = np.sum(img, axis=0)
@@ -751,7 +775,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, box_size=40, save_pat
 
 
 def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
-                                      orientation_offset,  high_pass=False, center_offset=(0, 0), 
+                                      orientation_offset, high_pass=False, center_offset=(0, 0), 
                                       box_size=16, smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)

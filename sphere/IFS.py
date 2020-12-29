@@ -463,6 +463,22 @@ class Reduction(object):
         reduction._logger.info('Creating IFS reduction at path {}'.format(path))
 
         #
+        # v1.4 - True North correction change
+        #
+        reduction._logger.warning('#################################################################')
+        reduction._logger.warning('Starting in the present version of the pipeline, the default     ')
+        reduction._logger.warning('-1.75° true North offset is automatically added to the derotation')
+        reduction._logger.warning('angles. The offset value can be modified in the configuration of ')
+        reduction._logger.warning('the reduction:                                                   ')
+        reduction._logger.warning('                                                                 ')
+        reduction._logger.warning('  >>> reduction.config[\'cal_true_north\'] = xxx                 ')
+        reduction._logger.warning('                                                                 ')
+        reduction._logger.warning('To avoid any issues, make sure to:                               ')
+        reduction._logger.warning('  * either reprocess data previously processed with version <1.4 ')
+        reduction._logger.warning('  * or take into account the offset in your astrometric analysis ')
+        reduction._logger.warning('#################################################################')
+        
+        #
         # configuration
         #
         reduction._logger.debug('> read default configuration')
@@ -593,6 +609,12 @@ class Reduction(object):
         for key in keys:
             print('{0:<30s}{1}'.format(key, dico[key]))
 
+        # calibrations
+        print('-'*35)
+        keys = [key for key in dico if key.startswith('cal')]
+        for key in keys:
+            print('{0:<30s}{1}'.format(key, dico[key]))
+
         # pre-processing
         print('-'*35)
         keys = [key for key in dico if key.startswith('preproc')]
@@ -680,11 +702,12 @@ class Reduction(object):
         
         config = self.config
 
-        self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass'],
+        self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass_waffle'],
                                               offset=config['center_offset'],
                                               box_waffle=config['center_box_waffle'],
                                               plot=config['misc_plot'])
-        self.sph_ifs_star_center(high_pass=config['center_high_pass'],
+        self.sph_ifs_star_center(high_pass_psf=config['center_high_pass_psf'],
+                                 high_pass_waffle=config['center_high_pass_waffle'],
                                  offset=config['center_offset'],
                                  box_psf=config['center_box_psf'],
                                  box_waffle=config['center_box_waffle'],
@@ -1051,7 +1074,8 @@ class Reduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(frames_info, logger=self._logger)
+        true_north = self.config['cal_true_north']
+        ret = toolbox.compute_angles(frames_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
@@ -2145,27 +2169,28 @@ class Reduction(object):
                         img = img[np.newaxis, ...]
 
                     # collapse
+                    true_north = self.config['cal_true_north']
                     if (typ == 'OBJECT,CENTER'):
                         if collapse_center:
                             self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
                     elif (typ == 'OBJECT,FLUX'):
                         if collapse_psf:
                             self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                             img = np.mean(img, axis=0, keepdims=True)
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
                     elif (typ == 'OBJECT'):
                         if collapse_science:
                             if collapse_type == 'mean':
                                 self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
                                 img = np.mean(img, axis=0, keepdims=True)
 
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'mean', logger=self._logger)
+                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
                             elif collapse_type == 'coadd':
                                 if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                     self._logger.error('coadd_value must be an integer >1')
@@ -2190,13 +2215,13 @@ class Reduction(object):
                                     nimg[f] = np.mean(img[f*coadd_value:(f+1)*coadd_value], axis=0)
                                 img = nimg
 
-                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'coadd', coadd_value=coadd_value, logger=self._logger)
+                                frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'coadd', coadd_value=coadd_value, logger=self._logger)
                             else:
                                 self._logger.error('Unknown collapse type {0}'.format(collapse_type))
                                 self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
                                 return                    
                         else:
-                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, 'none', logger=self._logger)
+                            frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
 
                     # check for any error during collapse of frame information
                     if frames_info_new is None:
@@ -2517,7 +2542,7 @@ class Reduction(object):
         Parameters
         ----------
         high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots.
+            Apply high-pass filter to the image before searching for the waffle spots.
             Default is False
 
         offset : tuple
@@ -2574,12 +2599,12 @@ class Reduction(object):
         #
         # star center
         #
-        self._logger.info(' * fitting satellite spots')
+        self._logger.info(' * fitting waffle spots')
 
         # get first DIT of first OBJECT,CENTER in the sequence
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) == 0:
-            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pripeline will be used.')
+            self._logger.info('   ==> no OBJECT,CENTER file in the data set. Wavelength cannot be recalibrated. The standard wavelength calibrated by the ESO pipeline will be used.')
             return
 
         ifs_mode = starcen_files['INS2 COMB IFS'].values[0]
@@ -2599,7 +2624,7 @@ class Reduction(object):
         waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
         self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
         if plot:
-            save_path = path.products / '{}spots_fitting.pdf'.format(fname)
+            save_path = path.products / '{}waffle_fitting.pdf'.format(fname)
         else:
             save_path = None
         spot_center, spot_dist, img_center \
@@ -2745,14 +2770,20 @@ class Reduction(object):
         self._status = sphere.INCOMPLETE
 
 
-    def sph_ifs_star_center(self, high_pass=False, offset=(0, 0), box_psf=60, box_waffle=16, plot=True):
+    def sph_ifs_star_center(self, high_pass_psf=False, high_pass_waffle=False, offset=(0, 0),
+                            box_psf=60, box_waffle=16, plot=True):
         '''Determines the star center for all frames where a center can be
         determined (OBJECT,CENTER and OBJECT,FLUX)
 
         Parameters
         ----------
-        high_pass : bool
-            Apply high-pass filter to the image before searching for the satelitte spots
+        high_pass_psf : bool
+            Apply high-pass filter to the PSF image before searching for the center.
+            Default is False
+
+        high_pass_waffle : bool
+            Apply high-pass filter to the image before searching for the waffle spots.
+            Default is False
 
         offset : tuple
             Apply an (x,y) offset to the default center position, for the waffle centering.
@@ -2810,12 +2841,12 @@ class Reduction(object):
 
                 # centers
                 if plot:
-                    save_path = path.products / '{}PSF_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}psf_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave_drh, pixel, exclude_fraction=0.15,
-                                                                    box_size=box_psf, save_path=save_path,
-                                                                    logger=self._logger)
+                                                                    high_pass=high_pass_psf, box_size=box_psf,
+                                                                    save_path=save_path, logger=self._logger)
 
                 # save
                 self._logger.debug('> save centers')
@@ -2843,12 +2874,12 @@ class Reduction(object):
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
                 self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
                 if plot:
-                    save_path = path.products / '{}spots_fitting.pdf'.format(fname)
+                    save_path = path.products / '{}waffle_fitting.pdf'.format(fname)
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
-                                                                pixel, orientation_offset, high_pass=high_pass, 
+                                                                pixel, orientation_offset, high_pass=high_pass_waffle, 
                                                                 center_offset=offset, box_size=box_waffle,
                                                                 save_path=save_path, logger=self._logger)
 
@@ -3106,7 +3137,6 @@ class Reduction(object):
             self._logger.debug('> save final cubes and metadata')
             flux_files.to_csv(path.products / 'psf_frames.csv')
             fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
-            fits.writeto(path.products / 'psf_parang.fits', psf_parang, overwrite=True)
             fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
@@ -3204,7 +3234,6 @@ class Reduction(object):
             self._logger.debug('> save final cubes and metadata')
             starcen_files.to_csv(path.products / 'starcenter_frames.csv')
             fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
-            fits.writeto(path.products / 'starcenter_parang.fits', cen_parang, overwrite=True)
             fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
@@ -3318,7 +3347,6 @@ class Reduction(object):
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
             fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
-            fits.writeto(path.products / 'science_parang.fits', sci_parang, overwrite=True)
             fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
