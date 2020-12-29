@@ -1515,13 +1515,12 @@ class ImagingReduction(object):
 
           - *_cube: the (x,y,time,lambda) cube
 
-          - *_parang: the parallactic angle vector
-
           - *_derot: the derotation angles vector. This vector takes
-                     into account the parallactic angle and any
-                     instrumental pupil offset. This is the values
-                     that need to be used for aligning the images with
-                     North up and East left.
+                     into account the parallactic angle, the default 
+                     -1.75° true North offset, and any instrumental 
+                     pupil offset. This is the values that need to be 
+                     used for aligning the images with North up and 
+                     East left.
 
           - *_frames: a csv file with all the information for every
                       frames. There is one line by time step in the
