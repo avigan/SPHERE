@@ -1,5 +1,18 @@
 import sphere.IRDIS as IRDIS
 
+#####################################################################
+# Starting in the present version of the pipeline, the default      #
+# -1.75° true North offset is automatically added to the derotation #
+# angles. The offset value can be modified in the configuration of  #
+# the reduction:                                                    #
+#                                                                   #
+#   >>> reduction.config[\'cal_true_north\'] = xxx                  #
+#                                                                   #
+# To avoid any issues, make sure to:                                #
+#   * either reprocess data previously processed with version <1.4  #
+#   * or take into account the offset in your astrometric analysis  #
+#####################################################################
+
 ####################################################@
 # full reduction
 #
