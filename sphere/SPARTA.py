@@ -667,7 +667,8 @@ class Reduction(object):
         toolbox.compute_times(dtts_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(dtts_info, logger=self._logger)
+        true_north = self.config['cal_true_north']
+        ret = toolbox.compute_angles(dtts_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sph_sparta_dtts', sphere.ERROR)
             self._status = sphere.FATAL
@@ -809,7 +810,8 @@ class Reduction(object):
         toolbox.compute_times(visloop_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(visloop_info, logger=self._logger)
+        true_north = self.config['cal_true_north']
+        ret = toolbox.compute_angles(visloop_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sph_sparta_wfs_parameters', sphere.ERROR)
             self._status = sphere.FATAL
@@ -872,7 +874,8 @@ class Reduction(object):
         toolbox.compute_times(irloop_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(irloop_info, logger=self._logger)
+        true_north = self.config['cal_true_north']
+        ret = toolbox.compute_angles(irloop_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sph_sparta_wfs_parameters', sphere.ERROR)
             self._status = sphere.FATAL
@@ -957,7 +960,8 @@ class Reduction(object):
         toolbox.compute_times(atmos_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        ret = toolbox.compute_angles(atmos_info, logger=self._logger)
+        true_north = self.config['cal_true_north']
+        ret = toolbox.compute_angles(atmos_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.ERROR)
             self._status = sphere.FATAL
