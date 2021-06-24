@@ -131,12 +131,13 @@ def compute_times(frames_info, logger=_log):
         time_end   = frames_info['DET FRAM UTC'].values
         time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
         DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
-
+        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+        
         # calculate UTC time stamps
         idx = frames_info.index.get_level_values(1).values
-        ts_start = time_start + time_delta * idx
-        ts       = time_start + time_delta * idx + DIT/2
-        ts_end   = time_start + time_delta * idx + DIT
+        ts_start = time_start + time_delta * idx + DITDELAY
+        ts       = time_start + time_delta * idx + DITDELAY + DIT/2
+        ts_end   = time_start + time_delta * idx + DITDELAY + DIT
 
         # mjd
         utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
