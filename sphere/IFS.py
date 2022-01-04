@@ -2726,7 +2726,7 @@ class Reduction(object):
 
         wave_final = np.full(nwave, res.x) * wave_scale
 
-        wave_diff = np.abs(wave_final - wave_drh)*1000
+        wave_diff = np.abs(wave_final - wave_drh)
         self._logger.info('   ==> difference with calibrated wavelength: min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
 
         # save
