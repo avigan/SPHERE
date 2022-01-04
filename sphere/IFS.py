@@ -985,8 +985,8 @@ class Reduction(object):
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 elif k == 'HIERARCH ESO INS4 DROT3 BEGIN':
                     # in June 2021 ESO changed INS4 DROT3 BEGIN to INS4 DROT3 START
-                    v_begin = hdr.get('HIERARCH ESO INS3 DROT2 BEGIN')
-                    v_start = hdr.get('HIERARCH ESO INS3 DROT2 START')
+                    v_begin = hdr.get('HIERARCH ESO INS4 DROT3 BEGIN')
+                    v_start = hdr.get('HIERARCH ESO INS4 DROT3 START')
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 else:
                     files_info.loc[f, sk] = hdr.get(k)
@@ -1367,7 +1367,7 @@ class Reduction(object):
                         (calibs['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(cfiles) == 0:
             error_flag += 1
-            self._logger.info(' * Error: there is no dark/background for the basic calibrations (DIT=1.65 sec). It is mandatory to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive')
+            self._logger.error(' * there is no dark/background for the basic calibrations (DIT=1.65 sec). It is mandatory to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive')
 
         ##################################################
         # static calibrations that depend on science DIT
@@ -1818,7 +1818,7 @@ class Reduction(object):
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
                     'sph_ifs_wave_calib',
-                    '--ifs.wave_calib.number_lines=3',
+                    '--ifs.wave_calib.number_lines=4',
                     '--ifs.wave_calib.wavelength_line1=0.9877',
                     '--ifs.wave_calib.wavelength_line2=1.1237',
                     '--ifs.wave_calib.wavelength_line3=1.3094',
@@ -2721,12 +2721,12 @@ class Reduction(object):
             wave_lasers = self._wave_cal_lasers[0:4]
 
         self._logger.debug('> fit new wavelenth solution')
-        res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
+        res = optim.minimize(wavelength_optimisation, 950.0, method='Nelder-Mead',
                              args=(wave_scale, wave_lasers, peak_position_lasers))
 
         wave_final = np.full(nwave, res.x) * wave_scale
 
-        wave_diff = np.abs(wave_final - wave_drh)*1000
+        wave_diff = np.abs(wave_final - wave_drh)
         self._logger.info('   ==> difference with calibrated wavelength: min={0:.1f} nm, max={1:.1f} nm'.format(wave_diff.min(), wave_diff.max()))
 
         # save

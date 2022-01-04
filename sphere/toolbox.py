@@ -131,12 +131,13 @@ def compute_times(frames_info, logger=_log):
         time_end   = frames_info['DET FRAM UTC'].values
         time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
         DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
-
+        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+        
         # calculate UTC time stamps
         idx = frames_info.index.get_level_values(1).values
-        ts_start = time_start + time_delta * idx
-        ts       = time_start + time_delta * idx + DIT/2
-        ts_end   = time_start + time_delta * idx + DIT
+        ts_start = time_start + time_delta * idx + DITDELAY
+        ts       = time_start + time_delta * idx + DITDELAY + DIT/2
+        ts_end   = time_start + time_delta * idx + DITDELAY + DIT
 
         # mjd
         utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
@@ -214,7 +215,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
     ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
     ra_deg  = ra_hour*15
-    frames_info['RA'] = ra_deg
+    frames_info['RA'] = ra_deg.value
 
     dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float)
     sign = np.sign(dec_drot)
@@ -224,7 +225,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
     dec_drot_d *= sign
     dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
-    frames_info['DEC'] = dec
+    frames_info['DEC'] = dec.value
 
     # calculate parallactic angles
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=sphere.location)
@@ -232,9 +233,9 @@ def compute_angles(frames_info, true_north, logger=_log):
     ha  = lst - ra_hour
     pa  = parallatic_angle(ha, dec[0], sphere.latitude)
     frames_info['PARANG'] = pa.value + pa_correction
-    frames_info['HOUR ANGLE'] = ha
-    frames_info['LST'] = lst
-
+    frames_info['HOUR ANGLE'] = ha.value
+    frames_info['LST'] = lst.value
+    
     # Altitude and airmass
     j2000 = coordinates.SkyCoord(ra=ra_hour, dec=dec, frame='icrs', obstime=utc)
     altaz = j2000.transform_to(coordinates.AltAz(location=sphere.location))
@@ -250,16 +251,16 @@ def compute_angles(frames_info, true_north, logger=_log):
         ha  = lst - ra_hour
         pa  = parallatic_angle(ha, dec[0], sphere.latitude)
         frames_info['PARANG START'] = pa.value + pa_correction
-        frames_info['HOUR ANGLE START'] = ha
-        frames_info['LST START'] = lst
+        frames_info['HOUR ANGLE START'] = ha.value
+        frames_info['LST START'] = lst.value
 
         utc = Time(frames_info['TIME END'].values.astype(str), scale='utc', location=sphere.location)
         lst = utc.sidereal_time('apparent')
         ha  = lst - ra_hour
         pa  = parallatic_angle(ha, dec[0], sphere.latitude)
         frames_info['PARANG END'] = pa.value + pa_correction
-        frames_info['HOUR ANGLE END'] = ha
-        frames_info['LST END'] = lst
+        frames_info['HOUR ANGLE END'] = ha.value
+        frames_info['LST END'] = lst.value
 
     #
     # Derotation angles

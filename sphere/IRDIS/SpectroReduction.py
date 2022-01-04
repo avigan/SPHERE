@@ -665,8 +665,8 @@ class SpectroReduction(object):
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 elif k == 'HIERARCH ESO INS4 DROT3 BEGIN':
                     # in June 2021 ESO changed INS4 DROT3 BEGIN to INS4 DROT3 START
-                    v_begin = hdr.get('HIERARCH ESO INS3 DROT2 BEGIN')
-                    v_start = hdr.get('HIERARCH ESO INS3 DROT2 START')
+                    v_begin = hdr.get('HIERARCH ESO INS4 DROT3 BEGIN')
+                    v_start = hdr.get('HIERARCH ESO INS4 DROT3 START')
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 else:
                     files_info.loc[f, sk] = hdr.get(k)
@@ -915,6 +915,16 @@ class SpectroReduction(object):
 
             # drop the others
             files_info.drop(time_delta[1:].index, inplace=True)
+
+        wavecal_DIT = files_info.loc[(files_info['DPR TYPE'] == 'LAMP,WAVE') & (files_info['INS COMB IFLT'] == filter_comb), 'DET SEQ1 DIT'].values[0]
+
+        # calibs dark file
+        self._logger.debug('> check wavelength calibration dark requirements')
+        cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
+                        (calibs['DET SEQ1 DIT'].round(2) == wavecal_DIT)]
+        if len(cfiles) == 0:
+            error_flag += 1
+            self._logger.warning(' * there is no dark/background for the wavelength calibration (DIT={0:.1f} sec). It is *highly recommended* to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive'.format(wavecal_DIT))
 
         ##################################################
         # static calibrations that depend on science DIT
