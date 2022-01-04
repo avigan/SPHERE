@@ -985,8 +985,8 @@ class Reduction(object):
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 elif k == 'HIERARCH ESO INS4 DROT3 BEGIN':
                     # in June 2021 ESO changed INS4 DROT3 BEGIN to INS4 DROT3 START
-                    v_begin = hdr.get('HIERARCH ESO INS3 DROT2 BEGIN')
-                    v_start = hdr.get('HIERARCH ESO INS3 DROT2 START')
+                    v_begin = hdr.get('HIERARCH ESO INS4 DROT3 BEGIN')
+                    v_start = hdr.get('HIERARCH ESO INS4 DROT3 START')
                     files_info.loc[f, sk] = v_begin if v_begin else v_start
                 else:
                     files_info.loc[f, sk] = hdr.get(k)
