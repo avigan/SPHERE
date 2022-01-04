@@ -2721,7 +2721,7 @@ class Reduction(object):
             wave_lasers = self._wave_cal_lasers[0:4]
 
         self._logger.debug('> fit new wavelenth solution')
-        res = optim.minimize(wavelength_optimisation, 0.9, method='Nelder-Mead',
+        res = optim.minimize(wavelength_optimisation, 950.0, method='Nelder-Mead',
                              args=(wave_scale, wave_lasers, peak_position_lasers))
 
         wave_final = np.full(nwave, res.x) * wave_scale
