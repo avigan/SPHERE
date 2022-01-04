@@ -916,6 +916,16 @@ class SpectroReduction(object):
             # drop the others
             files_info.drop(time_delta[1:].index, inplace=True)
 
+        wavecal_DIT = files_info.loc[(files_info['DPR TYPE'] == 'LAMP,WAVE') & (files_info['INS COMB IFLT'] == filter_comb), 'DET SEQ1 DIT'].values[0]
+
+        # calibs dark file
+        self._logger.debug('> check wavelength calibration dark requirements')
+        cfiles = calibs[((calibs['DPR TYPE'] == 'DARK') | (calibs['DPR TYPE'] == 'DARK,BACKGROUND')) &
+                        (calibs['DET SEQ1 DIT'].round(2) == wavecal_DIT)]
+        if len(cfiles) == 0:
+            error_flag += 1
+            self._logger.warning(' * there is no dark/background for the wavelength calibration (DIT={0:.1f} sec). It is *highly recommended* to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive'.format(wavecal_DIT))
+
         ##################################################
         # static calibrations that depend on science DIT
         ##################################################
