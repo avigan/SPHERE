@@ -1818,7 +1818,7 @@ class Reduction(object):
                     '--no-checksum=TRUE',
                     '--no-datamd5=TRUE',
                     'sph_ifs_wave_calib',
-                    '--ifs.wave_calib.number_lines=3',
+                    '--ifs.wave_calib.number_lines=4',
                     '--ifs.wave_calib.wavelength_line1=0.9877',
                     '--ifs.wave_calib.wavelength_line2=1.1237',
                     '--ifs.wave_calib.wavelength_line3=1.3094',
