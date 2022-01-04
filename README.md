@@ -72,3 +72,7 @@ With important contributions from:
  * Jean-Françoise Sauvage (ONERA): Support of SPARTA files
  * Dino Mesa (INAF/OAPD): IFS pre-processing
  * ESO personnel in general: SPHERE pipeline and calibration procedures
+
+And bug reports with suggested fix from:
+ * Wolfgang Brandner (@Rumpelstil)
+ * Tomas Stolker (@tomasstolker)
