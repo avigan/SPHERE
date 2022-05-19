@@ -142,7 +142,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_{0}.txt'.format(name))
+        filter_file = os.path.join(package_directory, 'data', f'SPHERE_IRDIS_{name}.txt')
 
         # load data
         cfw_tr = np.loadtxt(filter_file, unpack=False).T
@@ -170,7 +170,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_{0}.txt'.format(name))
+        filter_file = os.path.join(package_directory, 'data', f'SPHERE_IRDIS_{name}.txt')
 
         # load data
         dfw_tr_tmp = np.loadtxt(filter_file, unpack=False).T
@@ -184,7 +184,7 @@ def _load(type, name):
 
         return transmissions[name]
     else:
-        raise ValueError('Unknown type {0}'.format(type))
+        raise ValueError(f'Unknown type {type}')
 
 
 def irdis_nd(combination, nd_filter):
@@ -255,11 +255,11 @@ def irdis_nd(combination, nd_filter):
     # check if combination exists
     setup = combinations.get(combination)
     if setup is None:
-        raise ValueError('Unknown filter combination {0}'.format(combination))
+        raise ValueError(f'Unknown filter combination {combination}')
 
     # check if ND filter exists
     if nd_filter not in ['OPEN', 'ND_1.0', 'ND_2.0', 'ND_3.5']:
-        raise ValueError('Unknown neutral density filter {0}'.format(nd_filter))
+        raise ValueError(f'Unknown neutral density filter {nd_filter}')
 
     # setup
     ndf = nd_filter
@@ -340,7 +340,7 @@ def transmission_nd(nd_filter, wave=None):
 
     # check if ND filter exists
     if nd_filter not in ['OPEN', 'ND_1.0', 'ND_2.0', 'ND_3.5']:
-        raise ValueError('Unknown neutral density filter {0}'.format(nd_filter))
+        raise ValueError(f'Unknown neutral density filter {nd_filter}')
 
     ndf = nd_filter
 
@@ -417,7 +417,7 @@ def transmission_filter(combination):
     # check if combination exists
     setup = combinations.get(combination)
     if setup is None:
-        raise ValueError('Unknown filter combination {0}'.format(combination))
+        raise ValueError(f'Unknown filter combination {combination}')
 
     # setup
     cfw = setup['CFW']
@@ -510,7 +510,7 @@ def wavelength_bandwidth_filter(combination):
 
     setup = combinations.get(combination)
     if setup is None:
-        raise ValueError('Unknown filter combination {0}'.format(combination))
+        raise ValueError(f'Unknown filter combination {combination}')
 
     wave = setup['Wavelength']
     bandwidth = setup['Bandwidth']
