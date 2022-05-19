@@ -39,7 +39,7 @@ def process_mainFiles(mainFiles, files, logger=_log):
         fname = file.attrib['name']
         files.append(fname)
 
-        logger.debug(' ==> {0}'.format(fname))
+        logger.debug(f' ==> {fname}')
         
 
 def process_association(tree, files, logger=_log):
@@ -116,14 +116,14 @@ def sort_files_from_xml(path, logger=_log):
     xml_files = list(path.glob('*.xml'))
 
     logger.info('Sort data based on XML files (ESO automated calibration selection)')
-    logger.info(' * {0} XML files\n'.format(len(xml_files)))
+    logger.info(f' * {len(xml_files)} XML files\n')
     
     # sort files
     for file in xml_files:
         tree = etree.parse(file)
         root = tree.getroot()            
 
-        logger.info(' * {}'.format(file.name))
+        logger.info(f' * {file.name}')
         
         # process only IFS and IRDIS science data
         catg = root.attrib['category']
@@ -135,14 +135,14 @@ def sort_files_from_xml(path, logger=_log):
         filename = scifiles[0].attrib['name']
         
         # Mac OS X replaces : by _ in file names...
-        if not (path / '{}.fits'.format(filename)).exists():
+        if not (path / f'{filename}.fits').exists():
             filename = filename.replace(':', '_')
         
-        if not (path / '{}.fits'.format(filename)).exists():
-            logger.info('   ==> file {} does not exist. Skipping'.format(filename))
+        if not (path / f'{filename}.fits').exists():
+            logger.info(f'   ==> file {filename} does not exist. Skipping')
             continue
 
-        fpath = path / '{}.fits'.format(filename)
+        fpath = path / f'{filename}.fits'
         hdr = fits.getheader(fpath)
         
         # target and arm
@@ -156,7 +156,7 @@ def sort_files_from_xml(path, logger=_log):
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
             except KeyError:
-                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fpath))
+                logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {fpath}')
                 continue
                 
             if arm == 'IRDIS':
@@ -164,7 +164,7 @@ def sort_files_from_xml(path, logger=_log):
             elif arm == 'IFS':
                 instrument = 'IFS'                
             else:
-                logger.error('Unknown arm {0}'.format(arm))
+                logger.error(f'Unknown arm {arm}')
                 continue
 
         # get files
@@ -172,34 +172,34 @@ def sort_files_from_xml(path, logger=_log):
         process_association(root, files, logger=logger)
 
         # target path
-        directory = '{0}_id={1}'.format(target, obs_id)
+        directory = f'{target}_id={obs_id}'
         directory = '_'.join(directory.split())
         target_path = path / directory / night / instrument / 'raw'
         target_path.mkdir(parents=True, exist_ok=True)
 
         # copy files
         for filename in files:
-            fpath = path / '{}.fits'.format(filename)
+            fpath = path / f'{filename}.fits'
             
             # Mac OS X replaces : by _ in file names...
             if not fpath.exists():
                 filename = filename.replace(':', '_')
-                fpath  = path / '{}.fits'.format(filename)
+                fpath  = path / f'{filename}.fits'
             
             # check if file actually exists
             if not fpath.exists():
-                logger.info(' ==> file {} does not exist. Skipping.'.format(fpath))
+                logger.info(f' ==> file {fpath} does not exist. Skipping.')
                 continue
             
             # copy if needed
-            nfpath = target_path / '{}.fits'.format(filename)
+            nfpath = target_path / f'{filename}.fits'
             if not nfpath.exists():
                 shutil.copy(fpath, nfpath)
 
         # print status
-        logger.debug('{0} - id={1}'.format(target, obs_id))
-        logger.debug(' ==> found {0} files'.format(len(files)))
-        logger.debug(' ==> copied to {0}'.format(target_path))
+        logger.debug(f'{target} - id={obs_id}')
+        logger.debug(f' ==> found {len(files)} files')
+        logger.debug(f' ==> copied to {target_path}')
 
     # move all files
     path_new = path / 'all_files'
@@ -242,11 +242,11 @@ def sort_files_from_fits(path, logger=_log):
     fits_files = list(path.glob('*.fits'))
 
     logger.info('Sort data based on FITS files')
-    logger.info(' * {0} FITS files\n'.format(len(fits_files)))
+    logger.info(f' * {len(fits_files)} FITS files\n')
 
     # sort files
     for file in fits_files:
-        logger.info(' * {}'.format(file.name))
+        logger.info(f' * {file.name}')
         
         # target and arm
         hdr = fits.getheader(file)
@@ -256,7 +256,7 @@ def sort_files_from_fits(path, logger=_log):
             obs_id = hdr['HIERARCH ESO OBS ID']
             dpr_type = hdr['HIERARCH ESO DPR TYPE']
         except KeyError:
-            logger.error('Missing ESO HIERARCH keywords in {}'.format(file))
+            logger.error(f'Missing ESO HIERARCH keywords in {file}')
             continue
 
         if dpr_type == 'OBJECT,AO':
@@ -265,7 +265,7 @@ def sort_files_from_fits(path, logger=_log):
             try:
                 arm = hdr['HIERARCH ESO SEQ ARM']
             except KeyError:
-                logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(file))
+                logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {file}')
                 continue
             
             if arm == 'IRDIS':
@@ -273,7 +273,7 @@ def sort_files_from_fits(path, logger=_log):
             elif arm == 'IFS':
                 instrument = 'IFS'                
             else:
-                logger.error('Unknown arm {0}'.format(arm))
+                logger.error(f'Unknown arm {arm}')
                 continue
 
         # target path
@@ -284,8 +284,8 @@ def sort_files_from_fits(path, logger=_log):
         file.rename(target_path / file.name)
 
         # print status
-        logger.debug('{0} - id={1}'.format(target, obs_id))
-        logger.debug(' ==> copied to {0}'.format(target_path))
+        logger.debug(f'{target} - id={obs_id}')
+        logger.debug(f' ==> copied to {target_path}')
 
     # move all files
     path_new = path / 'unsorted_files'
@@ -322,7 +322,7 @@ def classify_irdis_dataset(path, logger=_log):
     # zeroth-order reduction validation
     raw = path / 'raw'
     if not raw.exists():
-        logger.error('No raw/ subdirectory. {0} is not a valid reduction path!'.format(path))
+        logger.error(f'No raw/ subdirectory. {path} is not a valid reduction path!')
         return None
 
     # list all fits files
@@ -398,7 +398,7 @@ class Dataset:
         self._handler   = handler
         self._logger    = logger
         
-        self._logger.info('Looking for SPHERE data sets at path {}'.format(path))
+        self._logger.info(f'Looking for SPHERE data sets at path {path}')
         
         # list of reductions
         self._IFS_reductions    = []
@@ -423,7 +423,7 @@ class Dataset:
     ##################################################
     
     def __repr__(self):
-        return '<SPHERE datasets: {0} IFS, {1} IRDIS, {2} SPARTA>'.format(len(self.IFS_reductions), len(self.IRDIS_reductions), len(self.SPARTA_reductions))
+        return f'<SPHERE datasets: {len(self.IFS_reductions)} IFS, {len(self.IRDIS_reductions)} IRDIS, {len(self.SPARTA_reductions)} SPARTA>'
     
     ##################################################
     # Properties
@@ -459,7 +459,7 @@ class Dataset:
         '''
 
         for r in self.reductions:
-            self._logger.info('Init: {}'.format(str(r)))
+            self._logger.info(f'Init: {str(r)}')
             
             r.init_reduction()
 
@@ -470,7 +470,7 @@ class Dataset:
         '''
 
         for r in self.reductions:
-            self._logger.info('Static calibrations: {}'.format(str(r)))
+            self._logger.info(f'Static calibrations: {str(r)}')
             
             r.create_static_calibrations()
 
@@ -481,7 +481,7 @@ class Dataset:
         '''
         
         for r in self.reductions:
-            self._logger.info('Science pre-processing: {}'.format(str(r)))
+            self._logger.info(f'Science pre-processing: {str(r)}')
             
             r.preprocess_science()
 
@@ -493,7 +493,7 @@ class Dataset:
         '''
         
         for r in self.reductions:
-            self._logger.info('Science processing: {}'.format(str(r)))
+            self._logger.info(f'Science processing: {str(r)}')
 
             r.process_science()
 
@@ -506,7 +506,7 @@ class Dataset:
         
         for r in self.reductions:
             print(r)
-            self._logger.info('Clean-up: {}'.format(str(r)))
+            self._logger.info(f'Clean-up: {str(r)}')
 
             r.clean()
         
@@ -519,7 +519,7 @@ class Dataset:
         
         for r in self.reductions:
             self._logger.info('###########################################################################')
-            self._logger.info('# Full reduction: {}'.format(str(r)))
+            self._logger.info(f'# Full reduction: {str(r)}')
             self._logger.info('###########################################################################')
             
             r.full_reduction()
@@ -553,7 +553,7 @@ class Dataset:
                         try:
                             arm = hdr['HIERARCH ESO SEQ ARM']
                         except KeyError:
-                            self._logger.error('No \'HIERARCH ESO SEQ ARM\' keyword in {}'.format(fits_files[0]))
+                            self._logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {fits_files[0]}')
                         
                     if arm == 'IRDIS':
                         mode = classify_irdis_dataset(reduction_path, logger=self._logger)
@@ -563,13 +563,13 @@ class Dataset:
                             continue
                         
                         if mode == 'imaging':
-                            self._logger.info(' * IRDIS imaging reduction at path {}'.format(reduction_path))
+                            self._logger.info(f' * IRDIS imaging reduction at path {reduction_path}')
                             reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level,
                                                                 sphere_handler=self._handler)
                         elif mode == 'polar':
                             self._logger.warning('IRDIS DPI not supported yet')
                         elif mode == 'spectro':
-                            self._logger.info(' * IRDIS spectro <reduction at path {}'.format(reduction_path))
+                            self._logger.info(f' * IRDIS spectro <reduction at path {reduction_path}')
                             reduction  = IRDIS.SpectroReduction(reduction_path, log_level=self._log_level,
                                                                 sphere_handler=self._handler)
 
@@ -577,7 +577,7 @@ class Dataset:
                         if reduction is not None:
                             self.IRDIS_reductions.append(reduction)
                     elif arm == 'IFS':
-                        self._logger.info(' * IFS reduction at path {}'.format(reduction_path))
+                        self._logger.info(f' * IFS reduction at path {reduction_path}')
                         reduction  = IFS.Reduction(reduction_path, log_level=self._log_level, 
                                                    sphere_handler=self._handler)
 
@@ -585,7 +585,7 @@ class Dataset:
                         if reduction is not None:
                             self.IFS_reductions.append(reduction)
                     elif arm == 'SPARTA':
-                        self._logger.info(' * SPARTA reduction at path {}'.format(reduction_path))
+                        self._logger.info(f' * SPARTA reduction at path {reduction_path}')
                         reduction  = SPARTA.Reduction(reduction_path, log_level=self._log_level, 
                                                       sphere_handler=self._handler)
 
@@ -593,11 +593,11 @@ class Dataset:
                         if reduction is not None:
                             self.SPARTA_reductions.append(reduction)                        
                     else:
-                        self._logger.error('Unknown arm {0}'.format(arm))
+                        self._logger.error(f'Unknown arm {arm}')
                         continue
 
                     # self._logger.info(reduction_path)
-                    self._logger.info('   ==> {} files'.format(len(fits_files)))
+                    self._logger.info(f'   ==> {len(fits_files)} files')
 
         # merge all reductions into a single list
         self._reductions = self.IFS_reductions + self.IRDIS_reductions
