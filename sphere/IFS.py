@@ -601,7 +601,7 @@ class Reduction(object):
         # dictionary
         dico = self.config
 
-        # misc parameters
+        # parameters
         print()
         print(f'{"Parameter":<30s}Value')
         print('-'*35)
