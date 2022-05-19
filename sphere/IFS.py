@@ -610,7 +610,7 @@ class Reduction(object):
             keys  = [key for key in dico if key.startswith(catg)]
             for key in keys:
                 print(f'{key:<30s}{dico[key]}')
-        print('-'*35)
+            print('-'*35)
 
         print()
 
