@@ -1875,15 +1875,21 @@ class ImagingReduction(object):
                     self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
                     centers = self._default_center
                 else:
-                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
+                    first_science_frame = object_files['TIME'][0]
+                    tmp=[]
+                    for i in range(starcen_files['TIME'].size):
+                        tmp.append(abs(first_science_frame - starcen_files['TIME'][i]).total_seconds())
+                    index_closet_in_time = np.where(tmp==np.min(tmp))[0][0]
+
+                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[index_closet_in_time][0], starcen_files.index.values[index_closet_in_time][1])
                     fpath = path.preproc / fname
                     if fpath.exists():
                         centers = fits.getdata(fpath)
 
                         # Dithering Motion Stage for star center: value is in micron,
                         # and the pixel size is 18 micron
-                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                        dms_dx_ref = starcen_files['INS1 PAC X'][index_closet_in_time] / 18
+                        dms_dy_ref = starcen_files['INS1 PAC Y'][index_closet_in_time] / 18
                     else:
                         self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
                         centers = self._default_center
@@ -1904,6 +1910,9 @@ class ImagingReduction(object):
             sci_cube   = np.zeros((nwave, nfiles, science_dim, science_dim))
             sci_parang = np.zeros(nfiles)
             sci_derot  = np.zeros(nfiles)
+
+            offset_after_rough_centering = np.zeros((nwave, nfiles, 2))
+
             if save_scaled:
                 sci_cube_scaled = np.zeros((nwave, nfiles, science_dim, science_dim))
 
@@ -1940,6 +1949,7 @@ class ImagingReduction(object):
                     dms_dy = np.int(dms_dy)
 
                 # center frames
+
                 for wave_idx, img in enumerate(cube):
                     self._logger.debug('> wave {}'.format(wave_idx))
                     cx, cy = centers[wave_idx, :]
@@ -1950,7 +1960,15 @@ class ImagingReduction(object):
 
                     self._logger.debug('> shift and normalize')
                     img  = img.astype(np.float)
-                    nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
+                    # nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
+
+                    shift_offset = (cc-cx, cc-cy)
+                    shift_value_rounded = np.round(shift_offset).astype(int)
+                    nimg  = imutils.shift(img, shift_value_rounded, method='roll')
+
+                    residual_offset = shift_offset - shift_value_rounded
+                    offset_after_rough_centering[wave_idx, file_idx] = residual_offset
+
                     nimg = nimg / DIT / attenuation[wave_idx]
 
                     sci_cube[wave_idx, file_idx] = nimg[:science_dim, :science_dim]
@@ -1968,11 +1986,18 @@ class ImagingReduction(object):
                         nimg = sci_cube[wave_idx, file_idx]
                         sci_cube_scaled[wave_idx, file_idx] = imutils.scale(nimg, wave[0]/wave[wave_idx], method=shift_method)
 
+            object_files['H2 Res Offset X'] = offset_after_rough_centering[0,:,0]
+            object_files['H2 Res Offset Y'] = offset_after_rough_centering[0,:,1] 
+            object_files['H3 Res Offset X'] = offset_after_rough_centering[1,:,0]
+            object_files['H3 Res Offset Y'] = offset_after_rough_centering[1,:,1]
+
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
             fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
             fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
+
+
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
                 fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
