@@ -67,10 +67,10 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
             missing.append(r)
 
     if not execute_recipe:
-        logger.error('{} cannot be executed because the following recipes have not been executed or have result in unrecoverable errors: {}. '.format(recipe, missing))
+        logger.error(f'{recipe} cannot be executed because the following recipes have not been executed or have result in unrecoverable errors: {missing}. ')
         recipes_status[recipe] = sphere.ERROR
 
-    logger.debug('> execution requirements check for {}: {}'.format(recipe, execute_recipe))
+    logger.debug(f'> execution requirements check for {recipe}: {execute_recipe}')
     
     return execute_recipe
 
@@ -274,7 +274,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     #  TRUE_NORTH = -1.75 ± 0.08
     #
     if len(instrument) != 1:
-        logger.error('Sequence is mixing different instruments: {0}'.format(instrument))
+        logger.error(f'Sequence is mixing different instruments: {instrument}')
         return sphere.ERROR
     if instrument == 'IFS':
         instru_offset = -100.48
@@ -283,7 +283,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     elif instrument == 'SPARTA':
         instru_offset = 0.0
     else:
-        logger.error('Unkown instrument {0}'.format(instrument))
+        logger.error(f'Unkown instrument {instrument}')
         return sphere.ERROR
 
     drot_mode = frames_info['INS4 DROT2 MODE'].unique()
@@ -297,7 +297,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     elif drot_mode == 'STAT':
         pupoff = -100.48
     else:
-        logger.error('Unknown derotator mode {0}'.format(drot_mode))
+        logger.error(f'Unknown derotator mode {drot_mode}')
         return sphere.ERROR
 
     frames_info['PUPIL OFFSET'] = pupoff + instru_offset
@@ -329,7 +329,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
         Combined bad pixel map
     '''
 
-    logger.debug('> compute master bad pixel map from {} files'.format(len(bpm_files)))
+    logger.debug(f'> compute master bad pixel map from {len(bpm_files)} files')
     
     # get shape
     shape = fits.getdata(bpm_files[0]).shape
@@ -414,7 +414,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         NDIT = len(finfo)
         NDIT_new = NDIT // coadd_value
 
-        logger.debug('> type=coadd: extract sub-groups of {} frames'.format(coadd_value))
+        logger.debug(f'> type=coadd: extract sub-groups of {coadd_value} frames')
         
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
         nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
@@ -439,7 +439,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         if ret == sphere.ERROR:
             return None
     else:
-        logger.error('Unknown collapse type {0}'.format(collapse_type))
+        logger.error(f'Unknown collapse type {collapse_type}')
         return None
 
     return nfinfo
@@ -543,7 +543,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
     img_centers    = np.zeros((nwave, 2))
     failed_centers = np.zeros(nwave, dtype=np.bool)
     for idx, (cwave, img) in enumerate(zip(wave, cube)):
-        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, cwave))
+        logger.info(f'   ==> wave {idx + 1:2d}/{nwave:2d} ({cwave:4.0f} nm)')
 
         # remove any NaN
         img = np.nan_to_num(cube[idx])
@@ -707,7 +707,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
     nimg = len(cube)
     psf_centers = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube):
-        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info(f'   ==> field {fidx + 1:2d}/{nimg:2d}')
 
         # remove any NaN
         img = np.nan_to_num(cube[fidx])
@@ -866,7 +866,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
     spot_dist    = np.zeros((nwave, 6))
     img_centers  = np.zeros((nwave, 2))
     for idx, (wave, img) in enumerate(zip(wave, cube_cen)):
-        logger.info('   ==> wave {0:2d}/{1:2d} ({2:4.0f} nm)'.format(idx+1, nwave, wave))
+        logger.info(f'   ==> wave {idx + 1:2d}/{nwave:2d} ({wave:4.0f} nm)')
 
         # remove any NaN
         img = np.nan_to_num(img)
@@ -1063,7 +1063,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
     spot_dist    = np.full((1024, nimg), np.nan)
     img_centers  = np.full((1024, nimg), np.nan)
     for fidx, img in enumerate(cube_cen):
-        logger.info('   ==> field {0:2d}/{1:2d}'.format(fidx+1, nimg))
+        logger.info(f'   ==> field {fidx + 1:2d}/{nimg:2d}')
 
         # remove any NaN
         img = np.nan_to_num(cube_cen[fidx])
