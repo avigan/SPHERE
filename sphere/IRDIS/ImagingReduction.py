@@ -343,6 +343,7 @@ class ImagingReduction(object):
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
                                   manual_center=config['combine_manual_center'],
+                                  center_selection=config['combine_center_selection'],
                                   coarse_centering=config['combine_coarse_centering'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
@@ -1488,7 +1489,8 @@ class ImagingReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, center_selection='first',
+                             coarse_centering=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1564,6 +1566,13 @@ class ImagingReduction(object):
             frames. This should be an array of either 2 or nwave*2
             values. Default is None
 
+        center_selection : str        
+            Specify which star center to use when multiple are
+            available. Possible values are first, last, and time. The
+            time option indicates to use the star center file that is
+            closest in time with respect to each science file. Default
+            is first
+        
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
@@ -1581,7 +1590,6 @@ class ImagingReduction(object):
             much longer. The value of save_scaled is automatically set
             to True when coarse_centering is set to True. The default
             is False
-
         '''
 
         self._logger.info('Combine science data')

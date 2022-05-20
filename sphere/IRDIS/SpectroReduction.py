@@ -386,6 +386,7 @@ class SpectroReduction(object):
                                   split_posang=config['combine_split_posang'],
                                   shift_method=config['combine_shift_method'],
                                   manual_center=config['combine_manual_center'],
+                                  center_selection=config['combine_center_selection'],
                                   coarse_centering=config['combine_coarse_centering'])
 
     def clean(self):
@@ -1913,7 +1914,8 @@ class SpectroReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=800, correct_mrs_chromatism=True,
-                             split_posang=True, shift_method='fft', manual_center=None, coarse_centering=False):
+                             split_posang=True, shift_method='fft', manual_center=None,
+                             center_selection='first', coarse_centering=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1992,6 +1994,13 @@ class SpectroReduction(object):
             OBJECT frames. This should be an array of 2 values (cx for
             the 2 IRDIS fields). Default is None
 
+        center_selection : str        
+            Specify which star center to use when multiple are
+            available. Possible values are first, last, and time. The
+            time option indicates to use the star center file that is
+            closest in time with respect to each science file. Default
+            is first
+        
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
