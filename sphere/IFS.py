@@ -1095,8 +1095,9 @@ class Reduction(object):
         pa_start = cinfo['PARANG'][0]
         pa_end   = cinfo['PARANG'][-1]
 
-        posang   = cinfo['INS4 DROT2 POSANG'].unique()
-
+        posang  = cinfo['INS4 DROT2 POSANG'].unique()
+        posangs = ['{p:.2f}°' for p in posang]
+        
         date = str(cinfo['DATE'][0])[0:10]
 
         self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
@@ -1116,7 +1117,7 @@ class Reduction(object):
         self._logger.info(f" * NDIT:         {cinfo['DET NDIT'][0]:.0f}")
         self._logger.info(f" * Texp:         {cinfo['DET SEQ1 DIT'].sum() / 60:.2f} min")
         self._logger.info(f' * PA:           {pa_start:.2f}° ==> {pa_end:.2f}° = {np.abs(pa_end - pa_start):.2f}°')
-        self._logger.info(f" * POSANG:       {', '.join(['{:.2f}°'.format(p) for p in posang])}")
+        self._logger.info(f" * POSANG:       {', '.join(posangs)}")
 
         # update recipe execution
         self._update_recipe_status('sort_frames', sphere.SUCCESS)
