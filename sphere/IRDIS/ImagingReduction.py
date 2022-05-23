@@ -1840,40 +1840,6 @@ class ImagingReduction(object):
             dms_dx_ref = 0
             dms_dy_ref = 0
 
-            # use manual center if explicitely requested
-            self._logger.debug('> read centers')
-            if manual_center is not None:
-                centers = manual_center
-            else:
-                # otherwise, look whether we have an OBJECT,CENTER frame
-
-                # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
-                # in the sequence, but it would be better to be able to
-                # select which CENTER to use
-                starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-                if len(starcen_files) == 0:
-                    self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = self._default_center
-                else:
-                    fname = f'{starcen_files.index.values[0][0]}_DIT{starcen_files.index.values[0][1]:03d}_preproc_centers.fits'
-                    fpath = path.preproc / fname
-                    if fpath.exists():
-                        centers = fits.getdata(fpath)
-
-                        # Dithering Motion Stage for star center: value is in micron,
-                        # and the pixel size is 18 micron
-                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
-                    else:
-                        self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                        centers = self._default_center
-
-            # make sure we have only integers if user wants coarse centering
-            if coarse_centering:
-                centers = centers.astype(np.int)
-                dms_dx_ref = np.int(dms_dx_ref)
-                dms_dy_ref = np.int(dms_dy_ref)
-
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -1890,6 +1856,51 @@ class ImagingReduction(object):
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
                 self._logger.info(f'   ==> file {file_idx + 1}/{len(object_files)}: {file}, DIT #{idx}')
+
+                # use manual center if explicitely requested
+                self._logger.debug('> read centers')
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    # otherwise, look whether we have an OBJECT,CENTER frame and select the one requested by user
+                    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+                    if len(starcen_files) == 0:
+                        self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
+                        centers = self._default_center
+                    else:
+                        # selection of the proper OBJECT,CENTER
+                        center_selection = center_selection.lower()
+                        if center_selection == 'first':
+                            center_index = 0
+                        elif center_selection == 'last':
+                            center_index = len(starcen_files.index.values)-1
+                        elif center_selection == 'time':
+                            time_cen = starcen_files['DATE-OBS']
+                            time_sci = frames_info.loc[(file, idx), 'DATE-OBS']
+                            center_index = np.abs(time_sci - time_cen).argmin()
+                        else:
+                            self._logger.error(f'Unknown OBJECT,CENTER selection {center_selection}. Possible values are first, last, and time.')
+                            self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
+                            return
+
+                        fname = f'{starcen_files.index.values[center_index][0]}_DIT{starcen_files.index.values[center_index][1]:03d}_preproc_centers.fits'
+                        fpath = path.preproc / fname
+                        if fpath.exists():
+                            centers = fits.getdata(fpath)
+
+                            # Dithering Motion Stage for star center: value is in micron,
+                            # and the pixel size is 18 micron
+                            dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
+                            dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                        else:
+                            self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                            centers = self._default_center
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
+                    dms_dx_ref = np.int(dms_dx_ref)
+                    dms_dy_ref = np.int(dms_dy_ref)
 
                 # read data
                 self._logger.debug('> read data')

@@ -24,6 +24,7 @@ reduction = IRDIS.ImagingReduction('/Users/avigan/data/sphere-test-target/IRD/DB
 reduction.config['combine_psf_dim']          = 80
 reduction.config['combine_science_dim']      = 400
 reduction.config['combine_shift_method']     = 'fft'
+reduction.config['combine_center_selection'] = 'first'
 reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'mean'
 reduction.config['center_high_pass_waffle']  = True
@@ -57,8 +58,8 @@ reduction.sph_ird_preprocess_science(subtract_background=True, fix_badpix=True,
 #%% high-level science processing
 reduction.sph_ird_star_center(high_pass_psf=True, high_pass_waffle=False, offset=(0, 0), plot=True)
 reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_anamorphism=True,
-                               shift_method='interp', manual_center=None, coarse_centering=False,
-                               save_scaled=False)
+                               shift_method='interp', manual_center=None, center_selection='time',
+                               coarse_centering=False, save_scaled=False)
 
 #%% cleaning
 reduction.sph_ird_clean(delete_raw=False, delete_products=False)
