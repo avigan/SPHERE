@@ -126,18 +126,17 @@ class ImagingReduction(object):
         #
         # v1.4 - True North correction change
         #
-        reduction._logger.warning('#################################################################')
-        reduction._logger.warning('Starting in the present version of the pipeline, the default     ')
-        reduction._logger.warning('-1.75° true North offset is automatically added to the derotation')
-        reduction._logger.warning('angles. The offset value can be modified in the configuration of ')
-        reduction._logger.warning('the reduction:                                                   ')
-        reduction._logger.warning('                                                                 ')
-        reduction._logger.warning('  >>> reduction.config[\'cal_true_north\'] = xxx                 ')
-        reduction._logger.warning('                                                                 ')
-        reduction._logger.warning('To avoid any issues, make sure to:                               ')
-        reduction._logger.warning('  * either reprocess data previously processed with version <1.4 ')
-        reduction._logger.warning('  * or take into account the offset in your astrometric analysis ')
-        reduction._logger.warning('#################################################################')
+        reduction._logger.warning('##################################################################')
+        reduction._logger.warning('Since version 1.4 of the pipeline, the default -1.75° true North  ')
+        reduction._logger.warning('offset is automatically added to the derotation angles. The offset')
+        reduction._logger.warning('value can be modified in the configuration of the reduction:      ')
+        reduction._logger.warning('                                                                  ')
+        reduction._logger.warning('  >>> reduction.config[\'cal_true_north\'] = xxx                  ')
+        reduction._logger.warning('                                                                  ')
+        reduction._logger.warning('To avoid any issues, make sure to:                                ')
+        reduction._logger.warning('  * either reprocess data previously processed with version <1.4  ')
+        reduction._logger.warning('  * or take into account the offset in your astrometric analysis  ')
+        reduction._logger.warning('##################################################################')
         
         #
         # configuration
