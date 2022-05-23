@@ -161,7 +161,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
         method = 'roll'
     else:
         # force integer values
-        if method is 'roll':
+        if method == 'roll':
             shift_value = np.round(shift_value)
         
     # FFT limitations
@@ -838,11 +838,11 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     box2 = box**2
 
     kernel = Box2DKernel(box)
-    img_clip = (convolve(img, kernel)*box2 - img) / (box2-1)
+    img_clip = (convolve(img, kernel, fill_value=0, nan_treatment='fill', preserve_nan=True)*box2 - img) / (box2-1)
 
     imdev = (img - img_clip)**2
     fact = nsigma**2 / (box2-2)
-    imvar = fact*(convolve(imdev, kernel)*box2 - imdev)
+    imvar = fact*(convolve(imdev, kernel, fill_value=0, nan_treatment='fill', preserve_nan=True)*box2 - imdev)
 
     # following solution is faster but does not support bad pixels
     # see avigan/SPHERE#49
