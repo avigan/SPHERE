@@ -3245,34 +3245,6 @@ class Reduction(object):
         if nfiles != 0:
             self._logger.info(' * OBJECT data')
 
-            # use manual center if explicitely requested
-            self._logger.debug('> read centers')
-            if manual_center is not None:
-                centers = manual_center
-            else:
-                # otherwise, look whether we have an OBJECT,CENTER frame
-            
-                # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
-                # in the sequence, but it would be better to be able to
-                # select which CENTER to use
-                starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-                if len(starcen_files) == 0:
-                    self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center, dtype=np.float)
-                else:
-                    fname = f'{starcen_files.index.values[0][0]}_DIT{starcen_files.index.values[0][1]:03d}_preproc_centers.fits'
-                    fpath = path.preproc / fname
-                    
-                    if fpath.exists():
-                        centers = fits.getdata(fpath)
-                    else:
-                        self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                        centers = np.full((nwave, 2), self._default_center, dtype=np.float)
-
-            # make sure we have only integers if user wants coarse centering
-            if coarse_centering:
-                centers = centers.astype(np.int)
-
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -3290,6 +3262,44 @@ class Reduction(object):
             for file_idx, (file, idx) in enumerate(object_files.index):
                 self._logger.info(f'   ==> file {file_idx + 1}/{len(object_files)}: {file}, DIT #{idx}')
 
+                # use manual center if explicitely requested
+                self._logger.debug('> read centers')
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    # otherwise, look whether we have an OBJECT,CENTER frame and select the one requested by user
+                    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+                    if len(starcen_files) == 0:
+                        self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
+                        centers = self._default_center
+                    else:
+                        # selection of the proper OBJECT,CENTER
+                        center_selection = center_selection.lower()
+                        if center_selection == 'first':
+                            center_index = 0
+                        elif center_selection == 'last':
+                            center_index = len(starcen_files.index.values)-1
+                        elif center_selection == 'time':
+                            time_cen = starcen_files['DATE-OBS']
+                            time_sci = frames_info.loc[(file, idx), 'DATE-OBS']
+                            center_index = np.abs(time_sci - time_cen).argmin()
+                        else:
+                            self._logger.error(f'Unknown OBJECT,CENTER selection {center_selection}. Possible values are first, last, and time.')
+                            self._update_recipe_status('sph_ifs_combine_data', sphere.ERROR)
+                            return
+
+                        fname = f'{starcen_files.index.values[center_index][0]}_DIT{starcen_files.index.values[center_index][1]:03d}_preproc_centers.fits'
+                        fpath = path.preproc / fname
+                        if fpath.exists():
+                            centers = fits.getdata(fpath)
+                        else:
+                            self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                            centers = np.full((nwave, 2), self._default_center, dtype=np.float)
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
+                
                 # read data
                 self._logger.debug('> read data')
                 fname = f'{file}_DIT{idx:03d}_preproc_'
