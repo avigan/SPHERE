@@ -9,6 +9,7 @@ reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LS
 
 #%% configuration
 reduction.config['combine_science_dim'] = 300
+reduction.config['combine_center_selection'] = 'first'
 reduction.config['clean'] = False
 reduction.show_config()
 
@@ -42,7 +43,8 @@ reduction.sph_ird_star_center(high_pass_psf=False, high_pass_waffle=True, plot=T
 reduction.sph_ird_wavelength_recalibration(fit_scaling=True, plot=True)
 reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300,
                                correct_mrs_chromatism=True, split_posang=True,
-                               shift_method='fft', manual_center=None, coarse_centering=False)
+                               shift_method='fft', manual_center=None, center_selection='time',
+                               coarse_centering=False)
 
 #%% cleaning
 reduction.sph_ird_clean(delete_raw=False, delete_products=False)
