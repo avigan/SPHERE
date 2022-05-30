@@ -19,6 +19,7 @@ import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.transmission as transmission
 import sphere.toolbox as toolbox
+import sphere.config as config
 
 _log = logging.getLogger(__name__)
 
@@ -141,27 +142,27 @@ class ImagingReduction(object):
         #
         # configuration
         #
-        configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('> read default configuration')
-        config.read(configfile)
+        cfgparser.read(cfgfile)
 
         # instrument
-        reduction._pixel = float(config.get('instrument', 'pixel'))
+        reduction._pixel = float(cfgparser.get('instrument', 'pixel'))
         reduction._nwave = 2
 
         # calibration
-        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        reduction._wave_cal_lasers = np.array(eval(cfgparser.get('calibration', 'wave_cal_lasers')))
 
         # imaging calibration
-        reduction._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
-        reduction._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
+        reduction._default_center = np.array(eval(cfgparser.get('calibration-imaging', 'default_center')))
+        reduction._orientation_offset = eval(cfgparser.get('calibration-imaging', 'orientation_offset'))
 
         # reduction parameters
-        reduction._config = {}
+        reduction._config = config.Configuration(reduction._instrument, reduction._path, reduction._logger)
         for group in ['reduction', 'reduction-imaging']:
-            items = dict(config.items(group))
+            items = dict(cfgparser.items(group))
             reduction._config.update(items)
             for key, value in items.items():
                 try:
@@ -256,27 +257,6 @@ class ImagingReduction(object):
     ##################################################
     # Generic class methods
     ##################################################
-
-    def show_config(self):
-        '''
-        Shows the reduction configuration
-        '''
-
-        # dictionary
-        dico = self.config
-
-        # parameters
-        print()
-        print(f'{"Parameter":<30s}Value')
-        print('-'*35)
-        catgs = ['misc', 'cal', 'preproc', 'center', 'combine', 'clean']
-        for catg in catgs:
-            keys  = [key for key in dico if key.startswith(catg)]
-            for key in keys:
-                print(f'{key:<30s}{dico[key]}')
-            print('-'*35)
-
-        print()
 
     def init_reduction(self):
         '''
