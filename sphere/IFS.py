@@ -24,7 +24,6 @@ import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.transmission as transmission
 import sphere.toolbox as toolbox
-import sphere.config as config
 
 _log = logging.getLogger(__name__)
 
@@ -498,24 +497,16 @@ class Reduction(object):
         reduction._orientation_offset = eval(cfgparser.get('calibration', 'orientation_offset'))            
 
         # reduction parameters
-        reduction._config = dict(config.items('reduction'))
-        for key, value in reduction._config.items():
-            try:
-                val = eval(value)
-            except NameError:
-                val = value
-            reduction._config[key] = val
-
         # reduction parameters
         cfg = {}
-        items = dict(config.items('reduction'))
+        items = dict(cfgparser.items('reduction'))
         for key, value in items.items():
             try:
                 val = eval(value)
             except NameError:
                 val = value
             cfg[key] = val
-        reduction._config = config.Configuration(reduction._path, reduction._logger, cfg)
+        reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
 
         #
         # reduction adn recipes status

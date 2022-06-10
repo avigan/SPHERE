@@ -24,7 +24,6 @@ import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.transmission as transmission
 import sphere.toolbox as toolbox
-import sphere.config as config
 
 _log = logging.getLogger(__name__)
 
@@ -210,7 +209,7 @@ class SpectroReduction(object):
                 except NameError:
                     val = value
                 cfg[key] = val
-        reduction._config = config.Configuration(reduction._path, reduction._logger, cfg)
+        reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
 
                 
         #
