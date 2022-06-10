@@ -24,6 +24,7 @@ import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.transmission as transmission
 import sphere.toolbox as toolbox
+import sphere.config as config
 
 _log = logging.getLogger(__name__)
 
@@ -178,39 +179,41 @@ class SpectroReduction(object):
         # configuration
         #
         configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('> read configuration')
-        config.read(configfile)
+        cfgparser.read(configfile)
 
         # instrument
-        reduction._pixel = float(config.get('instrument', 'pixel'))
+        reduction._pixel = float(cfgparser.get('instrument', 'pixel'))
         reduction._nwave = -1
 
         # calibration
-        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        reduction._wave_cal_lasers = np.array(eval(cfgparser.get('calibration', 'wave_cal_lasers')))
 
         # spectro calibration
-        reduction._default_center_lrs = np.array(eval(config.get('calibration-spectro', 'default_center_lrs')))
-        reduction._wave_min_lrs = eval(config.get('calibration-spectro', 'wave_min_lrs'))
-        reduction._wave_max_lrs = eval(config.get('calibration-spectro', 'wave_max_lrs'))
+        reduction._default_center_lrs = np.array(eval(cfgparser.get('calibration-spectro', 'default_center_lrs')))
+        reduction._wave_min_lrs = eval(cfgparser.get('calibration-spectro', 'wave_min_lrs'))
+        reduction._wave_max_lrs = eval(cfgparser.get('calibration-spectro', 'wave_max_lrs'))
 
-        reduction._default_center_mrs = np.array(eval(config.get('calibration-spectro', 'default_center_mrs')))
-        reduction._wave_min_mrs = eval(config.get('calibration-spectro', 'wave_min_mrs'))
-        reduction._wave_max_mrs = eval(config.get('calibration-spectro', 'wave_max_mrs'))
+        reduction._default_center_mrs = np.array(eval(cfgparser.get('calibration-spectro', 'default_center_mrs')))
+        reduction._wave_min_mrs = eval(cfgparser.get('calibration-spectro', 'wave_min_mrs'))
+        reduction._wave_max_mrs = eval(cfgparser.get('calibration-spectro', 'wave_max_mrs'))
 
         # reduction parameters
-        reduction._config = {}
+        cfg = {}
         for group in ['reduction', 'reduction-spectro']:
-            items = dict(config.items(group))
-            reduction._config.update(items)
+            items = dict(cfgparser.items(group))
+            cfg.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)
                 except NameError:
                     val = value
-                reduction._config[key] = val
+                cfg[key] = val
+        reduction._config = config.Configuration(reduction._path, reduction._logger, cfg)
 
+                
         #
         # reduction and recipes status
         #
@@ -401,7 +404,8 @@ class SpectroReduction(object):
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
-                               delete_products=config['clean_delete_products'])
+                               delete_products=config['clean_delete_products'],
+                               delete_config=config['clean_delete_config'])
 
 
     def full_reduction(self):
@@ -443,6 +447,9 @@ class SpectroReduction(object):
 
         # path
         path = self.path
+
+        # load existing configuration
+        self.config.load()
 
         # files info
         fname = path.preproc / 'files.csv'
@@ -2442,7 +2449,7 @@ class SpectroReduction(object):
         self._status = sphere.COMPLETE
 
 
-    def sph_ird_clean(self, delete_raw=False, delete_products=False):
+    def sph_ird_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -2453,6 +2460,9 @@ class SpectroReduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -2468,6 +2478,10 @@ class SpectroReduction(object):
         # update recipe execution
         self._logger.debug('> update recipe execution')
         self._recipes_status['sph_ird_clean'] = True
+
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
 
         # update recipe execution
         self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
