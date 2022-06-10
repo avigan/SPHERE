@@ -27,8 +27,7 @@ class Configuration(UserDict):
 
         self._logger.debug(f'Saving value {item} for key {key}')
 
-        with open(self._path.root / 'reduction_config.json', 'w') as file:
-            file.write(json.dumps(self.data, indent=4))
+        self.save()
 
     def __delitem__(self, key):
         self._logger.error('Configuration keys cannot be modified')
@@ -71,7 +70,7 @@ class Configuration(UserDict):
         self._logger.info('Saving full config to disk')
 
         with open(self._path.root / 'reduction_config.json', 'w') as file:
-            file.write(json.dumps(self, indent=4))
+            file.write(json.dumps(self.data, indent=4))
 
     def load(self):
         '''
