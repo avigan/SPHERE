@@ -163,7 +163,6 @@ class ImagingReduction(object):
         cfg = {}
         for group in ['reduction', 'reduction-imaging']:
             items = dict(cfgparser.items(group))
-            cfg.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)

@@ -204,7 +204,6 @@ class SpectroReduction(object):
         cfg = {}
         for group in ['reduction', 'reduction-spectro']:
             items = dict(cfgparser.items(group))
-            cfg.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)

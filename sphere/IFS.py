@@ -509,7 +509,6 @@ class Reduction(object):
         # reduction parameters
         cfg = {}
         items = dict(config.items('reduction'))
-        # cfg.update(items)
         for key, value in items.items():
             try:
                 val = eval(value)
