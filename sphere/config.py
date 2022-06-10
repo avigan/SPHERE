@@ -16,7 +16,8 @@ class Configuration(UserDict):
         self._path   = path
         self._logger = logger
 
-        super().__init__(config)
+        # initialize internal dict with user-provided configuration
+        self.data = config
 
     ##################################################
     # dictionary-related functions
