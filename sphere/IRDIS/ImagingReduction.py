@@ -160,16 +160,17 @@ class ImagingReduction(object):
         reduction._orientation_offset = eval(cfgparser.get('calibration-imaging', 'orientation_offset'))
 
         # reduction parameters
-        reduction._config = config.Configuration(reduction._instrument, reduction._path, reduction._logger)
+        cfg = {}
         for group in ['reduction', 'reduction-imaging']:
             items = dict(cfgparser.items(group))
-            reduction._config.update(items)
+            cfg.update(items)
             for key, value in items.items():
                 try:
                     val = eval(value)
                 except NameError:
                     val = value
-                reduction._config[key] = val
+                cfg[key] = val
+        reduction._config = config.Configuration(reduction._path, reduction._logger, cfg)
 
         #
         # reduction and recipes status
