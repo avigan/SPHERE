@@ -28,7 +28,7 @@ reduction.config['preproc_collapse_science'] = True
 reduction.config['preproc_collapse_type']    = 'mean'
 reduction.config['center_high_pass_waffle']  = True
 reduction.config['clean']                    = False
-reduction.show_config()
+print(reduction.config)
 
 #%% reduction
 reduction.full_reduction()
