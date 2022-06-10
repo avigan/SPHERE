@@ -91,3 +91,5 @@ class Configuration(UserDict):
 
             except:
                 self._logger.error('An error occured while loading previous configuration file')
+        else:
+            self.save()
