@@ -24,6 +24,7 @@ import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.transmission as transmission
 import sphere.toolbox as toolbox
+import sphere.config as config
 
 _log = logging.getLogger(__name__)
 
@@ -482,19 +483,19 @@ class Reduction(object):
         #
         reduction._logger.debug('> read default configuration')
         configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')
-        config.read(configfile)
+        cfgparser.read(configfile)
 
         # instrument
-        reduction._pixel = float(config.get('instrument', 'pixel'))
-        reduction._nwave = int(config.get('instrument', 'nwave'))
+        reduction._pixel = float(cfgparser.get('instrument', 'pixel'))
+        reduction._nwave = int(cfgparser.get('instrument', 'nwave'))
 
         # calibration
-        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
-        reduction._default_center = np.array(eval(config.get('calibration', 'default_center')))
-        reduction._orientation_offset = eval(config.get('calibration', 'orientation_offset'))            
+        reduction._wave_cal_lasers = np.array(eval(cfgparser.get('calibration', 'wave_cal_lasers')))
+        reduction._default_center = np.array(eval(cfgparser.get('calibration', 'default_center')))
+        reduction._orientation_offset = eval(cfgparser.get('calibration', 'orientation_offset'))            
 
         # reduction parameters
         reduction._config = dict(config.items('reduction'))
@@ -504,6 +505,18 @@ class Reduction(object):
             except NameError:
                 val = value
             reduction._config[key] = val
+
+        # reduction parameters
+        cfg = {}
+        items = dict(config.items('reduction'))
+        # cfg.update(items)
+        for key, value in items.items():
+            try:
+                val = eval(value)
+            except NameError:
+                val = value
+            cfg[key] = val
+        reduction._config = config.Configuration(reduction._path, reduction._logger, cfg)
 
         #
         # reduction adn recipes status
@@ -705,7 +718,8 @@ class Reduction(object):
 
         if config['clean']:
             self.sph_ifs_clean(delete_raw=config['clean_delete_raw'],
-                               delete_products=config['clean_delete_products'])
+                               delete_products=config['clean_delete_products'],
+                               delete_config=config['clean_delete_config'])
 
 
     def full_reduction(self):
@@ -748,6 +762,9 @@ class Reduction(object):
         # path
         path = self.path
 
+        # load existing configuration
+        self.config.load()
+        
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -3366,7 +3383,7 @@ class Reduction(object):
         self._status = sphere.COMPLETE
 
 
-    def sph_ifs_clean(self, delete_raw=False, delete_products=False):
+    def sph_ifs_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -3377,6 +3394,9 @@ class Reduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -3388,6 +3408,10 @@ class Reduction(object):
         
         # remove sub-directories
         self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
+
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
 
         # update recipe execution
         self._update_recipe_status('sph_ifs_clean', sphere.SUCCESS)
