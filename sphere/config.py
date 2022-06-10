@@ -13,7 +13,7 @@ class Configuration(UserDict):
     ##################################################
 
     def __init__(self, path, logger, config):
-        self._path   = path
+        self._file   = path.root / 'reduction_config.json'
         self._logger = logger
 
         # initialize internal dict with user-provided configuration
@@ -70,17 +70,24 @@ class Configuration(UserDict):
 
         self._logger.info('Saving full config to disk')
 
-        with open(self._path.root / 'reduction_config.json', 'w') as file:
+        with open(self._file, 'w') as file:
             file.write(json.dumps(self.data, indent=4))
 
     def load(self):
         '''
         Load configuration from reduction directory
         '''
+        
+        if self._file.exists():
+            try:
+                self._logger.info('Load existing configuration file')
+                
+                cfg = None
+                with open(self._file, 'r') as file:
+                    cfg = json.load(file)
 
-        cfg = None
-        with open(self._path.root / 'reduction_config.json', 'r') as file:
-            cfg = json.load(file)
+                for key in cfg.keys():
+                    self.data[key] = cfg[key]
 
-        for key in cfg.keys():
-            self.data[key] = cfg[key]
+            except:
+                self._logger.error('An error occured while loading previous configuration file')
