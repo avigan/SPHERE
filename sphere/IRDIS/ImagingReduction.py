@@ -341,7 +341,8 @@ class ImagingReduction(object):
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
-                               delete_products=config['clean_delete_products'])
+                               delete_products=config['clean_delete_products'],
+                               delete_config=config['clean_delete_config'])
 
 
     def full_reduction(self):
@@ -384,6 +385,9 @@ class ImagingReduction(object):
         # path
         path = self.path
 
+        # load existing configuration
+        self.config.load()
+        
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -1961,7 +1965,7 @@ class ImagingReduction(object):
         self._status = sphere.COMPLETE
 
 
-    def sph_ird_clean(self, delete_raw=False, delete_products=False):
+    def sph_ird_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -1972,6 +1976,9 @@ class ImagingReduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -1984,6 +1991,10 @@ class ImagingReduction(object):
         # remove sub-directories
         self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
+        
         # recipe execution status
         self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
 
