@@ -19,7 +19,7 @@ class Configuration(UserDict):
         # initialize internal dict with user-provided configuration
         self.data = config
 
-    ##################################################
+        ##################################################
     # dictionary-related functions
     ##################################################
 
@@ -58,7 +58,7 @@ class Configuration(UserDict):
 
     def __str__(self):
         return self.full_description()
-    
+
     ##################################################
     # Other methods
     ##################################################
@@ -67,7 +67,7 @@ class Configuration(UserDict):
         '''
         Save configuration to reduction directory
         '''
-        
+
         self._logger.info('Saving full config to disk')
 
         with open(self._path.root / 'reduction_config.json', 'w') as file:
@@ -81,3 +81,6 @@ class Configuration(UserDict):
         cfg = None
         with open(self._path.root / 'reduction_config.json', 'r') as file:
             cfg = json.load(file)
+
+        for key in cfg.keys():
+            self.data[key] = cfg[key]
