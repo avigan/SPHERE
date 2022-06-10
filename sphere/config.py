@@ -68,7 +68,7 @@ class Configuration(UserDict):
         Save configuration to reduction directory
         '''
 
-        self._logger.info('Saving full config to disk')
+        self._logger.debug('Saving full config to disk')
 
         with open(self._file, 'w') as file:
             file.write(json.dumps(self.data, indent=4))
