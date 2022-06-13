@@ -5,7 +5,9 @@ import sphere.IRDIS as IRDIS
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LSS/', log_level='info')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LSS/',
+                                   user_config=None,
+                                   log_level='info')
 
 ###############################################################################
 # It is possible to provide a default JSON configuration file to set some (or #
@@ -35,7 +37,9 @@ reduction.full_reduction()
 #
 
 #%% init reduction
-reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LSS/', log_level='info')
+reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LSS/',
+                                   user_config=None,
+                                   log_level='info')
 
 #%% sorting
 reduction.sort_files()
