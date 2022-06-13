@@ -17,7 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
-import sphere.toolbox as toolbox
+import sphere.utils.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
