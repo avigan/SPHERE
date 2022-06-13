@@ -57,7 +57,7 @@ class Reduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info', sphere_handler=None):
+    def __new__(cls, path, log_level='info', user_config=None, sphere_handler=None):
         '''
         Custom instantiation for the class
 
@@ -71,8 +71,12 @@ class Reduction(object):
         path : str
             Path to the directory containing the dataset
 
-        level : {'debug', 'info', 'warning', 'error', 'critical'}
+        log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
+
+        user_config : str
+            Path to a user-provided configuration. Default is None, i.e. the
+            reduction will use the package default configuration parameters
 
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
@@ -130,19 +134,27 @@ class Reduction(object):
         #
         reduction._logger.debug('> read default configuration')
         configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')
-        config.read(configfile)
+        cfgparser.read(configfile)
 
         # reduction parameters
-        reduction._config = dict(config.items('reduction'))
-        for key, value in reduction._config.items():
+        cfg = {}
+        items = dict(cfgparser.items('reduction'))
+        for key, value in items.items():
             try:
                 val = eval(value)
             except NameError:
                 val = value
-            reduction._config[key] = val
+            cfg[key] = val
+        reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
+
+        # load user-provided default configuration parameters
+        if user_config:
+            user_config = Path(user_config)
+
+            reduction._config.load_from_file(user_config)
 
         #
         # reduction and recipe status
@@ -250,6 +262,9 @@ class Reduction(object):
         # path
         path = self.path
 
+        # load existing configuration
+        self.config.load()
+        
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -372,28 +387,6 @@ class Reduction(object):
     # Generic class methods
     ##################################################
 
-    def show_config(self):
-        '''
-        Shows the reduction configuration
-        '''
-
-        # dictionary
-        dico = self._config
-
-        # parameters
-        print()
-        print(f'{"Parameter":<30s}Value')
-        print('-'*35)
-        catgs = ['misc', 'clean']
-        for catg in catgs:
-            keys  = [key for key in dico if key.startswith(catg)]
-            for key in keys:
-                print(f'{key:<30s}{dico[key]}')
-            print('-'*35)
-
-        print()
-
-
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
@@ -450,7 +443,8 @@ class Reduction(object):
         
         if config['clean']:
             self.sph_sparta_clean(delete_raw=config['clean_delete_raw'],
-                                  delete_products=config['clean_delete_products'])
+                                  delete_products=config['clean_delete_products'],
+                                  delete_config=config['clean_delete_config'])
     
     def full_reduction(self):
         '''
@@ -1406,7 +1400,7 @@ class Reduction(object):
         self._status = sphere.COMPLETE
     
 
-    def sph_sparta_clean(self, delete_raw=False, delete_products=False):
+    def sph_sparta_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -1417,6 +1411,9 @@ class Reduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -1426,42 +1423,12 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        # parameters
-        path = self.path
+        # remove sub-directories
+        self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
-        # tmp
-        if path.tmp.exists():
-            self._logger.debug(f'> remove {path.tmp}')
-            shutil.rmtree(path.tmp, ignore_errors=True)
-
-        # sof
-        if path.sof.exists():
-            self._logger.debug(f'> remove {path.sof}')
-            shutil.rmtree(path.sof, ignore_errors=True)
-
-        # calib
-        if path.calib.exists():
-            self._logger.debug(f'> remove {path.calib}')
-            shutil.rmtree(path.calib, ignore_errors=True)
-
-        # preproc
-        if path.preproc.exists():
-            self._logger.debug(f'> remove {path.preproc}')
-            shutil.rmtree(path.preproc, ignore_errors=True)
-
-        # raw
-        if delete_raw:
-            if path.raw.exists():
-                self._logger.debug(f'> remove {path.raw}')
-                self._logger.warning('   ==> delete raw files')
-                shutil.rmtree(path.raw, ignore_errors=True)
-
-        # products
-        if delete_products:
-            if path.products.exists():
-                self._logger.debug(f'> remove {path.products}')
-                self._logger.warning('   ==> delete products')
-                shutil.rmtree(path.products, ignore_errors=True)
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_clean', sphere.SUCCESS)
