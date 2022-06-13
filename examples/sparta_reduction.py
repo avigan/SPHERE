@@ -6,8 +6,8 @@ import sphere.SPARTA as SPARTA
 
 #%% init reduction
 reduction = SPARTA.Reduction('/Users/avigan/data/sphere-test-target/SPARTA/',
-                             user_config=None,
-                             log_level='info')
+                             log_level='info',
+                             user_config=None)
 
 ###############################################################################
 # It is possible to provide a default JSON configuration file to set some (or #
@@ -36,8 +36,8 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = SPARTA.Reduction('/Users/avigan/data/sphere-test-target/SPARTA/',
-                             user_config=None,
-                             log_level='info')
+                             log_level='info',
+                             user_config=None)
 
 #%% sorting
 reduction.sort_files()

@@ -18,8 +18,8 @@ import sphere.IFS as IFS
 
 #%% init reduction
 reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/',
-                          user_config=None,
-                          log_level='info')
+                          log_level='info',
+                          user_config=None)
 
 ###############################################################################
 # It is possible to provide a default JSON configuration file to set some (or #
@@ -53,8 +53,8 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/',
-                          user_config=None,
-                          log_level='info')
+                          log_level='info',
+                          user_config=None)
 
 #%% sorting
 reduction.sort_files()

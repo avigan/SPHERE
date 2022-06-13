@@ -18,8 +18,8 @@ import sphere.IRDIS as IRDIS
 
 #%% init reduction
 reduction = IRDIS.ImagingReduction('/Users/avigan/data/sphere-test-target/IRD/DBI/',
-                                   user_config=None,
-                                   log_level='info')
+                                   log_level='info',
+                                   user_config=None)
 
 ###############################################################################
 # It is possible to provide a default JSON configuration file to set some (or #
@@ -55,8 +55,8 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = IRDIS.ImagingReduction('/Users/avigan/data/sphere-test-target/IRD/DBI/',
-                                   user_config=None,
-                                   log_level='info')
+                                   log_level='info',
+                                   user_config=None)
 
 #%% sorting
 reduction.sort_files()
