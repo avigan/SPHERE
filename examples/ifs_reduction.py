@@ -18,6 +18,7 @@ import sphere.IFS as IFS
 
 #%% init reduction
 reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/',
+                          clean_start=True,
                           log_level='info',
                           user_config=None)
 
@@ -53,6 +54,7 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/',
+                          clean_start=True,
                           log_level='info',
                           user_config=None)
 

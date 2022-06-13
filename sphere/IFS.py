@@ -393,7 +393,7 @@ class Reduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info', user_config=None, sphere_handler=None):
+    def __new__(cls, path, clean_start=True, log_level='info', user_config=None, sphere_handler=None):
         '''
         Custom instantiation for the class
 
@@ -407,6 +407,10 @@ class Reduction(object):
         path : str
             Path to the directory containing the dataset
 
+        clean_start : bool
+            Remove all results from previous reductions for a clean start.
+            Default is True
+        
         log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
@@ -480,6 +484,16 @@ class Reduction(object):
         reduction._logger.warning('  * either reprocess data previously processed with version <1.4  ')
         reduction._logger.warning('  * or take into account the offset in your astrometric analysis  ')
         reduction._logger.warning('##################################################################')
+
+        #
+        # clean start
+        #
+        if clean_start:
+            reduction._logger.info('Erase outputs of previous reduction for a clean start')
+            reduction._path.remove(delete_raw=False, delete_products=True, logger=reduction._logger)
+            config_file = reduction._path.root / 'reduction_config.json'
+            if config_file.exists():
+                config_file.unlink()
         
         #
         # configuration

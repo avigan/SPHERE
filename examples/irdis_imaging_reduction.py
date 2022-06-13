@@ -18,6 +18,7 @@ import sphere.IRDIS as IRDIS
 
 #%% init reduction
 reduction = IRDIS.ImagingReduction('/Users/avigan/data/sphere-test-target/IRD/DBI/',
+                                   clean_start=True,
                                    log_level='info',
                                    user_config=None)
 
@@ -55,6 +56,7 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = IRDIS.ImagingReduction('/Users/avigan/data/sphere-test-target/IRD/DBI/',
+                                   clean_start=True,
                                    log_level='info',
                                    user_config=None)
 

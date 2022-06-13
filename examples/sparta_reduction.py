@@ -6,6 +6,7 @@ import sphere.SPARTA as SPARTA
 
 #%% init reduction
 reduction = SPARTA.Reduction('/Users/avigan/data/sphere-test-target/SPARTA/',
+                             clean_start=True,
                              log_level='info',
                              user_config=None)
 
@@ -36,6 +37,7 @@ reduction.full_reduction()
 
 #%% init reduction
 reduction = SPARTA.Reduction('/Users/avigan/data/sphere-test-target/SPARTA/',
+                             clean_start=True,
                              log_level='info',
                              user_config=None)
 
