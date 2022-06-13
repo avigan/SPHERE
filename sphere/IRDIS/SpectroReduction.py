@@ -763,7 +763,7 @@ class SpectroReduction(object):
         pa_end   = cinfo['PARANG'][-1]
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
-        posangs = ['{p:.2f}°' for p in posang]
+        posangs = [f'{p:.2f}°' for p in posang]
         
         date = str(cinfo['DATE'][0])[0:10]
 
