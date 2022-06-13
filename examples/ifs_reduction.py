@@ -26,7 +26,7 @@ reduction.config['preproc_coadd_value']      = 2
 reduction.config['combine_center_selection'] = 'first'
 reduction.config['center_high_pass_waffle']  = True
 reduction.config['clean']                    = False
-reduction.show_config()
+print(reduction.config)
 
 #%% reduction
 reduction.full_reduction()
@@ -65,4 +65,4 @@ reduction.sph_ifs_combine_data(cpix=True, psf_dim=80, science_dim=200, correct_a
                                coarse_centering=False, save_scaled=False)
 
 #%% cleaning
-reduction.sph_ifs_clean(delete_raw=False, delete_products=False)
+reduction.sph_ifs_clean(delete_raw=False, delete_products=False, delete_config=False)

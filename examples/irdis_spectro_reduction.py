@@ -11,7 +11,7 @@ reduction = IRDIS.SpectroReduction('/Users/avigan/data/sphere-test-target/IRD/LS
 reduction.config['combine_science_dim'] = 300
 reduction.config['combine_center_selection'] = 'first'
 reduction.config['clean'] = False
-reduction.show_config()
+print(reduction.config)
 
 #%% reduction
 reduction.full_reduction()
@@ -47,4 +47,4 @@ reduction.sph_ird_combine_data(cpix=True, psf_dim=80, science_dim=300,
                                coarse_centering=False)
 
 #%% cleaning
-reduction.sph_ird_clean(delete_raw=False, delete_products=False)
+reduction.sph_ird_clean(delete_raw=False, delete_products=False, delete_config=False)
