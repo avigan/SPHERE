@@ -393,7 +393,7 @@ class Reduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info', sphere_handler=None):
+    def __new__(cls, path, log_level='info', user_config=None, sphere_handler=None):
         '''
         Custom instantiation for the class
 
@@ -407,9 +407,13 @@ class Reduction(object):
         path : str
             Path to the directory containing the dataset
 
-        level : {'debug', 'info', 'warning', 'error', 'critical'}
+        log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
+        user_config : str
+            Path to a user-provided configuration. Default is None, i.e. the
+            reduction will use the package default configuration parameters
+        
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
         '''
@@ -497,7 +501,6 @@ class Reduction(object):
         reduction._orientation_offset = eval(cfgparser.get('calibration', 'orientation_offset'))            
 
         # reduction parameters
-        # reduction parameters
         cfg = {}
         items = dict(cfgparser.items('reduction'))
         for key, value in items.items():
@@ -508,6 +511,12 @@ class Reduction(object):
             cfg[key] = val
         reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
 
+        # load user-provided default configuration parameters
+        if user_config:
+            user_config = Path(user_config)
+
+            reduction._config.load_from_file(user_config)
+        
         #
         # reduction adn recipes status
         #

@@ -93,3 +93,28 @@ class Configuration(UserDict):
                 self._logger.error('An error occured while loading previous configuration file')
         else:
             self.save()
+
+    def load_from_file(self, filepath):
+        '''
+        Load configuration from provided file
+
+        Parameters
+        ----------
+        filepath : str
+            Path of the configuration file
+        '''
+        
+        if filepath.exists():
+            try:
+                self._logger.info(f'Load configuration file at path {filepath}')
+
+                cfg = None
+                with open(filepath, 'r') as file:
+                    cfg = json.load(file)
+
+                for key in cfg.keys():
+                    self.data[key] = cfg[key]
+
+                # self.save()
+            except:
+                self._logger.error('An error occured while loading configuration file')
