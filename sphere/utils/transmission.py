@@ -125,7 +125,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', 'SPHERE_CPI_ND.txt')
+        filter_file = os.path.join(package_directory, '../data/SPHERE_CPI_ND.txt')
 
         # load data
         ndf_all_tr = np.loadtxt(filter_file, unpack=False).T
@@ -142,7 +142,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', f'SPHERE_IRDIS_{name}.txt')
+        filter_file = os.path.join(package_directory, f'../data/SPHERE_IRDIS_{name}.txt')
 
         # load data
         cfw_tr = np.loadtxt(filter_file, unpack=False).T
@@ -156,7 +156,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', 'SPHERE_IRDIS_ND.txt')
+        filter_file = os.path.join(package_directory, '../data/SPHERE_IRDIS_ND.txt')
 
         # load data
         ird_ndf_tr = np.loadtxt(filter_file, unpack=False).T
@@ -170,7 +170,7 @@ def _load(type, name):
 
         # find file
         package_directory = os.path.dirname(os.path.abspath(__file__))
-        filter_file = os.path.join(package_directory, 'data', f'SPHERE_IRDIS_{name}.txt')
+        filter_file = os.path.join(package_directory, f'data/../SPHERE_IRDIS_{name}.txt')
 
         # load data
         dfw_tr_tmp = np.loadtxt(filter_file, unpack=False).T

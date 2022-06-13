@@ -18,7 +18,7 @@ import sphere.utils as utils
 import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
 import sphere.utils.toolbox as toolbox
-import sphere.transmission as transmission
+import sphere.utils.transmission as transmission
 
 _log = logging.getLogger(__name__)
 
