@@ -604,28 +604,6 @@ class Reduction(object):
     # Generic class methods
     ##################################################
 
-    def show_config(self):
-        '''
-        Shows the reduction configuration
-        '''
-
-        # dictionary
-        dico = self.config
-
-        # parameters
-        print()
-        print(f'{"Parameter":<30s}Value')
-        print('-'*35)
-        catgs = ['misc', 'cal', 'preproc', 'center', 'combine', 'clean']
-        for catg in catgs:
-            keys  = [key for key in dico if key.startswith(catg)]
-            for key in keys:
-                print(f'{key:<30s}{dico[key]}')
-            print('-'*35)
-
-        print()
-
-
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
