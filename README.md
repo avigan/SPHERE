@@ -45,6 +45,25 @@ Please cite the following reference if you use this pipeline in a scientific pub
 
 * [Vigan, 2020, ASCL, ascl:2009.002](https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V/abstract)
 
+Or simply use the following Bibtex entry:
+
+```
+@MISC{SPHERE_pipeline_Vigan2020,
+       author = {{Vigan}, Arthur},
+        title = "{vlt-sphere: Automatic VLT/SPHERE data reduction and analysis}",
+     keywords = {Software},
+         year = 2020,
+        month = sep,
+          doi = {10.5281/zenodo.6563998},
+          eid = {ascl:2009.002},
+        pages = {ascl:2009.002},
+archivePrefix = {ascl},
+       eprint = {2009.002},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2020ascl.soft09002V},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
+}
+```
+
 Moreover, the development of the SPHERE instrument has demanded a tremendous effort from many scientists, who have devoted several years of their life to design, build, test and commission the instrument. To recognize this work, we kindly ask you to cite the relevant instrumental papers in your scientific work. The reference papers for the instrument and its observing mode are:
 
 SPHERE:
@@ -77,3 +96,4 @@ And bug reports with suggested fix from:
  * Wolfgang Brandner (@Rumpelstil)
  * Tomas Stolker (@tomasstolker)
  * Karthikeyan Singaravelan (@tirkarthi)
+ * Chen Xie (@ChenXie-astro)
