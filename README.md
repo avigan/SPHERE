@@ -48,7 +48,7 @@ Please cite the following reference if you use this pipeline in a scientific pub
 Or simply use the following Bibtex entry:
 
 ```
-@MISC{SPHERE_pipeline_Vigan2020,
+@MISC{2020ascl.soft09002V,
        author = {{Vigan}, Arthur},
         title = "{vlt-sphere: Automatic VLT/SPHERE data reduction and analysis}",
      keywords = {Software},
