@@ -1,5 +1,5 @@
 import logging
-import json
+import configparser
 
 from collections import UserDict
 
@@ -13,7 +13,7 @@ class Configuration(UserDict):
     ##################################################
 
     def __init__(self, path, logger, config):
-        self._file   = path.root / 'reduction_config.json'
+        self._file   = path.root / 'reduction_config.ini'
         self._logger = logger
 
         # initialize internal dict with user-provided configuration
@@ -71,26 +71,47 @@ class Configuration(UserDict):
         self._logger.debug('Saving full config to disk')
 
         with open(self._file, 'w') as file:
-            file.write(json.dumps(self.data, indent=4))
+            file.write('[default]\n\n')
+            
+            catgs = ['misc', 'cal', 'preproc', 'center', 'combine', 'clean']
+            for catg in catgs:
+                keys = [key for key in self if key.startswith(catg)]
+                for key in keys:
+                    file.write(f'{key:<30s} = {self[key]}\n')
+                file.write('\n')
 
     def load(self):
         '''
         Load configuration from reduction directory
         '''
-        
+
         if self._file.exists():
+            self._logger.info('Load existing configuration file')
+
             try:
-                self._logger.info('Load existing configuration file')
-                
-                cfg = None
-                with open(self._file, 'r') as file:
-                    cfg = json.load(file)
+                cfgparser = configparser.ConfigParser()
+                cfgparser.read(self._file)
+            except configparser.MissingSectionHeaderError:
+                # add section if it was missing
+                file = open(self._file, 'r')
+                lines = file.readlines()
 
-                for key in cfg.keys():
-                    self.data[key] = cfg[key]
+                with open(self._file, 'w') as file:
+                    file.write('[default]\n\n')
+                    file.writelines(lines)
+            finally:
+                cfgparser = configparser.ConfigParser()
+                cfgparser.read(self._file)
 
-            except:
-                self._logger.error('An error occured while loading previous configuration file')
+                for section in cfgparser.sections():
+                    items = dict(cfgparser.items(section))
+                    for key, value in items.items():
+                        try:
+                            val = eval(value)
+                        except NameError:
+                            val = value
+                        
+                        self.data[key] = val
         else:
             self.save()
 
@@ -105,16 +126,30 @@ class Configuration(UserDict):
         '''
         
         if filepath.exists():
+            self._logger.info(f'Load configuration file at path {filepath}')
+
             try:
-                self._logger.info(f'Load configuration file at path {filepath}')
+                cfgparser = configparser.ConfigParser()
+                cfgparser.read(filepath)
+            except configparser.MissingSectionHeaderError:
+                # add section if it was missing
+                file = open(filepath, 'r')
+                lines = file.readlines()
 
-                cfg = None
-                with open(filepath, 'r') as file:
-                    cfg = json.load(file)
+                with open(filepath, 'w') as file:
+                    file.write('[default]\n\n')
+                    file.writelines(lines)
+            finally:
+                cfgparser = configparser.ConfigParser()
+                cfgparser.read(filepath)
 
-                for key in cfg.keys():
-                    self.data[key] = cfg[key]
+                for section in cfgparser.sections():
+                    items = dict(cfgparser.items(section))
+                    for key, value in items.items():
+                        try:
+                            val = eval(value)
+                        except NameError:
+                            val = value
+                        
+                        self.data[key] = val
 
-                # self.save()
-            except:
-                self._logger.error('An error occured while loading configuration file')

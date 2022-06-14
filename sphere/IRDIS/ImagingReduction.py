@@ -152,7 +152,7 @@ class ImagingReduction(object):
         if clean_start:
             reduction._logger.info('Erase outputs of previous reduction for a clean start')
             reduction._path.remove(delete_raw=False, delete_products=True, logger=reduction._logger)
-            config_file = reduction._path.root / 'reduction_config.json'
+            config_file = reduction._path.root / 'reduction_config.ini'
             if config_file.exists():
                 config_file.unlink()
         
@@ -190,7 +190,7 @@ class ImagingReduction(object):
 
         # load user-provided default configuration parameters
         if user_config:
-            user_config = Path(user_config)
+            user_config = Path(user_config).expanduser()
 
             reduction._config.load_from_file(user_config)
         
