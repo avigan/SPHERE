@@ -23,10 +23,10 @@ reduction = IFS.Reduction('/Users/avigan/data/sphere-test-target/IFS/',
                           user_config=None)
 
 ###############################################################################
-# It is possible to provide a default JSON configuration file to set some (or #
+# It is possible to provide a default INI configuration file to set some (or  #
 # all) of the reduction parameters to a default value different from the ones #
 # hard-coded in the sphere package. This is done with the keyword:            #
-#   user_config='... path to the file ...'                                    #
+#   user_config='~/path/to/the/file/config.ini'                               #
 # The increasing priority for setting reduction parameters is the following:  #
 #   0- default values hard-coded in the sphere package                        #
 #   1- values contained in the file pointed by the user_config keyword, if a  #
