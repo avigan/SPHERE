@@ -1594,7 +1594,7 @@ class ImagingReduction(object):
         save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The value of save_scaled is automatically set
-            to True when coarse_centering is set to True. The default
+            to False when coarse_centering is set to True. The default
             is False
         '''
 
