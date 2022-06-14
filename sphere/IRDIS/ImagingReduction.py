@@ -17,8 +17,8 @@ import sphere
 import sphere.utils as utils
 import sphere.utils.imutils as imutils
 import sphere.utils.aperture as aperture
-import sphere.transmission as transmission
-import sphere.toolbox as toolbox
+import sphere.utils.toolbox as toolbox
+import sphere.utils.transmission as transmission
 
 _log = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class ImagingReduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info', sphere_handler=None):
+    def __new__(cls, path, clean_start=True, log_level='info', user_config=None, sphere_handler=None):
         '''Custom instantiation for the class and initialization for the
            instances
 
@@ -66,9 +66,17 @@ class ImagingReduction(object):
         path : str
             Path to the directory containing the dataset
 
-        level : {'debug', 'info', 'warning', 'error', 'critical'}
+        clean_start : bool
+            Remove all results from previous reductions for a clean start.
+            Default is True
+        
+        log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
+        user_config : str
+            Path to a user-provided configuration. Default is None, i.e. the
+            reduction will use the package default configuration parameters
+        
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
 
@@ -84,7 +92,7 @@ class ImagingReduction(object):
         # zeroth-order reduction validation
         raw = path / 'raw'
         if not raw.exists():
-            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
+            _log.error(f'No raw/ subdirectory. {path} is not a valid reduction path')
             return None
         else:
             # it's all good: create instance!
@@ -121,56 +129,71 @@ class ImagingReduction(object):
                 
         reduction._logger = logger
 
-        reduction._logger.info('Creating IRDIS imaging reduction at path {}'.format(path))
+        reduction._logger.info(f'Creating IRDIS imaging reduction at path {path}')
 
         #
         # v1.4 - True North correction change
         #
-        reduction._logger.warning('#################################################################')
-        reduction._logger.warning('Starting in the present version of the pipeline, the default     ')
-        reduction._logger.warning('-1.75° true North offset is automatically added to the derotation')
-        reduction._logger.warning('angles. The offset value can be modified in the configuration of ')
-        reduction._logger.warning('the reduction:                                                   ')
-        reduction._logger.warning('                                                                 ')
-        reduction._logger.warning('  >>> reduction.config[\'cal_true_north\'] = xxx                 ')
-        reduction._logger.warning('                                                                 ')
-        reduction._logger.warning('To avoid any issues, make sure to:                               ')
-        reduction._logger.warning('  * either reprocess data previously processed with version <1.4 ')
-        reduction._logger.warning('  * or take into account the offset in your astrometric analysis ')
-        reduction._logger.warning('#################################################################')
+        reduction._logger.warning('##################################################################')
+        reduction._logger.warning('Since version 1.4 of the pipeline, the default -1.75° true North  ')
+        reduction._logger.warning('offset is automatically added to the derotation angles. The offset')
+        reduction._logger.warning('value can be modified in the configuration of the reduction:      ')
+        reduction._logger.warning('                                                                  ')
+        reduction._logger.warning('  >>> reduction.config[\'cal_true_north\'] = xxx                  ')
+        reduction._logger.warning('                                                                  ')
+        reduction._logger.warning('To avoid any issues, make sure to:                                ')
+        reduction._logger.warning('  * either reprocess data previously processed with version <1.4  ')
+        reduction._logger.warning('  * or take into account the offset in your astrometric analysis  ')
+        reduction._logger.warning('##################################################################')
+        
+        #
+        # clean start
+        #
+        if clean_start:
+            reduction._logger.info('Erase outputs of previous reduction for a clean start')
+            reduction._path.remove(delete_raw=False, delete_products=True, logger=reduction._logger)
+            config_file = reduction._path.root / 'reduction_config.ini'
+            if config_file.exists():
+                config_file.unlink()
         
         #
         # configuration
         #
-        configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('> read default configuration')
-        config.read(configfile)
+        cfgparser.read(cfgfile)
 
         # instrument
-        reduction._pixel = float(config.get('instrument', 'pixel'))
+        reduction._pixel = float(cfgparser.get('instrument', 'pixel'))
         reduction._nwave = 2
 
         # calibration
-        reduction._wave_cal_lasers = np.array(eval(config.get('calibration', 'wave_cal_lasers')))
+        reduction._wave_cal_lasers = np.array(eval(cfgparser.get('calibration', 'wave_cal_lasers')))
 
         # imaging calibration
-        reduction._default_center = np.array(eval(config.get('calibration-imaging', 'default_center')))
-        reduction._orientation_offset = eval(config.get('calibration-imaging', 'orientation_offset'))
+        reduction._default_center = np.array(eval(cfgparser.get('calibration-imaging', 'default_center')))
+        reduction._orientation_offset = eval(cfgparser.get('calibration-imaging', 'orientation_offset'))
 
         # reduction parameters
-        reduction._config = {}
+        cfg = {}
         for group in ['reduction', 'reduction-imaging']:
-            items = dict(config.items(group))
-            reduction._config.update(items)
+            items = dict(cfgparser.items(group))
             for key, value in items.items():
                 try:
                     val = eval(value)
                 except NameError:
                     val = value
-                reduction._config[key] = val
+                cfg[key] = val
+        reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
 
+        # load user-provided default configuration parameters
+        if user_config:
+            user_config = Path(user_config).expanduser()
+
+            reduction._config.load_from_file(user_config)
+        
         #
         # reduction and recipes status
         #
@@ -193,7 +216,7 @@ class ImagingReduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<ImagingReduction, instrument={}, mode={}, path={}, log={}>'.format(self._instrument, self._mode, self._path, self.loglevel)
+        return f'<ImagingReduction, instrument={self._instrument}, mode={self._mode}, path={self._path}, log={self.loglevel}>'
 
     def __format__(self):
         return self.__repr__()
@@ -257,56 +280,6 @@ class ImagingReduction(object):
     ##################################################
     # Generic class methods
     ##################################################
-
-    def show_config(self):
-        '''
-        Shows the reduction configuration
-        '''
-
-        # dictionary
-        dico = self.config
-
-        # misc parameters
-        print()
-        print('{0:<30s}{1}'.format('Parameter', 'Value'))
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('misc')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # calibrations
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('cal')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # pre-processing
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('preproc')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # centring
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('center')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # combining
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('combine')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # clean
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('clean')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-        print('-'*35)
-
-        print()
-
 
     def init_reduction(self):
         '''
@@ -372,6 +345,7 @@ class ImagingReduction(object):
                                   science_dim=config['combine_science_dim'],
                                   correct_anamorphism=config['combine_correct_anamorphism'],
                                   manual_center=config['combine_manual_center'],
+                                  center_selection=config['combine_center_selection'],
                                   coarse_centering=config['combine_coarse_centering'],
                                   shift_method=config['combine_shift_method'],
                                   save_scaled=config['combine_save_scaled'])
@@ -389,7 +363,8 @@ class ImagingReduction(object):
 
         if config['clean']:
             self.sph_ird_clean(delete_raw=config['clean_delete_raw'],
-                               delete_products=config['clean_delete_products'])
+                               delete_products=config['clean_delete_products'],
+                               delete_config=config['clean_delete_config'])
 
 
     def full_reduction(self):
@@ -432,6 +407,9 @@ class ImagingReduction(object):
         # path
         path = self.path
 
+        # load existing configuration
+        self.config.load()
+        
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -501,23 +479,23 @@ class ImagingReduction(object):
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                file = list(path.preproc.glob('{}.fits'.format(fname)))
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                file = list(path.preproc.glob(f'{fname}.fits'))
                 done = done and (len(file) == 1)
             if done:
                 self._update_recipe_status('sph_ird_preprocess_science', sphere.SUCCESS)
-            self._logger.debug('> sph_ird_preprocess_science status = {}'.format(done))
+            self._logger.debug(f'> sph_ird_preprocess_science status = {done}')
 
             done = True
             files = frames_info_preproc[(frames_info_preproc['DPR TYPE'] == 'OBJECT,FLUX') |
                                         (frames_info_preproc['DPR TYPE'] == 'OBJECT,CENTER')].index
             for file, idx in files:
-                fname = '{0}_DIT{1:03d}_preproc_centers'.format(file, idx)
-                file = list(path.preproc.glob('{}.fits'.format(fname)))
+                fname = f'{file}_DIT{idx:03d}_preproc_centers'
+                file = list(path.preproc.glob(f'{fname}.fits'))
                 done = done and (len(file) == 1)
             if done:
                 self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
-            self._logger.debug('> sph_ird_star_center status = {}'.format(done))
+            self._logger.debug(f'> sph_ird_star_center status = {done}')
             
         # reduction status
         self._status = sphere.INCOMPLETE
@@ -570,7 +548,7 @@ class ImagingReduction(object):
             self._status = sphere.FATAL
             return
 
-        self._logger.info(' * found {0} raw FITS files'.format(len(files)))
+        self._logger.info(f' * found {len(files)} raw FITS files')
 
         # read list of keywords
         self._logger.debug('> read keyword list')
@@ -597,7 +575,7 @@ class ImagingReduction(object):
 
         self._logger.debug('> read FITS keywords')
         for f in files:
-            hdu = fits.open(path.raw / '{}.fits'.format(f))
+            hdu = fits.open(path.raw / f'{f}.fits')
             hdr = hdu[0].header
 
             for k, sk in zip(keywords, keywords_short):
@@ -624,7 +602,7 @@ class ImagingReduction(object):
         # check instruments
         instru = files_info['SEQ ARM'].unique()
         if len(instru) != 1:
-            self._logger.critical('Sequence is mixing different instruments: {0}'.format(instru))
+            self._logger.critical(f'Sequence is mixing different instruments: {instru}')
             self._update_recipe_status('sort_files', sphere.ERROR)
             self._status = sphere.FATAL
             return
@@ -732,7 +710,7 @@ class ImagingReduction(object):
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-        RA = '{:02.0f}:{:02.0f}:{:02.3f}'.format(ra_drot_h, ra_drot_m, ra_drot_s)
+        RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
         dec_drot  = cinfo['INS4 DROT2 DEC'][0]
         sign = np.sign(dec_drot)
@@ -741,33 +719,34 @@ class ImagingReduction(object):
         dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
         dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
         dec_drot_d *= sign
-        DEC = '{:02.0f}:{:02.0f}:{:02.2f}'.format(dec_drot_d, dec_drot_m, dec_drot_s)
+        DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
         pa_start = cinfo['PARANG'][0]
         pa_end   = cinfo['PARANG'][-1]
 
-        posang   = cinfo['INS4 DROT2 POSANG'].unique()
-
+        posang  = cinfo['INS4 DROT2 POSANG'].unique()
+        posangs = [f'{p:.2f}°' for p in posang]
+        
         date = str(cinfo['DATE'][0])[0:10]
-
-        self._logger.info(' * Programme ID: {0}'.format(cinfo['OBS PROG ID'][0]))
-        self._logger.info(' * OB name:      {0}'.format(cinfo['OBS NAME'][0]))
-        self._logger.info(' * OB ID:        {0}'.format(cinfo['OBS ID'][0]))
-        self._logger.info(' * Object:       {0}'.format(cinfo['OBJECT'][0]))
-        self._logger.info(' * RA / DEC:     {0} / {1}'.format(RA, DEC))
-        self._logger.info(' * Date:         {0}'.format(date))
-        self._logger.info(' * Instrument:   {0}'.format(cinfo['SEQ ARM'][0]))
-        self._logger.info(' * Derotator:    {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
-        self._logger.info(' * VIS WFS mode: {0}'.format(cinfo['AOS VISWFS MODE'][0]))
-        self._logger.info(' * IR WFS mode:  {0}'.format(cinfo['AOS IRWFS MODE'][0]))
-        self._logger.info(' * Coronagraph:  {0}'.format(cinfo['INS COMB ICOR'][0]))
-        self._logger.info(' * Mode:         {0}'.format(cinfo['INS1 MODE'][0]))
-        self._logger.info(' * Filter:       {0}'.format(cinfo['INS COMB IFLT'][0]))
-        self._logger.info(' * DIT:          {0:.2f} sec'.format(cinfo['DET SEQ1 DIT'][0]))
-        self._logger.info(' * NDIT:         {0:.0f}'.format(cinfo['DET NDIT'][0]))
-        self._logger.info(' * Texp:         {0:.2f} min'.format(cinfo['DET SEQ1 DIT'].sum()/60))
-        self._logger.info(' * PA:           {0:.2f}° ==> {1:.2f}° = {2:.2f}°'.format(pa_start, pa_end, np.abs(pa_end-pa_start)))
-        self._logger.info(' * POSANG:       {0}'.format(', '.join(['{:.2f}°'.format(p) for p in posang])))
+        
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
+        self._logger.info(f" * Object:       {cinfo['OBJECT'][0]}")
+        self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
+        self._logger.info(f' * Date:         {date}')
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
+        self._logger.info(f" * Coronagraph:  {cinfo['INS COMB ICOR'][0]}")
+        self._logger.info(f" * Mode:         {cinfo['INS1 MODE'][0]}")
+        self._logger.info(f" * Filter:       {cinfo['INS COMB IFLT'][0]}")
+        self._logger.info(f" * DIT:          {cinfo['DET SEQ1 DIT'][0]:.2f} sec")
+        self._logger.info(f" * NDIT:         {cinfo['DET NDIT'][0]:.0f}")
+        self._logger.info(f" * Texp:         {cinfo['DET SEQ1 DIT'].sum() / 60:.2f} min")
+        self._logger.info(f' * PA:           {pa_start:.2f}° ==> {pa_end:.2f}° = {np.abs(pa_end - pa_start):.2f}°')
+        self._logger.info(f" * POSANG:       {', '.join(posangs)}")
 
         # recipe execution status
         self._update_recipe_status('sort_frames', sphere.SUCCESS)
@@ -797,20 +776,20 @@ class ImagingReduction(object):
         # instrument arm
         arm = files_info['SEQ ARM'].unique()
         if len(arm) != 1:
-            self._logger.error('Sequence is mixing different instruments: {0}'.format(arm))
+            self._logger.error(f'Sequence is mixing different instruments: {arm}')
             self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         # IRDIS obs mode and filter combination
         modes = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS1 MODE'].unique()
         if len(modes) != 1:
-            self._logger.error('Sequence is mixing different types of observations: {0}'.format(modes))
+            self._logger.error(f'Sequence is mixing different types of observations: {modes}')
             self._update_recipe_status('check_files_association', sphere.ERROR)
             return
 
         filter_combs = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS COMB IFLT'].unique()
         if len(filter_combs) != 1:
-            self._logger.error('Sequence is mixing different types of filters combinations: {0}'.format(filter_combs))
+            self._logger.error(f'Sequence is mixing different types of filters combinations: {filter_combs}')
             self._update_recipe_status('check_files_association', sphere.ERROR)
             return
         filter_comb = filter_combs[0]
@@ -832,7 +811,7 @@ class ImagingReduction(object):
         cfiles = calibs[(calibs['DPR TYPE'] == 'FLAT,LAMP') & (calibs['INS COMB IFLT'] == filter_comb)]
         if len(cfiles) <= 1:
             error_flag += 1
-            self._logger.error(' * there should be more than 1 flat in filter combination {0}'.format(filter_comb))
+            self._logger.error(f' * there should be more than 1 flat in filter combination {filter_comb}')
 
         ##################################################
         # static calibrations that depend on science DIT
@@ -850,22 +829,22 @@ class ImagingReduction(object):
                             (calibs['DET SEQ1 DIT'].round(2) == DIT)]
             if len(cfiles) == 0:
                 warning_flag += 1
-                self._logger.warning(' * there is no dark/background for science files with DIT={0} sec. It is *highly recommended* to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive'.format(DIT))
+                self._logger.warning(f' * there is no dark/background for science files with DIT={DIT} sec. It is *highly recommended* to include one to obtain the best data reduction. A single dark/background file is sufficient, and it can easily be downloaded from the ESO archive')
 
             # sky backgrounds
             cfiles = files_info[(files_info['DPR TYPE'] == 'SKY') & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
             if len(cfiles) == 0:
                 warning_flag += 1
-                self._logger.warning(' * there is no sky background for science files with DIT={0} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction, especially in K-band'.format(DIT))
+                self._logger.warning(f' * there is no sky background for science files with DIT={DIT} sec. Using a sky background instead of an internal instrumental background can usually provide a cleaner data reduction, especially in K-band')
 
         # error reporting
         self._logger.debug('> report status')
         if error_flag:
-            self._logger.error('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
+            self._logger.error(f'There are {warning_flag} warning(s) and {error_flag} error(s) in the classification of files')
             self._update_recipe_status('check_files_association', sphere.ERROR)
             return
         else:
-            self._logger.warning('There are {0} warning(s) and {1} error(s) in the classification of files'.format(warning_flag, error_flag))
+            self._logger.warning(f'There are {warning_flag} warning(s) and {error_flag} error(s) in the classification of files')
 
         # recipe execution status
         self._update_recipe_status('check_files_association', sphere.SUCCESS)
@@ -917,14 +896,14 @@ class ImagingReduction(object):
                     if len(cfiles) == 0:
                         continue
 
-                    self._logger.info(' * {0} in filter {1} with DIT={2:.2f} sec ({3} files)'.format(ctype, cfilt, DIT, len(cfiles)))
+                    self._logger.info(f' * {ctype} in filter {cfilt} with DIT={DIT:.2f} sec ({len(cfiles)} files)')
 
                     # create sof
                     self._logger.debug('> create sof file')
-                    sof = path.sof / 'dark_filt={0}_DIT={1:.2f}.sof'.format(cfilt, DIT)
+                    sof = path.sof / f'dark_filt={cfilt}_DIT={DIT:.2f}.sof'
                     file = open(sof, 'w')
                     for f in files:
-                        file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_DARK_RAW'))
+                        file.write(f"{path.raw}/{f}.fits     IRD_DARK_RAW\n")
                     file.close()
 
                     # products
@@ -932,8 +911,8 @@ class ImagingReduction(object):
                         loc = 'sky'
                     else:
                         loc = 'internal'
-                    dark_file = 'dark_{0}_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
-                    bpm_file  = 'dark_{0}_bpm_filt={1}_DIT={2:.2f}'.format(loc, cfilt, DIT)
+                    dark_file = f'dark_{loc}_filt={cfilt}_DIT={DIT:.2f}'
+                    bpm_file  = f'dark_{loc}_bpm_filt={cfilt}_DIT={DIT:.2f}'
 
                     # different max level in K-band
                     max_level = 1000
@@ -947,9 +926,9 @@ class ImagingReduction(object):
                             'sph_ird_master_dark',
                             '--ird.master_dark.sigma_clip=5.0',
                             '--ird.master_dark.save_addprod=TRUE',
-                            '--ird.master_dark.max_acceptable={0}'.format(max_level),
-                            '--ird.master_dark.outfilename={0}/{1}.fits'.format(path.calib, dark_file),
-                            '--ird.master_dark.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
+                            f'--ird.master_dark.max_acceptable={max_level}',
+                            f'--ird.master_dark.outfilename={path.calib}/{dark_file}.fits',
+                            f'--ird.master_dark.badpixfilename={path.calib}/{bpm_file}.fits',
                             str(sof)]
 
                     # check esorex
@@ -959,7 +938,7 @@ class ImagingReduction(object):
                         return
 
                     # execute esorex
-                    self._logger.debug('> execute {}'.format(' '.join(args)))
+                    self._logger.debug(f"> execute {' '.join(args)}")
                     if silent:
                         proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
                     else:
@@ -1035,19 +1014,19 @@ class ImagingReduction(object):
             cfiles = calibs[calibs['INS COMB IFLT'] == cfilt]
             files = cfiles.index
 
-            self._logger.info(' * filter {0} ({1} files)'.format(cfilt, len(cfiles)))
+            self._logger.info(f' * filter {cfilt} ({len(cfiles)} files)')
 
             # create sof
             self._logger.debug('> create sof file')
-            sof = path.sof / 'flat_filt={0}.sof'.format(cfilt)
+            sof = path.sof / f'flat_filt={cfilt}.sof'
             file = open(sof, 'w')
             for f in files:
-                file.write('{0}/{1}.fits     {2}\n'.format(path.raw, f, 'IRD_FLAT_FIELD_RAW'))
+                file.write(f"{path.raw}/{f}.fits     IRD_FLAT_FIELD_RAW\n")
             file.close()
 
             # products
-            flat_file = 'flat_filt={0}'.format(cfilt)
-            bpm_file  = 'flat_bpm_filt={0}'.format(cfilt)
+            flat_file = f'flat_filt={cfilt}'
+            bpm_file  = f'flat_bpm_filt={cfilt}'
 
             # esorex parameters
             args = ['esorex',
@@ -1055,8 +1034,8 @@ class ImagingReduction(object):
                     '--no-datamd5=TRUE',
                     'sph_ird_instrument_flat',
                     '--ird.instrument_flat.save_addprod=TRUE',
-                    '--ird.instrument_flat.outfilename={0}/{1}.fits'.format(path.calib, flat_file),
-                    '--ird.instrument_flat.badpixfilename={0}/{1}.fits'.format(path.calib, bpm_file),
+                    f'--ird.instrument_flat.outfilename={path.calib}/{flat_file}.fits',
+                    f'--ird.instrument_flat.badpixfilename={path.calib}/{bpm_file}.fits',
                     str(sof)]
 
             # check esorex
@@ -1066,7 +1045,7 @@ class ImagingReduction(object):
                 return
 
             # execute esorex
-            self._logger.debug('> execute {}'.format(' '.join(args)))
+            self._logger.debug(f"> execute {' '.join(args)}")
             if silent:
                 proc = subprocess.run(args, cwd=path.tmp, stdout=subprocess.DEVNULL)
             else:
@@ -1189,7 +1168,7 @@ class ImagingReduction(object):
         if fix_badpix:
             bpm_files = files_info[(files_info['PRO CATG'] == 'IRD_STATIC_BADPIXELMAP') |
                                    (files_info['PRO CATG'] == 'IRD_NON_LINEAR_BADPIXELMAP')].index
-            bpm_files = [path.calib / '{}.fits'.format(f) for f in bpm_files]
+            bpm_files = [path.calib / f'{f}.fits' for f in bpm_files]
             if len(bpm_files) == 0:
                 self._logger.error('Could not fin any bad pixel maps')
                 self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
@@ -1208,10 +1187,10 @@ class ImagingReduction(object):
         flat_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IRD_FLAT_FIELD') &
                                (files_info['INS COMB IFLT'] == filter_comb)]
         if len(flat_file) != 1:
-            self._logger.error('There should be exactly 1 flat file. Found {0}.'.format(len(flat_file)))
+            self._logger.error(f'There should be exactly 1 flat file. Found {len(flat_file)}.')
             self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
             return
-        flat = fits.getdata(path.calib / '{}.fits'.format(flat_file.index[0]))
+        flat = fits.getdata(path.calib / f'{flat_file.index[0]}.fits')
 
         # final dataframe
         self._logger.debug('> create frames_info_preproc data frame')
@@ -1232,7 +1211,7 @@ class ImagingReduction(object):
             for DIT in sci_DITs:
                 sfiles = sci_files[sci_files['DET SEQ1 DIT'].round(2) == DIT]
 
-                self._logger.info('{0} files of type {1} with DIT={2} sec'.format(len(sfiles), typ, DIT))
+                self._logger.info(f'{len(sfiles)} files of type {typ} with DIT={DIT} sec')
 
                 if subtract_background:
                     # look for sky, then background, then darks
@@ -1243,17 +1222,17 @@ class ImagingReduction(object):
                                             (files_info['DPR TYPE'] == d) & (files_info['DET SEQ1 DIT'].round(2) == DIT)]
                         if len(dfiles) != 0:
                             break
-                    self._logger.info('   ==> found {0} corresponding {1} file'.format(len(dfiles), d))
+                    self._logger.info(f'   ==> found {len(dfiles)} corresponding {d} file')
 
                     if len(dfiles) == 0:
                         # issue a warning if absolutely no background is found
                         self._logger.warning('No background has been found. Pre-processing will continue but data quality will likely be affected')
                         bkg = np.zeros((1024, 2048))
                     elif len(dfiles) == 1:
-                        bkg = fits.getdata(path.calib / '{}.fits'.format(dfiles.index[0]))
+                        bkg = fits.getdata(path.calib / f'{dfiles.index[0]}.fits')
                     elif len(dfiles) > 1:
                         # FIXME: handle cases when multiple backgrounds are found?
-                        self._logger.error('Unexpected number of background files ({0})'.format(len(dfiles)))
+                        self._logger.error(f'Unexpected number of background files ({len(dfiles)})')
                         self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
 
@@ -1262,11 +1241,11 @@ class ImagingReduction(object):
                     # frames_info extract
                     finfo = frames_info.loc[(fname, slice(None)), :]
 
-                    self._logger.info(' * file {0}/{1}: {2}, NDIT={3}'.format(idx+1, len(sfiles), fname, len(finfo)))
+                    self._logger.info(f' * file {idx + 1}/{len(sfiles)}: {fname}, NDIT={len(finfo)}')
 
                     # read data
                     self._logger.info('   ==> read data')
-                    img, hdr = fits.getdata(path.raw / '{}.fits'.format(fname), header=True)
+                    img, hdr = fits.getdata(path.raw / f'{fname}.fits', header=True)
 
                     # add extra dimension to single images to make cubes
                     if img.ndim == 2:
@@ -1298,7 +1277,7 @@ class ImagingReduction(object):
                     elif (typ == 'OBJECT'):
                         if collapse_science:
                             if collapse_type == 'mean':
-                                self._logger.info('   ==> collapse: mean ({0} -> 1 frame, 0 dropped)'.format(len(img)))
+                                self._logger.info(f'   ==> collapse: mean ({len(img)} -> 1 frame, 0 dropped)')
                                 img = np.mean(img, axis=0, keepdims=True)
 
                                 frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'mean', logger=self._logger)
@@ -1314,11 +1293,11 @@ class ImagingReduction(object):
                                 dropped = NDIT % coadd_value
 
                                 if coadd_value > NDIT:
-                                    self._logger.error('coadd_value ({0}) must be < NDIT ({1})'.format(coadd_value, NDIT))
+                                    self._logger.error(f'coadd_value ({coadd_value}) must be < NDIT ({NDIT})')
                                     self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                                     return
 
-                                self._logger.info('   ==> collapse: coadd by {0} ({1} -> {2} frames, {3} dropped)'.format(coadd_value, NDIT, NDIT_new, dropped))
+                                self._logger.info(f'   ==> collapse: coadd by {coadd_value} ({NDIT} -> {NDIT_new} frames, {dropped} dropped)')
 
                                 # coadd frames
                                 nimg = np.empty((NDIT_new, 1024, 2048), dtype=img.dtype)
@@ -1328,7 +1307,7 @@ class ImagingReduction(object):
 
                                 frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'coadd', coadd_value=coadd_value, logger=self._logger)
                             else:
-                                self._logger.error('Unknown collapse type {0}'.format(collapse_type))
+                                self._logger.error(f'Unknown collapse type {collapse_type}')
                                 self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                                 return
                         else:
@@ -1383,7 +1362,7 @@ class ImagingReduction(object):
                     for f in range(len(img)):
                         frame = nimg[f, ...].squeeze()
                         hdr['HIERARCH ESO DET NDIT'] = 1
-                        fits.writeto(path.preproc / '{}_DIT{:03d}_preproc.fits'.format(fname, f), frame, hdr,
+                        fits.writeto(path.preproc / f'{fname}_DIT{f:03d}_preproc.fits', frame, hdr,
                                      overwrite=True, output_verify='silentfix')
 
         # sort and save final dataframe
@@ -1453,16 +1432,16 @@ class ImagingReduction(object):
         flux_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,FLUX']
         if len(flux_files) != 0:
             for file, idx in flux_files.index:
-                self._logger.info(' * OBJECT,FLUX: {0}'.format(file))
+                self._logger.info(f' * OBJECT,FLUX: {file}')
 
                 # read data
                 self._logger.debug('> read data')
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                cube, hdr = fits.getdata(path.preproc / f'{fname}.fits', header=True)
 
                 # centers
                 if plot:
-                    save_path = path.products / '{}_psf_fitting.pdf'.format(fname)
+                    save_path = path.products / f'{fname}_psf_fitting.pdf'
                 else:
                     save_path = None
                 img_center = toolbox.star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.3,
@@ -1471,18 +1450,18 @@ class ImagingReduction(object):
 
                 # save
                 self._logger.debug('> save centers')
-                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
+                fits.writeto(path.preproc / f'{fname}_centers.fits', img_center, overwrite=True)
 
         # then OBJECT,CENTER
         starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
         if len(starcen_files) != 0:
             for file, idx in starcen_files.index:
-                self._logger.info(' * OBJECT,CENTER: {0}'.format(file))
+                self._logger.info(f' * OBJECT,CENTER: {file}')
 
                 # read data
                 self._logger.debug('> read data')
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                cube, hdr = fits.getdata(path.preproc / '{}.fits'.format(fname), header=True)
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                cube, hdr = fits.getdata(path.preproc / f'{fname}.fits', header=True)
 
                 # coronagraph
                 coro_name = starcen_files.loc[(file, idx), 'INS COMB ICOR']
@@ -1493,9 +1472,9 @@ class ImagingReduction(object):
 
                 # centers
                 waffle_orientation = hdr['HIERARCH ESO OCS WAFFLE ORIENT']
-                self._logger.debug('> waffle orientation: {}'.format(waffle_orientation))
+                self._logger.debug(f'> waffle orientation: {waffle_orientation}')
                 if plot:
-                    save_path = path.products / '{}_waffle_fitting.pdf'.format(fname)
+                    save_path = path.products / f'{fname}_waffle_fitting.pdf'
                 else:
                     save_path = None
                 spot_center, spot_dist, img_center \
@@ -1506,7 +1485,7 @@ class ImagingReduction(object):
 
                 # save
                 self._logger.debug('> save centers')
-                fits.writeto(path.preproc / '{}_centers.fits'.format(fname), img_center, overwrite=True)
+                fits.writeto(path.preproc / f'{fname}_centers.fits', img_center, overwrite=True)
 
         # recipe execution status
         self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
@@ -1516,7 +1495,8 @@ class ImagingReduction(object):
 
 
     def sph_ird_combine_data(self, cpix=True, psf_dim=80, science_dim=290, correct_anamorphism=True,
-                             shift_method='fft', manual_center=None, coarse_centering=False, save_scaled=False):
+                             shift_method='fft', manual_center=None, center_selection='first',
+                             coarse_centering=False, save_scaled=False):
         '''Combine and save the science data into final cubes
 
         All types of data are combined independently: PSFs
@@ -1592,6 +1572,13 @@ class ImagingReduction(object):
             frames. This should be an array of either 2 or nwave*2
             values. Default is None
 
+        center_selection : str        
+            Specify which star center to use when multiple are
+            available. Possible values are first, last, and time. The
+            time option indicates to use the star center file that is
+            closest in time with respect to each science file. Default
+            is first
+        
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
@@ -1607,9 +1594,8 @@ class ImagingReduction(object):
         save_scaled : bool
             Also save the wavelength-rescaled cubes. Makes the process
             much longer. The value of save_scaled is automatically set
-            to True when coarse_centering is set to True. The default
+            to False when coarse_centering is set to True. The default
             is False
-
         '''
 
         self._logger.info('Combine science data')
@@ -1685,15 +1671,15 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
-                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(flux_files), file, idx))
+                self._logger.info(f'   ==> file {file_idx + 1}/{len(flux_files)}: {file}, DIT #{idx}')
 
                 # read data
                 self._logger.debug('> read data')
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                cube = fits.getdata(path.preproc / f'{fname}.fits')
 
                 self._logger.debug('> read centers')
-                cfile = path.preproc / '{}_centers.fits'.format(fname)
+                cfile = path.preproc / f'{fname}_centers.fits'
                 if cfile.exists():
                     centers = fits.getdata(cfile)
                 else:
@@ -1717,7 +1703,7 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
+                    self._logger.debug(f'> wave {wave_idx}')
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
@@ -1778,12 +1764,12 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(starcen_files.index):
-                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(starcen_files), file, idx))
+                self._logger.info(f'   ==> file {file_idx + 1}/{len(starcen_files)}: {file}, DIT #{idx}')
 
                 # read data
                 self._logger.debug('> read data')
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                cube = fits.getdata(path.preproc / '{}.fits'.format(fname))
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                cube = fits.getdata(path.preproc / f'{fname}.fits')
 
                 # use manual center if explicitely requested
                 self._logger.debug('> read centers')
@@ -1791,7 +1777,7 @@ class ImagingReduction(object):
                     centers = manual_center
                 else:
                     # otherwise read center data
-                    centers = fits.getdata(path.preproc / '{}_centers.fits'.format(fname))
+                    centers = fits.getdata(path.preproc / f'{fname}_centers.fits')
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
@@ -1810,7 +1796,7 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
+                    self._logger.debug(f'> wave {wave_idx}')
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
@@ -1860,40 +1846,6 @@ class ImagingReduction(object):
             dms_dx_ref = 0
             dms_dy_ref = 0
 
-            # use manual center if explicitely requested
-            self._logger.debug('> read centers')
-            if manual_center is not None:
-                centers = manual_center
-            else:
-                # otherwise, look whether we have an OBJECT,CENTER frame
-
-                # FIXME: ticket #12. Use first DIT of first OBJECT,CENTER
-                # in the sequence, but it would be better to be able to
-                # select which CENTER to use
-                starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
-                if len(starcen_files) == 0:
-                    self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = self._default_center
-                else:
-                    fname = '{0}_DIT{1:03d}_preproc_centers.fits'.format(starcen_files.index.values[0][0], starcen_files.index.values[0][1])
-                    fpath = path.preproc / fname
-                    if fpath.exists():
-                        centers = fits.getdata(fpath)
-
-                        # Dithering Motion Stage for star center: value is in micron,
-                        # and the pixel size is 18 micron
-                        dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
-                        dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
-                    else:
-                        self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                        centers = self._default_center
-
-            # make sure we have only integers if user wants coarse centering
-            if coarse_centering:
-                centers = centers.astype(np.int)
-                dms_dx_ref = np.int(dms_dx_ref)
-                dms_dy_ref = np.int(dms_dy_ref)
-
             # final center
             if cpix:
                 cc = science_dim // 2
@@ -1909,12 +1861,57 @@ class ImagingReduction(object):
 
             # read and combine files
             for file_idx, (file, idx) in enumerate(object_files.index):
-                self._logger.info('   ==> file {0}/{1}: {2}, DIT #{3}'.format(file_idx+1, len(object_files), file, idx))
+                self._logger.info(f'   ==> file {file_idx + 1}/{len(object_files)}: {file}, DIT #{idx}')
+
+                # use manual center if explicitely requested
+                self._logger.debug('> read centers')
+                if manual_center is not None:
+                    centers = manual_center
+                else:
+                    # otherwise, look whether we have an OBJECT,CENTER frame and select the one requested by user
+                    starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
+                    if len(starcen_files) == 0:
+                        self._logger.warning('No OBJECT,CENTER file in the dataset. Images will be centered using default center ({},{})'.format(*self._default_center))
+                        centers = self._default_center
+                    else:
+                        # selection of the proper OBJECT,CENTER
+                        center_selection = center_selection.lower()
+                        if center_selection == 'first':
+                            center_index = 0
+                        elif center_selection == 'last':
+                            center_index = len(starcen_files.index.values)-1
+                        elif center_selection == 'time':
+                            time_cen = starcen_files['DATE-OBS']
+                            time_sci = frames_info.loc[(file, idx), 'DATE-OBS']
+                            center_index = np.abs(time_sci - time_cen).argmin()
+                        else:
+                            self._logger.error(f'Unknown OBJECT,CENTER selection {center_selection}. Possible values are first, last, and time.')
+                            self._update_recipe_status('sph_ird_combine_data', sphere.ERROR)
+                            return
+
+                        fname = f'{starcen_files.index.values[center_index][0]}_DIT{starcen_files.index.values[center_index][1]:03d}_preproc_centers.fits'
+                        fpath = path.preproc / fname
+                        if fpath.exists():
+                            centers = fits.getdata(fpath)
+
+                            # Dithering Motion Stage for star center: value is in micron,
+                            # and the pixel size is 18 micron
+                            dms_dx_ref = starcen_files['INS1 PAC X'][0] / 18
+                            dms_dy_ref = starcen_files['INS1 PAC Y'][0] / 18
+                        else:
+                            self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
+                            centers = self._default_center
+
+                # make sure we have only integers if user wants coarse centering
+                if coarse_centering:
+                    centers = centers.astype(np.int)
+                    dms_dx_ref = np.int(dms_dx_ref)
+                    dms_dy_ref = np.int(dms_dy_ref)
 
                 # read data
                 self._logger.debug('> read data')
-                fname = '{0}_DIT{1:03d}_preproc'.format(file, idx)
-                files = list(path.preproc.glob('{}*.fits'.format(fname)))
+                fname = f'{file}_DIT{idx:03d}_preproc'
+                files = list(path.preproc.glob(f'{fname}*.fits'))
                 cube = fits.getdata(files[0])
 
                 # neutral density
@@ -1941,7 +1938,7 @@ class ImagingReduction(object):
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
-                    self._logger.debug('> wave {}'.format(wave_idx))
+                    self._logger.debug(f'> wave {wave_idx}')
                     cx, cy = centers[wave_idx, :]
 
                     # DMS contribution
@@ -1990,7 +1987,7 @@ class ImagingReduction(object):
         self._status = sphere.COMPLETE
 
 
-    def sph_ird_clean(self, delete_raw=False, delete_products=False):
+    def sph_ird_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -2001,6 +1998,9 @@ class ImagingReduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -2013,6 +2013,10 @@ class ImagingReduction(object):
         # remove sub-directories
         self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
+        
         # recipe execution status
         self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
 

@@ -17,7 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
-import sphere.toolbox as toolbox
+import sphere.utils.toolbox as toolbox
 
 _log = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class Reduction(object):
     # Constructor
     ##################################################
 
-    def __new__(cls, path, log_level='info', sphere_handler=None):
+    def __new__(cls, path, clean_start=True, log_level='info', user_config=None, sphere_handler=None):
         '''
         Custom instantiation for the class
 
@@ -71,8 +71,16 @@ class Reduction(object):
         path : str
             Path to the directory containing the dataset
 
-        level : {'debug', 'info', 'warning', 'error', 'critical'}
+        clean_start : bool
+            Remove all results from previous reductions for a clean start.
+            Default is True
+        
+        log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
+
+        user_config : str
+            Path to a user-provided configuration. Default is None, i.e. the
+            reduction will use the package default configuration parameters
 
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
@@ -88,7 +96,7 @@ class Reduction(object):
         # zeroth-order reduction validation
         raw = path / 'raw'
         if not raw.exists():
-            _log.error('No raw/ subdirectory. {0} is not a valid reduction path'.format(path))
+            _log.error(f'No raw/ subdirectory. {path} is not a valid reduction path')
             return None
         else:
             reduction = super(Reduction, cls).__new__(cls)
@@ -123,26 +131,44 @@ class Reduction(object):
         
         reduction._logger = logger
         
-        reduction._logger.info('Creating SPARTA reduction at path {}'.format(path))
+        reduction._logger.info(f'Creating SPARTA reduction at path {path}')
+
+        #
+        # clean start
+        #
+        if clean_start:
+            reduction._logger.info('Erase outputs of previous reduction for a clean start')
+            reduction._path.remove(delete_raw=False, delete_products=True, logger=reduction._logger)
+            config_file = reduction._path.root / 'reduction_config.ini'
+            if config_file.exists():
+                config_file.unlink()
 
         #
         # configuration
         #
         reduction._logger.debug('> read default configuration')
         configfile = f'{Path(sphere.__file__).parent}/instruments/{reduction._instrument}.ini'
-        config = configparser.ConfigParser()
+        cfgparser = configparser.ConfigParser()
 
         reduction._logger.debug('Read configuration')
-        config.read(configfile)
+        cfgparser.read(configfile)
 
         # reduction parameters
-        reduction._config = dict(config.items('reduction'))
-        for key, value in reduction._config.items():
+        cfg = {}
+        items = dict(cfgparser.items('reduction'))
+        for key, value in items.items():
             try:
                 val = eval(value)
             except NameError:
                 val = value
-            reduction._config[key] = val
+            cfg[key] = val
+        reduction._config = utils.Configuration(reduction._path, reduction._logger, cfg)
+
+        # load user-provided default configuration parameters
+        if user_config:
+            user_config = Path(user_config).expanduser()
+
+            reduction._config.load_from_file(user_config)
 
         #
         # reduction and recipe status
@@ -174,7 +200,7 @@ class Reduction(object):
     ##################################################
 
     def __repr__(self):
-        return '<Reduction, instrument={}, path={}, log={}>'.format(self._instrument, self._path, self.loglevel)
+        return f'<Reduction, instrument={self._instrument}, path={self._path}, log={self.loglevel}>'
 
     def __format__(self):
         return self.__repr__()
@@ -250,6 +276,9 @@ class Reduction(object):
         # path
         path = self.path
 
+        # load existing configuration
+        self.config.load()
+        
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -372,32 +401,6 @@ class Reduction(object):
     # Generic class methods
     ##################################################
 
-    def show_config(self):
-        '''
-        Shows the reduction configuration
-        '''
-
-        # dictionary
-        dico = self._config
-
-        # misc parameters
-        print()
-        print('{0:<30s}{1}'.format('Parameter', 'Value'))
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('misc')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-
-        # clean
-        print('-'*35)
-        keys = [key for key in dico if key.startswith('clean')]
-        for key in keys:
-            print('{0:<30s}{1}'.format(key, dico[key]))
-        print('-'*35)
-
-        print()
-
-
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
@@ -454,7 +457,8 @@ class Reduction(object):
         
         if config['clean']:
             self.sph_sparta_clean(delete_raw=config['clean_delete_raw'],
-                                  delete_products=config['clean_delete_products'])
+                                  delete_products=config['clean_delete_products'],
+                                  delete_config=config['clean_delete_config'])
     
     def full_reduction(self):
         '''
@@ -497,7 +501,7 @@ class Reduction(object):
             self._status = sphere.FATAL
             return
         
-        self._logger.info(' * found {0} raw FITS files'.format(len(files)))
+        self._logger.info(f' * found {len(files)} raw FITS files')
 
         # read list of keywords
         self._logger.debug('> read keyword list')
@@ -524,7 +528,7 @@ class Reduction(object):
 
         self._logger.debug('> read FITS keywords')
         for f in files:
-            hdu = fits.open(path.raw / '{}.fits'.format(f))
+            hdu = fits.open(path.raw / f'{f}.fits')
             hdr = hdu[0].header
 
             for k, sk in zip(keywords, keywords_short):
@@ -566,7 +570,7 @@ class Reduction(object):
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-        RA = '{:02.0f}:{:02.0f}:{:02.3f}'.format(ra_drot_h, ra_drot_m, ra_drot_s)
+        RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
         dec_drot  = cinfo['INS4 DROT2 DEC'][0]
         sign = np.sign(dec_drot)
@@ -575,20 +579,20 @@ class Reduction(object):
         dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
         dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
         dec_drot_d *= sign
-        DEC = '{:02.0f}:{:02.0f}:{:02.2f}'.format(dec_drot_d, dec_drot_m, dec_drot_s)
+        DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
         date = str(cinfo['DATE'][0])[0:10]
 
         self._logger.info('Extract frames information')
-        self._logger.info(' * Programme ID: {0}'.format(cinfo['OBS PROG ID'][0]))
-        self._logger.info(' * OB name:      {0}'.format(cinfo['OBS NAME'][0]))
-        self._logger.info(' * OB ID:        {0}'.format(cinfo['OBS ID'][0]))
-        self._logger.info(' * RA / DEC:     {0} / {1}'.format(RA, DEC))
-        self._logger.info(' * Date:         {0}'.format(date))
-        self._logger.info(' * Instrument:   {0}'.format(cinfo['SEQ ARM'][0]))
-        self._logger.info(' * Derotator:    {0}'.format(cinfo['INS4 DROT2 MODE'][0]))
-        self._logger.info(' * VIS WFS mode: {0}'.format(cinfo['AOS VISWFS MODE'][0]))
-        self._logger.info(' * IR WFS mode:  {0}'.format(cinfo['AOS IRWFS MODE'][0]))
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
+        self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
+        self._logger.info(f' * Date:         {date}')
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
 
         # update recipe execution
         self._update_recipe_status('sort_files', sphere.SUCCESS)
@@ -1410,7 +1414,7 @@ class Reduction(object):
         self._status = sphere.COMPLETE
     
 
-    def sph_sparta_clean(self, delete_raw=False, delete_products=False):
+    def sph_sparta_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
         Clean everything except for raw data and science products (by default)
 
@@ -1421,6 +1425,9 @@ class Reduction(object):
 
         delete_products : bool
             Delete science products. Default is False
+
+        delete_config : bool
+            Delete configuration file. Default is False
         '''
 
         self._logger.info('Clean reduction data')
@@ -1430,42 +1437,12 @@ class Reduction(object):
                                          self.recipe_requirements, logger=self._logger):
             return
 
-        # parameters
-        path = self.path
+        # remove sub-directories
+        self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 
-        # tmp
-        if path.tmp.exists():
-            self._logger.debug('> remove {}'.format(path.tmp))
-            shutil.rmtree(path.tmp, ignore_errors=True)
-
-        # sof
-        if path.sof.exists():
-            self._logger.debug('> remove {}'.format(path.sof))
-            shutil.rmtree(path.sof, ignore_errors=True)
-
-        # calib
-        if path.calib.exists():
-            self._logger.debug('> remove {}'.format(path.calib))
-            shutil.rmtree(path.calib, ignore_errors=True)
-
-        # preproc
-        if path.preproc.exists():
-            self._logger.debug('> remove {}'.format(path.preproc))
-            shutil.rmtree(path.preproc, ignore_errors=True)
-
-        # raw
-        if delete_raw:
-            if path.raw.exists():
-                self._logger.debug('> remove {}'.format(path.raw))
-                self._logger.warning('   ==> delete raw files')
-                shutil.rmtree(path.raw, ignore_errors=True)
-
-        # products
-        if delete_products:
-            if path.products.exists():
-                self._logger.debug('> remove {}'.format(path.products))
-                self._logger.warning('   ==> delete products')
-                shutil.rmtree(path.products, ignore_errors=True)
+        # remove config
+        if delete_config:
+            self.config._file.unlink()
 
         # update recipe execution
         self._update_recipe_status('sph_sparta_clean', sphere.SUCCESS)
