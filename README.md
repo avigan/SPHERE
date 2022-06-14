@@ -92,7 +92,7 @@ With important contributions from:
  * Dino Mesa (INAF/OAPD): IFS pre-processing
  * ESO personnel in general: SPHERE pipeline and calibration procedures
 
-And bug reports with suggested fix from:
+And small improvements, or bug reports with suggested fix from:
  * Wolfgang Brandner (@Rumpelstil)
  * Tomas Stolker (@tomasstolker)
  * Karthikeyan Singaravelan (@tirkarthi)
