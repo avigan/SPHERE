@@ -175,7 +175,7 @@ def _load(type, name):
         # load data
         dfw_tr_tmp = np.loadtxt(filter_file, unpack=False).T
 
-        dfw_tr = np.zeros((2, wave_grid.size), dtype=np.float)
+        dfw_tr = np.zeros((2, wave_grid.size), dtype=np.float64)
         dfw_tr[0] = _reinterpolate(dfw_tr_tmp[1], dfw_tr_tmp[0], wave_grid)
         dfw_tr[1] = _reinterpolate(dfw_tr_tmp[2], dfw_tr_tmp[0], wave_grid)
 

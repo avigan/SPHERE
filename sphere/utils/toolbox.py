@@ -129,9 +129,10 @@ def compute_times(frames_info, logger=_log):
         # get necessary values
         time_start = frames_info['DATE-OBS'].values
         time_end   = frames_info['DET FRAM UTC'].values
-        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
-        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
-        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+        # frames_info['DET NDIT'].dtype is already int so astype() not really needed
+        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int64)
+        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float64)*1000, dtype='timedelta64[ms]')
+        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(np.float64)*1000, dtype='timedelta64[ms]')
         
         # calculate UTC time stamps
         idx = frames_info.index.get_level_values(1).values
@@ -200,8 +201,8 @@ def compute_angles(frames_info, true_north, logger=_log):
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
         try:
-            alt = frames_info['TEL ALT'].values.astype(np.float)
-            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
+            alt = frames_info['TEL ALT'].values.astype(np.float64)
+            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float64)
             pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
         except KeyError:
             pa_correction = 0
@@ -209,23 +210,57 @@ def compute_angles(frames_info, true_north, logger=_log):
         pa_correction = 0
 
     # RA/DEC
-    ra_drot = frames_info['INS4 DROT2 RA'].values.astype(np.float)
+    ra_drot = frames_info['INS4 DROT2 RA'].values.astype(np.float64)
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-    ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
-    ra_deg  = ra_hour*15
-    frames_info['RA'] = ra_deg.value
 
-    dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float)
+    # TypeError: Creating an Angle with a tuple of degrees (or hours), minutes,
+    # and seconds is no longer supported, as it has ambiguous behavior when the
+    # degree value is 0. Use another way of creating angles instead (e.g., a
+    # less ambiguous string like '-0d1m2.3s'). In a future version of astropy,
+    # a tuple will be interpreted simply as a sequence with the given unit.
+
+    # ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), unit=units.hour)
+    # ra_deg = ra_hour*15
+    # frames_info['RA'] = ra_deg.value
+
+    ra_hour = []
+    for i in range(ra_drot.size):
+        hms_str = f'{ra_drot_h[i]:.0f}h{ra_drot_m[i]:.0f}m{ra_drot_s[i]}s'
+        ra_angle = coordinates.Angle(hms_str, unit=units.hour)
+        ra_hour.append(ra_angle)
+
+    # create a single Angle object from the ra_hour list
+    ra_hour = coordinates.Angle(ra_hour, unit=units.hour)
+    frames_info['RA'] = ra_hour.deg
+
+    dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float64)
     sign = np.sign(dec_drot)
     udec_drot  = np.abs(dec_drot)
     dec_drot_d = np.floor(udec_drot/1e4)
     dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
     dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
     dec_drot_d *= sign
-    dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
-    frames_info['DEC'] = dec.value
+
+    # TypeError: Creating an Angle with a tuple of degrees (or hours), minutes,
+    # and seconds is no longer supported, as it has ambiguous behavior when the
+    # degree value is 0. Use another way of creating angles instead (e.g., a
+    # less ambiguous string like '-0d1m2.3s'). In a future version of astropy,
+    # a tuple will be interpreted simply as a sequence with the given unit.
+
+    # dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
+    # frames_info['DEC'] = dec.value
+
+    dec = []
+    for i in range(ra_drot.size):
+        dms_str = f'{dec_drot_d[i]:.0f}d{dec_drot_m[i]:.0f}m{dec_drot_s[i]}s'
+        dec_angle = coordinates.Angle(dms_str, unit=units.degree)
+        dec.append(dec_angle)
+
+    # create a single Angle object from the dec list
+    dec = coordinates.Angle(dec, unit=units.degree)
+    frames_info['DEC'] = dec.deg
 
     # calculate parallactic angles
     utc = Time(frames_info['TIME'].values.astype(str), scale='utc', location=sphere.location)
@@ -387,7 +422,13 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug('> type=none: copy input data frame')
     elif collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
+
+        # fill the empty DataFrame with zeros instead of NaNs
+        # otherwise .astype() does not work if a column datatype is int
+        nfinfo = pd.DataFrame(0, columns=finfo.columns, index=index, dtype=object)
+
+        # use the same column data types as finfo
+        nfinfo = nfinfo.astype(finfo.dtypes.to_dict())
 
         logger.debug('> type=mean: extract min/max values')
         
@@ -417,7 +458,13 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug(f'> type=coadd: extract sub-groups of {coadd_value} frames')
         
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
+
+        # fill the empty DataFrame with zeros instead of NaNs
+        # otherwise .astype() does not work if a column datatype is int
+        nfinfo = pd.DataFrame(0, columns=finfo.columns, index=index, dtype=object)
+
+        # use the same column data types as finfo
+        nfinfo = nfinfo.astype(finfo.dtypes.to_dict())
 
         for f in range(NDIT_new):
             # get min/max indices
@@ -541,7 +588,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
 
     # loop over images
     img_centers    = np.zeros((nwave, 2))
-    failed_centers = np.zeros(nwave, dtype=np.bool)
+    failed_centers = np.zeros(nwave, dtype=np.bool_)
     for idx, (cwave, img) in enumerate(zip(wave, cube)):
         logger.info(f'   ==> wave {idx + 1:2d}/{nwave:2d} ({cwave:4.0f} nm)')
 
@@ -718,7 +765,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
 
         # approximate center
         prof = np.sum(img, axis=0)
-        cx_int = np.int(np.argmax(prof))
+        cx_int = int(np.argmax(prof))
 
         # sub-image
         sub = img[:, cx_int-box:cx_int+box]
@@ -1085,7 +1132,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             loD = wave[widx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
 
             # first waffle
-            prof = sub[widx] * (xx < box).astype(np.int)
+            prof = sub[widx] * (xx < box).astype(np.int64)
             imax = np.argmax(prof)
             g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
                 models.Const1D(amplitude=0)
@@ -1095,7 +1142,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             c0 = par[0].mean.value - box + cx_int
 
             # second waffle
-            prof = sub[widx] * (xx > box).astype(np.int)
+            prof = sub[widx] * (xx > box).astype(np.int64)
             imax = np.argmax(prof)
             g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
                 models.Const1D(amplitude=0)

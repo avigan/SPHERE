@@ -2102,7 +2102,7 @@ class SpectroReduction(object):
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center))
 
-            manual_center = np.full((1024, 2), manual_center, dtype=np.float)
+            manual_center = np.full((1024, 2), manual_center, dtype=np.float64)
 
         #
         # OBJECT,FLUX
@@ -2137,7 +2137,7 @@ class SpectroReduction(object):
                     centers = fits.getdata(cfile)
                 else:
                     self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default centers ({}, {})'.format(*default_center[:, 0]))
-                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
+                    centers = np.full((1024, 2), default_center[:, 0], dtype=np.float64)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
@@ -2156,7 +2156,7 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         self._logger.debug('> correct MRS chromatism')
-                        img = img.astype(np.float)
+                        img = img.astype(np.float64)
                         self._logger.debug('> shift and normalize')
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -2171,7 +2171,7 @@ class SpectroReduction(object):
                         cx = centers[ciwave, field_idx].mean()
 
                         self._logger.debug('> shift and normalize')
-                        img  = img.astype(np.float)
+                        img  = img.astype(np.float64)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
@@ -2260,7 +2260,7 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         self._logger.debug('> correct MRS chromatism')
-                        img = img.astype(np.float)
+                        img = img.astype(np.float64)
                         self._logger.debug('> shift and normalize')
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -2274,7 +2274,7 @@ class SpectroReduction(object):
                         cx = centers[ciwave, field_idx].mean()
 
                         self._logger.debug('> shift and normalize')
-                        img  = img.astype(np.float)
+                        img  = img.astype(np.float64)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
@@ -2337,7 +2337,7 @@ class SpectroReduction(object):
                 # use manual center if explicitely requested
                 self._logger.debug('> read centers')
                 if manual_center is not None:
-                    centers = np.full((1024, 2), manual_center, dtype=np.float)
+                    centers = np.full((1024, 2), manual_center, dtype=np.float64)
                 else:
                     # otherwise, look whether we have an OBJECT,CENTER frame and select the one requested by user
                     starcen_files = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
@@ -2366,7 +2366,7 @@ class SpectroReduction(object):
                             centers = fits.getdata(fpath)
                         else:
                             self._logger.warning('sph_ird_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                            centers = np.full((1024, 2), default_center[:, 0], dtype=np.float)
+                            centers = np.full((1024, 2), default_center[:, 0], dtype=np.float64)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
@@ -2390,7 +2390,7 @@ class SpectroReduction(object):
 
                     if correct_mrs_chromatism and (filter_comb == 'S_MR'):
                         self._logger.debug('> correct MRS chromatism')
-                        img = img.astype(np.float)
+                        img = img.astype(np.float64)
                         self._logger.debug('> shift and normalize')
                         for wave_idx, widx in enumerate(ciwave):
                             cx = centers[widx, field_idx]
@@ -2404,7 +2404,7 @@ class SpectroReduction(object):
                         cx = centers[ciwave, field_idx].mean()
 
                         self._logger.debug('> shift and normalize')
-                        img  = img.astype(np.float)
+                        img  = img.astype(np.float64)
                         nimg = imutils.shift(img, (cc-cx, 0), method=shift_method)
                         nimg = nimg / DIT
 
