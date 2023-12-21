@@ -765,7 +765,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
 
         # approximate center
         prof = np.sum(img, axis=0)
-        cx_int = int(np.argmax(prof))
+        cx_int = np.int64(np.argmax(prof))
 
         # sub-image
         sub = img[:, cx_int-box:cx_int+box]
