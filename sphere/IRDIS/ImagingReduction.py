@@ -1334,7 +1334,10 @@ class ImagingReduction(object):
                         return
                     
                     # merge frames info
-                    frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+                    if frames_info_preproc.size > 0:
+                        frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+                    else:
+                        frames_info_preproc = frames_info_new.copy()
 
                     # background subtraction
                     if subtract_background:
