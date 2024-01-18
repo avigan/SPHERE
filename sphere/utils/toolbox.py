@@ -626,7 +626,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
                                    x_stddev=loD[idx], y_stddev=loD[idx]) + \
                                    models.Const2D(amplitude=sub.min())
         fitter = fitting.LevMarLSQFitter()
-        par = fitter(g_init, xx, yy, sub)
+        par = fitter(g_init, xx, yy, sub, maxiter=1000)
         
         cx_final = cx - box + par[0].x_mean
         cy_final = cy - box + par[0].y_mean
@@ -976,7 +976,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
                                        x_stddev=loD[idx], y_stddev=loD[idx], bounds=gbounds) + \
                                        models.Const2D(amplitude=sub.min())
             fitter = fitting.LevMarLSQFitter()
-            par = fitter(g_init, xx, yy, sub)
+            par = fitter(g_init, xx, yy, sub, maxiter=1000)
             fit = par(xx, yy)
 
             cx_final = cx - box + par[0].x_mean
