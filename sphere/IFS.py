@@ -303,7 +303,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     '''
 
     nwave = wave_scale.size
-    idx  = np.arange(nwave, dtype=np.float)
+    idx  = np.arange(nwave, dtype=np.float64)
     wave = np.full(nwave, wave_ref) * wave_scale
     intrp_func = interp.interp1d(idx, wave, kind='linear')
     wave_peaks = intrp_func(peak_position_lasers)
@@ -343,7 +343,7 @@ def fit_peak(x, y, display=False, logger=_log):
     # fit: Gaussian + constant
     g_init = models.Gaussian1D(amplitude=y.max(), mean=x[np.argmax(y)]) + models.Linear1D(slope=0, intercept=0)
     fitter = fitting.LevMarLSQFitter()
-    fit = fitter(g_init, x, y)
+    fit = fitter(g_init, x, y, maxiter=1000)
 
     if display:
         plt.figure('Gaussian fit')
@@ -782,7 +782,7 @@ class Reduction(object):
                 self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.SUCCESS)
 
             # update instrument mode
-            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'].iloc[0]
         else:
             files_info = None
 
@@ -950,7 +950,7 @@ class Reduction(object):
 
         # files table
         self._logger.debug('> create files_info data frame')
-        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
+        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype=object)
 
         self._logger.debug('> read FITS keywords')
         for f in files:
@@ -1005,7 +1005,10 @@ class Reduction(object):
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
         # update instrument mode
-        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'].iloc[0]
+
+        # determine data types for columns with float instead of object
+        files_info = files_info.infer_objects()
 
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
@@ -1085,13 +1088,13 @@ class Reduction(object):
         if len(cinfo) == 0:
             cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
 
-        ra_drot   = cinfo['INS4 DROT2 RA'][0]
+        ra_drot   = cinfo['INS4 DROT2 RA'].iloc[0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
-        dec_drot  = cinfo['INS4 DROT2 DEC'][0]
+        dec_drot  = cinfo['INS4 DROT2 DEC'].iloc[0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
         dec_drot_d = np.floor(udec_drot/1e4)
@@ -1100,29 +1103,29 @@ class Reduction(object):
         dec_drot_d *= sign
         DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
-        pa_start = cinfo['PARANG'][0]
-        pa_end   = cinfo['PARANG'][-1]
+        pa_start = cinfo['PARANG'].iloc[0]
+        pa_end   = cinfo['PARANG'].iloc[-1]
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
         posangs = [f'{p:.2f}°' for p in posang]
         
-        date = str(cinfo['DATE'][0])[0:10]
+        date = str(cinfo['DATE'].iloc[0])[0:10]
 
-        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
-        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
-        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
-        self._logger.info(f" * Object:       {cinfo['OBJECT'][0]}")
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'].iloc[0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'].iloc[0]}")
+        self._logger.info(f" * Object:       {cinfo['OBJECT'].iloc[0]}")
         self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
         self._logger.info(f' * Date:         {date}')
-        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
-        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
-        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
-        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
-        self._logger.info(f" * Coronagraph:  {cinfo['INS COMB ICOR'][0]}")
-        self._logger.info(f" * Mode:         {cinfo['INS1 MODE'][0]}")
-        self._logger.info(f" * Filter:       {cinfo['INS2 COMB IFS'][0]}")
-        self._logger.info(f" * DIT:          {cinfo['DET SEQ1 DIT'][0]:.2f} sec")
-        self._logger.info(f" * NDIT:         {cinfo['DET NDIT'][0]:.0f}")
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'].iloc[0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'].iloc[0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'].iloc[0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'].iloc[0]}")
+        self._logger.info(f" * Coronagraph:  {cinfo['INS COMB ICOR'].iloc[0]}")
+        self._logger.info(f" * Mode:         {cinfo['INS1 MODE'].iloc[0]}")
+        self._logger.info(f" * Filter:       {cinfo['INS2 COMB IFS'].iloc[0]}")
+        self._logger.info(f" * DIT:          {cinfo['DET SEQ1 DIT'].iloc[0]:.2f} sec")
+        self._logger.info(f" * NDIT:         {cinfo['DET NDIT'].iloc[0]:.0f}")
         self._logger.info(f" * Texp:         {cinfo['DET SEQ1 DIT'].sum() / 60:.2f} min")
         self._logger.info(f' * PA:           {pa_start:.2f}° ==> {pa_end:.2f}° = {np.abs(pa_end - pa_start):.2f}°')
         self._logger.info(f" * POSANG:       {', '.join(posangs)}")
@@ -1487,18 +1490,18 @@ class Reduction(object):
 
                 # store products
                 self._logger.debug('> update files_info data frame')
-                files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-                files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-                files_info.loc[dark_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-                files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-                files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+                files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+                files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+                files_info.loc[dark_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+                files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
+                files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'].iloc[0]
                 files_info.loc[dark_file, 'PROCESSED'] = True
                 files_info.loc[dark_file, 'PRO CATG'] = 'IFS_MASTER_DARK'
 
-                files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-                files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-                files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-                files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+                files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+                files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+                files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+                files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
                 files_info.loc[bpm_file, 'PROCESSED'] = True
                 files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
@@ -1594,18 +1597,18 @@ class Reduction(object):
 
             # store products
             self._logger.debug('> update files_info data frame')
-            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[flat_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-            files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+            files_info.loc[flat_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+            files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
+            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'].iloc[0]
             files_info.loc[flat_file, 'PROCESSED'] = True
             files_info.loc[flat_file, 'PRO CATG'] = 'IFS_MASTER_DFF'
 
-            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+            files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
             files_info.loc[bpm_file, 'PROCESSED'] = True
             files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
@@ -1706,11 +1709,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'][0]
-        files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'][0]
-        files_info.loc[specp_file, 'INS2 MODE'] = specpos_file['INS2 MODE'][0]
-        files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'][0]
-        files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'][0]
+        files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'].iloc[0]
+        files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'].iloc[0]
+        files_info.loc[specp_file, 'INS2 MODE'] = specpos_file['INS2 MODE'].iloc[0]
+        files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[specp_file, 'PROCESSED'] = True
         files_info.loc[specp_file, 'PRO CATG'] = 'IFS_SPECPOS'
 
@@ -1827,11 +1830,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
-        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
-        files_info.loc[wav_file, 'INS2 MODE'] = wave_file['INS2 MODE'][0]
-        files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'][0]
-        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
+        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'].iloc[0]
+        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'].iloc[0]
+        files_info.loc[wav_file, 'INS2 MODE'] = wave_file['INS2 MODE'].iloc[0]
+        files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[wav_file, 'PROCESSED'] = True
         files_info.loc[wav_file, 'PRO CATG'] = 'IFS_WAVECALIB'
 
@@ -1994,11 +1997,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'][0]
-        files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'][0]
-        files_info.loc[ifu_file, 'INS2 MODE'] = ifu_flat_file['INS2 MODE'][0]
-        files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'][0]
-        files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'][0]
+        files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'].iloc[0]
+        files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'].iloc[0]
+        files_info.loc[ifu_file, 'INS2 MODE'] = ifu_flat_file['INS2 MODE'].iloc[0]
+        files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[ifu_file, 'PROCESSED'] = True
         files_info.loc[ifu_file, 'PRO CATG'] = 'IFS_IFU_FLAT_FIELD'
 
@@ -2222,7 +2225,11 @@ class Reduction(object):
                         return
                     
                     # merge frames_info
-                    frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+                    if frames_info_preproc.size > 0:
+                        frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
+                    else:
+                        frames_info_preproc = frames_info_new.copy()
+
 
                     # background subtraction
                     if subtract_background:
@@ -2650,7 +2657,7 @@ class Reduction(object):
 
         # fit
         self._logger.debug('> fit individual peaks')
-        wave_idx = np.arange(nwave, dtype=np.float)
+        wave_idx = np.arange(nwave, dtype=np.float64)
         peak_position_lasers = []
         if ifs_mode == 'OBS_YJ':
             # peak 1
@@ -3045,7 +3052,7 @@ class Reduction(object):
                 return                    
 
             if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
+                manual_center = np.full((nwave, 2), manual_center, dtype=np.float64)
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 
@@ -3087,11 +3094,11 @@ class Reduction(object):
                     centers = fits.getdata(cfile)
                 else:
                     self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center, dtype=np.float)
+                    centers = np.full((nwave, 2), self._default_center, dtype=np.float64)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(np.int64)
                 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
@@ -3113,7 +3120,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(np.float64)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -3188,7 +3195,7 @@ class Reduction(object):
                 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(np.int64)
                 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
@@ -3210,7 +3217,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(np.float64)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -3301,11 +3308,11 @@ class Reduction(object):
                             centers = fits.getdata(fpath)
                         else:
                             self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                            centers = np.full((nwave, 2), self._default_center, dtype=np.float)
+                            centers = np.full((nwave, 2), self._default_center, dtype=np.float64)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(np.int64)
                 
                 # read data
                 self._logger.debug('> read data')
@@ -3333,7 +3340,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(np.float64)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 

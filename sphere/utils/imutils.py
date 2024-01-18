@@ -570,7 +570,7 @@ def _scale_fft(array, scale_value, alt_criterion=False):
     # Compared to the ALTernate criterion below, this one favors small
     # values of N" i.e. little truncation in Fourier space.  
     kd_array = np.arange(dim/2 + 1, dtype=np.int)
-    yy = dim/2 * (zoom_io - 1) + kd_array.astype(np.float)*zoom_io
+    yy = dim/2 * (zoom_io - 1) + kd_array.astype(np.float64)*zoom_io
     kf_array = np.round(yy).astype(np.int)
 
     tmp = np.abs(yy-kf_array)
@@ -861,7 +861,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
 
     # create _mask at first iteration
     if _mask is None:
-        _mask = np.zeros_like(img, dtype=np.bool)
+        _mask = np.zeros_like(img, dtype=np.bool_)
 
     # identify clipped pixels
     _mask[img != img_clip] = True
