@@ -213,7 +213,8 @@ def compute_angles(frames_info, true_north, logger=_log):
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
-    ra_hour = coordinates.Angle((ra_drot_h, ra_drot_m, ra_drot_s), units.hour)
+    ra_string = [f'{ra_drot_h[i]:.0f}h{ra_drot_m[i]:.0f}m{ra_drot_s[i]:.3f}s' for i in range(len(ra_drot))]
+    ra_hour = coordinates.Angle(ra_string)
     ra_deg  = ra_hour*15
     frames_info['RA'] = ra_deg.value
 
@@ -224,7 +225,8 @@ def compute_angles(frames_info, true_north, logger=_log):
     dec_drot_m = np.floor((udec_drot - dec_drot_d*1e4)/1e2)
     dec_drot_s = udec_drot - dec_drot_d*1e4 - dec_drot_m*1e2
     dec_drot_d *= sign
-    dec = coordinates.Angle((dec_drot_d, dec_drot_m, dec_drot_s), units.degree)
+    dec_string = [f'{dec_drot_d[i]:+.0f}d{dec_drot_m[i]:.0f}m{dec_drot_s[i]:.3f}s' for i in range(len(dec_drot))]
+    dec = coordinates.Angle(dec_string)
     frames_info['DEC'] = dec.value
 
     # calculate parallactic angles
