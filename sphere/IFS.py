@@ -782,7 +782,7 @@ class Reduction(object):
                 self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.SUCCESS)
 
             # update instrument mode
-            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+            self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'].iloc[0]
         else:
             files_info = None
 
@@ -950,7 +950,7 @@ class Reduction(object):
 
         # files table
         self._logger.debug('> create files_info data frame')
-        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
+        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short)
 
         self._logger.debug('> read FITS keywords')
         for f in files:
@@ -972,6 +972,14 @@ class Reduction(object):
                     files_info.loc[f, sk] = hdr.get(k)
 
             hdu.close()
+
+        # make sure some columns are float
+        float_columns = ['DET SEQ1 DIT', 'DET NDIT', 'OBS ID', 'DET DITDELAY', 'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'TEL ALT', 'TEL AZ',
+                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG', 
+                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM', 
+                         'TEL AMBI TAU0', 'TEL AMBI TEMP', 'TEL AMBI WINDSP', 'TEL AMBI WINDDIR']
+        for col in float_columns:
+            files_info[col] = files_info[col].astype(float)
 
         # drop files that are not handled, based on DPR keywords
         self._logger.debug('> drop unsupported file types')
@@ -1005,7 +1013,7 @@ class Reduction(object):
         files_info['DET FRAM UTC'] = pd.to_datetime(files_info['DET FRAM UTC'], utc=False)
 
         # update instrument mode
-        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'][0]
+        self._mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 MODE'].iloc[0]
 
         # sort by acquisition time
         files_info.sort_values(by='DATE-OBS', inplace=True)
@@ -1085,13 +1093,13 @@ class Reduction(object):
         if len(cinfo) == 0:
             cinfo = frames_info[frames_info['DPR TYPE'] == 'OBJECT,CENTER']
 
-        ra_drot   = cinfo['INS4 DROT2 RA'][0]
+        ra_drot   = cinfo['INS4 DROT2 RA'].iloc[0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
-        dec_drot  = cinfo['INS4 DROT2 DEC'][0]
+        dec_drot  = cinfo['INS4 DROT2 DEC'].iloc[0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
         dec_drot_d = np.floor(udec_drot/1e4)
@@ -1100,29 +1108,29 @@ class Reduction(object):
         dec_drot_d *= sign
         DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
-        pa_start = cinfo['PARANG'][0]
-        pa_end   = cinfo['PARANG'][-1]
+        pa_start = cinfo['PARANG'].iloc[0]
+        pa_end   = cinfo['PARANG'].iloc[-1]
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
         posangs = [f'{p:.2f}°' for p in posang]
         
-        date = str(cinfo['DATE'][0])[0:10]
+        date = str(cinfo['DATE'].iloc[0])[0:10]
 
-        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
-        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
-        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
-        self._logger.info(f" * Object:       {cinfo['OBJECT'][0]}")
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'].iloc[0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'].iloc[0]}")
+        self._logger.info(f" * Object:       {cinfo['OBJECT'].iloc[0]}")
         self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
         self._logger.info(f' * Date:         {date}')
-        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
-        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
-        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
-        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
-        self._logger.info(f" * Coronagraph:  {cinfo['INS COMB ICOR'][0]}")
-        self._logger.info(f" * Mode:         {cinfo['INS1 MODE'][0]}")
-        self._logger.info(f" * Filter:       {cinfo['INS2 COMB IFS'][0]}")
-        self._logger.info(f" * DIT:          {cinfo['DET SEQ1 DIT'][0]:.2f} sec")
-        self._logger.info(f" * NDIT:         {cinfo['DET NDIT'][0]:.0f}")
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'].iloc[0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'].iloc[0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'].iloc[0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'].iloc[0]}")
+        self._logger.info(f" * Coronagraph:  {cinfo['INS COMB ICOR'].iloc[0]}")
+        self._logger.info(f" * Mode:         {cinfo['INS1 MODE'].iloc[0]}")
+        self._logger.info(f" * Filter:       {cinfo['INS2 COMB IFS'].iloc[0]}")
+        self._logger.info(f" * DIT:          {cinfo['DET SEQ1 DIT'].iloc[0]:.2f} sec")
+        self._logger.info(f" * NDIT:         {cinfo['DET NDIT'].iloc[0]:.0f}")
         self._logger.info(f" * Texp:         {cinfo['DET SEQ1 DIT'].sum() / 60:.2f} min")
         self._logger.info(f' * PA:           {pa_start:.2f}° ==> {pa_end:.2f}° = {np.abs(pa_end - pa_start):.2f}°')
         self._logger.info(f" * POSANG:       {', '.join(posangs)}")
@@ -1487,18 +1495,18 @@ class Reduction(object):
 
                 # store products
                 self._logger.debug('> update files_info data frame')
-                files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-                files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-                files_info.loc[dark_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-                files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-                files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+                files_info.loc[dark_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+                files_info.loc[dark_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+                files_info.loc[dark_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+                files_info.loc[dark_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
+                files_info.loc[dark_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'].iloc[0]
                 files_info.loc[dark_file, 'PROCESSED'] = True
                 files_info.loc[dark_file, 'PRO CATG'] = 'IFS_MASTER_DARK'
 
-                files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-                files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-                files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-                files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+                files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+                files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+                files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+                files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
                 files_info.loc[bpm_file, 'PROCESSED'] = True
                 files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
@@ -1594,18 +1602,18 @@ class Reduction(object):
 
             # store products
             self._logger.debug('> update files_info data frame')
-            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[flat_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-            files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
-            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'][0]
+            files_info.loc[flat_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+            files_info.loc[flat_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+            files_info.loc[flat_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+            files_info.loc[flat_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
+            files_info.loc[flat_file, 'DET SEQ1 DIT'] = cfiles['DET SEQ1 DIT'].iloc[0]
             files_info.loc[flat_file, 'PROCESSED'] = True
             files_info.loc[flat_file, 'PRO CATG'] = 'IFS_MASTER_DFF'
 
-            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'][0]
-            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'][0]
-            files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'][0]
-            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'][0]
+            files_info.loc[bpm_file, 'DPR CATG'] = cfiles['DPR CATG'].iloc[0]
+            files_info.loc[bpm_file, 'DPR TYPE'] = cfiles['DPR TYPE'].iloc[0]
+            files_info.loc[bpm_file, 'INS2 MODE'] = cfiles['INS2 MODE'].iloc[0]
+            files_info.loc[bpm_file, 'INS2 COMB IFS'] = cfiles['INS2 COMB IFS'].iloc[0]
             files_info.loc[bpm_file, 'PROCESSED'] = True
             files_info.loc[bpm_file, 'PRO CATG']  = 'IFS_STATIC_BADPIXELMAP'
 
@@ -1706,11 +1714,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'][0]
-        files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'][0]
-        files_info.loc[specp_file, 'INS2 MODE'] = specpos_file['INS2 MODE'][0]
-        files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'][0]
-        files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'][0]
+        files_info.loc[specp_file, 'DPR CATG'] = specpos_file['DPR CATG'].iloc[0]
+        files_info.loc[specp_file, 'DPR TYPE'] = specpos_file['DPR TYPE'].iloc[0]
+        files_info.loc[specp_file, 'INS2 MODE'] = specpos_file['INS2 MODE'].iloc[0]
+        files_info.loc[specp_file, 'INS2 COMB IFS'] = specpos_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[specp_file, 'DET SEQ1 DIT'] = specpos_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[specp_file, 'PROCESSED'] = True
         files_info.loc[specp_file, 'PRO CATG'] = 'IFS_SPECPOS'
 
@@ -1827,11 +1835,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'][0]
-        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'][0]
-        files_info.loc[wav_file, 'INS2 MODE'] = wave_file['INS2 MODE'][0]
-        files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'][0]
-        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'][0]
+        files_info.loc[wav_file, 'DPR CATG'] = wave_file['DPR CATG'].iloc[0]
+        files_info.loc[wav_file, 'DPR TYPE'] = wave_file['DPR TYPE'].iloc[0]
+        files_info.loc[wav_file, 'INS2 MODE'] = wave_file['INS2 MODE'].iloc[0]
+        files_info.loc[wav_file, 'INS2 COMB IFS'] = wave_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[wav_file, 'DET SEQ1 DIT'] = wave_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[wav_file, 'PROCESSED'] = True
         files_info.loc[wav_file, 'PRO CATG'] = 'IFS_WAVECALIB'
 
@@ -1994,11 +2002,11 @@ class Reduction(object):
 
         # store products
         self._logger.debug('> update files_info data frame')
-        files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'][0]
-        files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'][0]
-        files_info.loc[ifu_file, 'INS2 MODE'] = ifu_flat_file['INS2 MODE'][0]
-        files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'][0]
-        files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'][0]
+        files_info.loc[ifu_file, 'DPR CATG'] = ifu_flat_file['DPR CATG'].iloc[0]
+        files_info.loc[ifu_file, 'DPR TYPE'] = ifu_flat_file['DPR TYPE'].iloc[0]
+        files_info.loc[ifu_file, 'INS2 MODE'] = ifu_flat_file['INS2 MODE'].iloc[0]
+        files_info.loc[ifu_file, 'INS2 COMB IFS'] = ifu_flat_file['INS2 COMB IFS'].iloc[0]
+        files_info.loc[ifu_file, 'DET SEQ1 DIT'] = ifu_flat_file['DET SEQ1 DIT'].iloc[0]
         files_info.loc[ifu_file, 'PROCESSED'] = True
         files_info.loc[ifu_file, 'PRO CATG'] = 'IFS_IFU_FLAT_FIELD'
 
@@ -3145,7 +3153,7 @@ class Reduction(object):
             hdu = fits.PrimaryHDU(psf_derot)
             hdu.header['UNIT'] = 'deg'
             hdu.writeto(path.products / 'psf_derot.fits', overwrite=True)
-            
+
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
                 hdu = fits.PrimaryHDU(psf_cube_scaled)

@@ -389,7 +389,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug('> type=none: copy input data frame')
     elif collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=float)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
         logger.debug('> type=mean: extract min/max values')
         
@@ -419,7 +419,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug(f'> type=coadd: extract sub-groups of {coadd_value} frames')
         
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=float)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
         for f in range(NDIT_new):
             # get min/max indices
