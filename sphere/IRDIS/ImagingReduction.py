@@ -1616,7 +1616,9 @@ class ImagingReduction(object):
         wave = np.array(wave)
 
         self._logger.debug('> save final wavelength')
-        fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
+        hdu = fits.PrimaryHDU(wave)
+        hdu.header['UNIT'] = 'nm'
+        hdu.writeto(path.products / 'wavelength.fits', overwrite=True)
 
         # max images size
         if psf_dim > 1024:
@@ -1729,11 +1731,20 @@ class ImagingReduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             flux_files.to_csv(path.products / 'psf_frames.csv')
-            fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
-            fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
+
+            hdu = fits.PrimaryHDU(psf_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'psf_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(psf_derot)
+            hdu.header['UNIT'] = 'deg'
+            hdu.writeto(path.products / 'psf_derot.fits', overwrite=True)
+
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'psf_cube_scaled.fits', psf_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(psf_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'psf_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
@@ -1822,11 +1833,19 @@ class ImagingReduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             starcen_files.to_csv(path.products / 'starcenter_frames.csv')
-            fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
-            fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
+
+            hdu = fits.PrimaryHDU(cen_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'starcenter_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(cen_derot)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'starcenter_derot.fits', overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'starcenter_cube_scaled.fits', cen_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(cen_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'starcenter_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
@@ -1968,11 +1987,19 @@ class ImagingReduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
-            fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
-            fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
+            
+            hdu = fits.PrimaryHDU(sci_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'science_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(sci_derot)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'science_derot.fits', overwrite=True)
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(sci_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'science_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')

@@ -1359,7 +1359,9 @@ class SpectroReduction(object):
         wave_lin   = get_wavelength_calibration(filter_comb, wave_calib, centers, wave_min, wave_max)
 
         self._logger.debug('> save default wavelength calibration')
-        fits.writeto(path.preproc / 'wavelength_default.fits', wave_lin.T, overwrite=True)
+        hdu = fits.PrimaryHDU(wave_lin.T)
+        hdu.header['UNIT'] = 'nm'
+        hdu.writeto(path.preproc / 'wavelength_default.fits', overwrite=True)
 
         # update recipe execution
         self._update_recipe_status('sph_ird_cal_wave', sphere.SUCCESS)
@@ -1910,7 +1912,9 @@ class SpectroReduction(object):
 
         # save
         self._logger.info(' * saving')
-        fits.writeto(path.preproc / 'wavelength_recalibrated.fits', wave_final, overwrite=True)
+        hdu = fits.PrimaryHDU(wave_final)
+        hdu.header['UNIT'] = 'nm'
+        hdu.writeto(path.preproc / 'wavelength_recalibrated.fits', overwrite=True)
 
         # update recipe execution
         self._update_recipe_status('sph_ird_wavelength_recalibration', sphere.SUCCESS)
@@ -2074,7 +2078,9 @@ class SpectroReduction(object):
         final_wave[:, 0] = wave[iwave[:, 0], 0]
         final_wave[:, 1] = wave[iwave[:, 1], 1]
 
-        fits.writeto(path.products / 'wavelength.fits', final_wave.squeeze().T, overwrite=True)
+        hdu = fits.PrimaryHDU(final_wave.squeeze().T)
+        hdu.header['UNIT'] = 'nm'
+        hdu.writeto(path.products / 'wavelength.fits', overwrite=True)
 
         # max images size
         if psf_dim > 1024:
@@ -2193,17 +2199,27 @@ class SpectroReduction(object):
 
                     # save metadata
                     flux_files[(flux_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / f'psf_posang={pa:06.2f}_frames.csv')
-                    fits.writeto(path.products / f'psf_posang={pa:06.2f}_posang.fits', psf_posang[ii], overwrite=True)
+
+                    hdu = fits.PrimaryHDU(psf_posang[ii])
+                    hdu.header['UNIT'] = 'deg'
+                    hdu.writeto(path.products / f'psf_posang={pa:06.2f}_posang.fits', overwrite=True)
 
                     # save final cubes
-                    fits.writeto(path.products / f'psf_posang={pa:06.2f}_cube.fits', psf_cube[:, ii], overwrite=True)
+                    hdu = fits.PrimaryHDU(psf_cube[:, ii])
+                    hdu.header['UNIT'] = 'ADU/s'
+                    hdu.writeto(path.products / f'psf_posang={pa:06.2f}_cube.fits', overwrite=True)
             else:
                 # save metadata
                 flux_files.to_csv(path.products / 'psf_posang=all_frames.csv')
-                fits.writeto(path.products / 'psf_posang=all_posang.fits', psf_posang, overwrite=True)
+
+                hdu = fits.PrimaryHDU(psf_posang)
+                hdu.header['UNIT'] = 'deg'
+                hdu.writeto(path.products / 'psf_posang=all_posang.fits', overwrite=True)
 
                 # save final cubes
-                fits.writeto(path.products / 'psf_posang=all_cube.fits', psf_cube, overwrite=True)
+                hdu = fits.PrimaryHDU(psf_cube)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'psf_posang=all_cube.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
@@ -2296,17 +2312,27 @@ class SpectroReduction(object):
 
                     # save metadata
                     starcen_files[(starcen_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / f'starcenter_posang={pa:06.2f}_frames.csv')
-                    fits.writeto(path.products / f'starcenter_posang={pa:06.2f}_posang.fits', cen_posang[ii], overwrite=True)
+
+                    hdu = fits.PrimaryHDU(cen_posang[ii])
+                    hdu.header['UNIT'] = 'deg'
+                    hdu.writeto(path.products / f'starcenter_posang={pa:06.2f}_posang.fits', overwrite=True)
 
                     # save final cubes
-                    fits.writeto(path.products / f'starcenter_posang={pa:06.2f}_cube.fits', cen_cube[:, ii], overwrite=True)
+                    hdu = fits.PrimaryHDU(cen_cube[:, ii])
+                    hdu.header['UNIT'] = 'ADU/s'
+                    hdu.writeto(path.products / f'starcenter_posang={pa:06.2f}_cube.fits', overwrite=True)
             else:
                 # save metadata
                 starcen_files.to_csv(path.products / 'starcenter_posang=all_frames.csv')
-                fits.writeto(path.products / 'starcenter_posang=all_posang.fits', cen_posang, overwrite=True)
+
+                hdu = fits.PrimaryHDU(cen_posang)
+                hdu.header['UNIT'] = 'deg'
+                hdu.writeto(path.products / 'starcenter_posang=all_posang.fits', overwrite=True)
 
                 # save final cubes
-                fits.writeto(path.products / 'starcenter_posang=all_cube.fits', cen_cube, overwrite=True)
+                hdu = fits.PrimaryHDU(cen_cube)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'starcenter_posang=all_cube.fits', overwrite=True)
 
             # delete big cubes
             del cen_cube
@@ -2426,17 +2452,27 @@ class SpectroReduction(object):
 
                     # save metadata
                     object_files[(object_files['INS4 DROT2 POSANG'] + 90) == pa].to_csv(path.products / f'science_posang={pa:06.2f}_frames.csv')
-                    fits.writeto(path.products / f'science_posang={pa:06.2f}_posang.fits', sci_posang[ii], overwrite=True)
+
+                    hdu = fits.PrimaryHDU(sci_posang[ii])
+                    hdu.header['UNIT'] = 'deg'
+                    hdu.writeto(path.products / f'science_posang={pa:06.2f}_posang.fits', overwrite=True)
 
                     # save final cubes
-                    fits.writeto(path.products / f'science_posang={pa:06.2f}_cube.fits', sci_cube[:, ii], overwrite=True)
+                    hdu = fits.PrimaryHDU(sci_cube[:, ii])
+                    hdu.header['UNIT'] = 'ADU/s'
+                    hdu.writeto(path.products / f'science_posang={pa:06.2f}_cube.fits', overwrite=True)
             else:
                 # save metadata
                 object_files.to_csv(path.products / 'science_posang=all_frames.csv')
-                fits.writeto(path.products / 'science_posang=all_posang.fits', sci_posang, overwrite=True)
+
+                hdu = fits.PrimaryHDU(sci_posang)
+                hdu.header['UNIT'] = 'deg'
+                hdu.writeto(path.products / 'science_posang=all_posang.fits', overwrite=True)
 
                 # save final cubes
-                fits.writeto(path.products / 'science_posang=all_cube.fits', sci_cube, overwrite=True)
+                hdu = fits.PrimaryHDU(sci_cube)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'science_posang=all_cube.fits', overwrite=True)
 
             # delete big cubes
             del sci_cube

@@ -3016,8 +3016,10 @@ class Reduction(object):
             else:
                 self._logger.error('Missing default or recalibrated wavelength calibration. You must first run either sph_ifs_wave_calib or sph_ifs_wavelength_recalibration().')
                 self._update_recipe_status('sph_ifs_combine_data', sphere.ERROR)
-                return                                    
-        fits.writeto(path.products / 'wavelength.fits', wave, overwrite=True)
+                return
+        hdu = fits.PrimaryHDU(wave)
+        hdu.header['UNIT'] = 'nm'
+        hdu.writeto(path.products / 'wavelength.fits', overwrite=True)
         
         # max images size
         if psf_dim > 290:
@@ -3135,11 +3137,20 @@ class Reduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             flux_files.to_csv(path.products / 'psf_frames.csv')
-            fits.writeto(path.products / 'psf_cube.fits', psf_cube, overwrite=True)
-            fits.writeto(path.products / 'psf_derot.fits', psf_derot, overwrite=True)
+
+            hdu = fits.PrimaryHDU(psf_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'psf_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(psf_derot)
+            hdu.header['UNIT'] = 'deg'
+            hdu.writeto(path.products / 'psf_derot.fits', overwrite=True)
+            
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'psf_cube_scaled.fits', psf_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(psf_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'psf_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
@@ -3232,11 +3243,20 @@ class Reduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             starcen_files.to_csv(path.products / 'starcenter_frames.csv')
-            fits.writeto(path.products / 'starcenter_cube.fits', cen_cube, overwrite=True)
-            fits.writeto(path.products / 'starcenter_derot.fits', cen_derot, overwrite=True)
+
+            hdu = fits.PrimaryHDU(cen_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'starcenter_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(cen_derot)
+            hdu.header['UNIT'] = 'deg'
+            hdu.writeto(path.products / 'starcenter_derot.fits', overwrite=True)
+
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'starcenter_cube_scaled.fits', cen_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(cen_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'starcenter_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
@@ -3355,11 +3375,20 @@ class Reduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
-            fits.writeto(path.products / 'science_cube.fits', sci_cube, overwrite=True)
-            fits.writeto(path.products / 'science_derot.fits', sci_derot, overwrite=True)
+
+            hdu = fits.PrimaryHDU(sci_cube)
+            hdu.header['UNIT'] = 'ADU/s'
+            hdu.writeto(path.products / 'science_cube.fits', overwrite=True)
+
+            hdu = fits.PrimaryHDU(sci_derot)
+            hdu.header['UNIT'] = 'deg'
+            hdu.writeto(path.products / 'science_derot.fits', overwrite=True)
+
             if save_scaled:
                 self._logger.debug('> save scaled cubes')
-                fits.writeto(path.products / 'science_cube_scaled.fits', sci_cube_scaled, overwrite=True)
+                hdu = fits.PrimaryHDU(sci_cube_scaled)
+                hdu.header['UNIT'] = 'ADU/s'
+                hdu.writeto(path.products / 'science_cube_scaled.fits', overwrite=True)
 
             # delete big cubes
             self._logger.debug('> free memory')
