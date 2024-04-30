@@ -129,9 +129,9 @@ def compute_times(frames_info, logger=_log):
         # get necessary values
         time_start = frames_info['DATE-OBS'].values
         time_end   = frames_info['DET FRAM UTC'].values
-        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(np.int)
-        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
-        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(np.float)*1000, dtype='timedelta64[ms]')
+        time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(int)
+        DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(float)*1000, dtype='timedelta64[ms]')
+        DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(float)*1000, dtype='timedelta64[ms]')
         
         # calculate UTC time stamps
         idx = frames_info.index.get_level_values(1).values
@@ -200,8 +200,8 @@ def compute_angles(frames_info, true_north, logger=_log):
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
         try:
-            alt = frames_info['TEL ALT'].values.astype(np.float)
-            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(np.float)
+            alt = frames_info['TEL ALT'].values.astype(float)
+            drot2 = frames_info['INS4 DROT2 BEGIN'].values.astype(float)
             pa_correction = np.degrees(np.arctan(np.tan(np.radians(alt-2.*drot2))))
         except KeyError:
             pa_correction = 0
@@ -209,7 +209,7 @@ def compute_angles(frames_info, true_north, logger=_log):
         pa_correction = 0
 
     # RA/DEC
-    ra_drot = frames_info['INS4 DROT2 RA'].values.astype(np.float)
+    ra_drot = frames_info['INS4 DROT2 RA'].values.astype(float)
     ra_drot_h = np.floor(ra_drot/1e4)
     ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
     ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
@@ -217,7 +217,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     ra_deg  = ra_hour*15
     frames_info['RA'] = ra_deg.value
 
-    dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(np.float)
+    dec_drot = frames_info['INS4 DROT2 DEC'].values.astype(float)
     sign = np.sign(dec_drot)
     udec_drot  = np.abs(dec_drot)
     dec_drot_d = np.floor(udec_drot/1e4)
@@ -387,7 +387,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug('> type=none: copy input data frame')
     elif collapse_type == 'mean':
         index = pd.MultiIndex.from_arrays([[fname], [0]], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=float)
 
         logger.debug('> type=mean: extract min/max values')
         
@@ -417,7 +417,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         logger.debug(f'> type=coadd: extract sub-groups of {coadd_value} frames')
         
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
-        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=np.float)
+        nfinfo = pd.DataFrame(columns=finfo.columns, index=index, dtype=float)
 
         for f in range(NDIT_new):
             # get min/max indices
@@ -541,7 +541,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
 
     # loop over images
     img_centers    = np.zeros((nwave, 2))
-    failed_centers = np.zeros(nwave, dtype=np.bool)
+    failed_centers = np.zeros(nwave, dtype=bool)
     for idx, (cwave, img) in enumerate(zip(wave, cube)):
         logger.info(f'   ==> wave {idx + 1:2d}/{nwave:2d} ({cwave:4.0f} nm)')
 
@@ -718,7 +718,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
 
         # approximate center
         prof = np.sum(img, axis=0)
-        cx_int = np.int(np.argmax(prof))
+        cx_int = int(np.argmax(prof))
 
         # sub-image
         sub = img[:, cx_int-box:cx_int+box]
@@ -1085,7 +1085,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             loD = wave[widx]*1e-9/8 * 180/np.pi * 3600*1000/pixel
 
             # first waffle
-            prof = sub[widx] * (xx < box).astype(np.int)
+            prof = sub[widx] * (xx < box).astype(int)
             imax = np.argmax(prof)
             g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
                 models.Const1D(amplitude=0)
@@ -1095,7 +1095,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             c0 = par[0].mean.value - box + cx_int
 
             # second waffle
-            prof = sub[widx] * (xx > box).astype(np.int)
+            prof = sub[widx] * (xx > box).astype(int)
             imax = np.argmax(prof)
             g_init = models.Gaussian1D(amplitude=prof.max(), mean=imax, stddev=loD) + \
                 models.Const1D(amplitude=0)

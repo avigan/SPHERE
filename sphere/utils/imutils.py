@@ -264,7 +264,7 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
         py1 = (pad*array.shape[1]/2)-y1
         py2 = (pad*array.shape[1]/2)+y1
 
-    pad_value = (np.array(array.shape)*(pad-1)/2).astype(np.int)
+    pad_value = (np.array(array.shape)*(pad-1)/2).astype(int)
     pad_frame = np.lib.pad(array, ((pad_value[0]), (pad_value[1])), mode='constant', constant_values=cval)
     
     pad_mask = np.isnan(array)
@@ -280,17 +280,17 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
     pad_frame = np.where(np.isnan(pad_frame), 0, pad_frame)
     if x1 == 0:
         pad_frame[
-            np.int(((pad-1)/2)*array.shape[0]-1),
-            np.int(((pad-1)/2)*array.shape[1]):np.int(((pad+1)/2)*array.shape[1])] = array[0, :] / 2
+            int(((pad-1)/2)*array.shape[0]-1),
+            int(((pad-1)/2)*array.shape[1]):int(((pad+1)/2)*array.shape[1])] = array[0, :] / 2
         pad_frame[
-            np.int(((pad+1)/2)*array.shape[0]),
-            np.int(((pad-1)/2)*array.shape[1]):np.int(((pad+1)/2)*array.shape[1])] = array[-1, :] / 2
+            int(((pad+1)/2)*array.shape[0]),
+            int(((pad-1)/2)*array.shape[1]):int(((pad+1)/2)*array.shape[1])] = array[-1, :] / 2
         pad_frame[
-            np.int(((pad-1)/2)*array.shape[0]):np.int(((pad+1)/2)*array.shape[0]),
-            np.int(((pad-1)/2)*array.shape[1]-1)] = array[:, 0] / 2
+            int(((pad-1)/2)*array.shape[0]):int(((pad+1)/2)*array.shape[0]),
+            int(((pad-1)/2)*array.shape[1]-1)] = array[:, 0] / 2
         pad_frame[
-            np.int(((pad-1)/2)*array.shape[0]):np.int(((pad+1)/2)*array.shape[0]),
-            np.int(((pad+1)/2)*array.shape[1])] = array[:, -1] / 2
+            int(((pad-1)/2)*array.shape[0]):int(((pad+1)/2)*array.shape[0]),
+            int(((pad+1)/2)*array.shape[1])] = array[:, -1] / 2
     elif x1 > 0:
         pad_frame[px1, py1:py2]   = pad_frame[px1, py1:py2] / 2
         pad_frame[px2-1, py1:py2] = pad_frame[px2-1, py1:py2] / 2
@@ -318,8 +318,8 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
 
     # final rotated frame
     rotated = np.real(pad_xyx[
-        np.int(((pad-1)/2)*array.shape[0]):np.int(((pad+1)/2)*array.shape[0]),
-        np.int(((pad-1)/2)*array.shape[1]):np.int(((pad+1)/2)*array.shape[1])]).copy()
+        int(((pad-1)/2)*array.shape[0]):int(((pad+1)/2)*array.shape[0]),
+        int(((pad-1)/2)*array.shape[1]):int(((pad+1)/2)*array.shape[1])]).copy()
     
     return rotated
 
@@ -569,9 +569,9 @@ def _scale_fft(array, scale_value, alt_criterion=False):
     # We minimize this difference between the `ideal' N" and its closest integer value      
     # Compared to the ALTernate criterion below, this one favors small
     # values of N" i.e. little truncation in Fourier space.  
-    kd_array = np.arange(dim/2 + 1, dtype=np.int)
-    yy = dim/2 * (zoom_io - 1) + kd_array.astype(np.float)*zoom_io
-    kf_array = np.round(yy).astype(np.int)
+    kd_array = np.arange(dim/2 + 1, dtype=int)
+    yy = dim/2 * (zoom_io - 1) + kd_array.astype(float)*zoom_io
+    kf_array = np.round(yy).astype(int)
 
     tmp = np.abs(yy-kf_array)
     # tmp[tmp == 0] = np.nan
@@ -861,7 +861,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
 
     # create _mask at first iteration
     if _mask is None:
-        _mask = np.zeros_like(img, dtype=np.bool)
+        _mask = np.zeros_like(img, dtype=bool)
 
     # identify clipped pixels
     _mask[img != img_clip] = True

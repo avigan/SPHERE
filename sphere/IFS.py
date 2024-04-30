@@ -303,7 +303,7 @@ def wavelength_optimisation(wave_ref, wave_scale, wave_lasers, peak_position_las
     '''
 
     nwave = wave_scale.size
-    idx  = np.arange(nwave, dtype=np.float)
+    idx  = np.arange(nwave, dtype=float)
     wave = np.full(nwave, wave_ref) * wave_scale
     intrp_func = interp.interp1d(idx, wave, kind='linear')
     wave_peaks = intrp_func(peak_position_lasers)
@@ -2650,7 +2650,7 @@ class Reduction(object):
 
         # fit
         self._logger.debug('> fit individual peaks')
-        wave_idx = np.arange(nwave, dtype=np.float)
+        wave_idx = np.arange(nwave, dtype=float)
         peak_position_lasers = []
         if ifs_mode == 'OBS_YJ':
             # peak 1
@@ -3045,7 +3045,7 @@ class Reduction(object):
                 return                    
 
             if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
+                manual_center = np.full((nwave, 2), manual_center, dtype=float)
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 
@@ -3087,11 +3087,11 @@ class Reduction(object):
                     centers = fits.getdata(cfile)
                 else:
                     self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                    centers = np.full((nwave, 2), self._default_center, dtype=np.float)
+                    centers = np.full((nwave, 2), self._default_center, dtype=float)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(int)
                 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
@@ -3113,7 +3113,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -3188,7 +3188,7 @@ class Reduction(object):
                 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(int)
                 
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
@@ -3210,7 +3210,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -3301,11 +3301,11 @@ class Reduction(object):
                             centers = fits.getdata(fpath)
                         else:
                             self._logger.warning('sph_ifs_star_center() has not been executed. Images will be centered using default center ({},{})'.format(*self._default_center))
-                            centers = np.full((nwave, 2), self._default_center, dtype=np.float)
+                            centers = np.full((nwave, 2), self._default_center, dtype=float)
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(int)
                 
                 # read data
                 self._logger.debug('> read data')
@@ -3333,7 +3333,7 @@ class Reduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img[:-1, :-1].astype(np.float)
+                    img  = img[:-1, :-1].astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 

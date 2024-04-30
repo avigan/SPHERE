@@ -1644,7 +1644,7 @@ class ImagingReduction(object):
                 return
 
             if manual_center.shape == (2,):
-                manual_center = np.full((nwave, 2), manual_center, dtype=np.float)
+                manual_center = np.full((nwave, 2), manual_center, dtype=float)
 
             self._logger.warning('Images will be centered using the user-provided center ({},{})'.format(*manual_center[0]))
 
@@ -1688,7 +1688,7 @@ class ImagingReduction(object):
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(int)
 
                 # neutral density
                 self._logger.debug('> read neutral density information')
@@ -1707,7 +1707,7 @@ class ImagingReduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
+                    img  = img.astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -1781,7 +1781,7 @@ class ImagingReduction(object):
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
+                    centers = centers.astype(int)
 
                 # neutral density
                 self._logger.debug('> read neutral density information')
@@ -1800,7 +1800,7 @@ class ImagingReduction(object):
                     cx, cy = centers[wave_idx, :]
 
                     self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
+                    img  = img.astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
@@ -1904,9 +1904,9 @@ class ImagingReduction(object):
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    centers = centers.astype(np.int)
-                    dms_dx_ref = np.int(dms_dx_ref)
-                    dms_dy_ref = np.int(dms_dy_ref)
+                    centers = centers.astype(int)
+                    dms_dx_ref = int(dms_dx_ref)
+                    dms_dy_ref = int(dms_dy_ref)
 
                 # read data
                 self._logger.debug('> read data')
@@ -1933,8 +1933,8 @@ class ImagingReduction(object):
 
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
-                    dms_dx = np.int(dms_dx)
-                    dms_dy = np.int(dms_dy)
+                    dms_dx = int(dms_dx)
+                    dms_dy = int(dms_dy)
 
                 # center frames
                 for wave_idx, img in enumerate(cube):
@@ -1946,7 +1946,7 @@ class ImagingReduction(object):
                     cy = cy + dms_dy_ref + dms_dy
 
                     self._logger.debug('> shift and normalize')
-                    img  = img.astype(np.float)
+                    img  = img.astype(float)
                     nimg = imutils.shift(img, (cc-cx, cc-cy), method=shift_method)
                     nimg = nimg / DIT / attenuation[wave_idx]
 
