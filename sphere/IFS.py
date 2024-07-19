@@ -8,15 +8,12 @@ import scipy.optimize as optim
 import shutil
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import matplotlib.colors as colors
 import configparser
 import collections
 
 from pathlib import Path
 from astropy.io import fits
 from astropy.modeling import models, fitting
-from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
