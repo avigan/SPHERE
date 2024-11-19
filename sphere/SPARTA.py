@@ -523,7 +523,7 @@ class Reduction(object):
 
         # files table
         self._logger.debug('> create files_info data frame')
-        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
+        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short)
 
         self._logger.debug('> read FITS keywords')
         for f in files:
@@ -534,6 +534,12 @@ class Reduction(object):
                 files_info.loc[f, sk] = hdr.get(k)
 
             hdu.close()
+
+        # make sure some columns are float
+        float_columns = ['INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG',
+                         'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'OBS ID']
+        for col in float_columns:
+            files_info[col] = files_info[col].astype(float)
 
         # artificially add arm keyword
         files_info.insert(files_info.columns.get_loc('DPR TECH')+1, 'SEQ ARM', 'SPARTA')
@@ -565,13 +571,13 @@ class Reduction(object):
         self._logger.debug('> print observation info')
         cinfo = files_info
 
-        ra_drot   = cinfo['INS4 DROT2 RA'][0]
+        ra_drot   = cinfo['INS4 DROT2 RA'].iloc[0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
-        dec_drot  = cinfo['INS4 DROT2 DEC'][0]
+        dec_drot  = cinfo['INS4 DROT2 DEC'].iloc[0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
         dec_drot_d = np.floor(udec_drot/1e4)
@@ -580,18 +586,18 @@ class Reduction(object):
         dec_drot_d *= sign
         DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
-        date = str(cinfo['DATE'][0])[0:10]
+        date = str(cinfo['DATE'].iloc[0])[0:10]
 
         self._logger.info('Extract frames information')
-        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
-        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
-        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'].iloc[0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'].iloc[0]}")
         self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
         self._logger.info(f' * Date:         {date}')
-        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
-        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
-        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
-        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'].iloc[0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'].iloc[0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'].iloc[0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'].iloc[0]}")
 
         # update recipe execution
         self._update_recipe_status('sort_files', sphere.SUCCESS)
@@ -657,7 +663,7 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                dtts_info.loc[file, 'TIME']        = [str(t) for t in time]
+                dtts_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # DTTS images
                 dtts_cube[nimg:nimg+NDIT] = pixels
