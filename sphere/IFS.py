@@ -8,15 +8,12 @@ import scipy.optimize as optim
 import shutil
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import matplotlib.colors as colors
 import configparser
 import collections
 
 from pathlib import Path
 from astropy.io import fits
 from astropy.modeling import models, fitting
-from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
@@ -159,7 +156,7 @@ def sph_ifs_correct_spectral_xtalk(img, logger=_log):
     '''
 
     logger.debug('> subtract IFS crosstalk')
-    
+
     # definition of the dimension of the matrix
     sepmax = 20
     dim    = sepmax*2+1
@@ -339,7 +336,7 @@ def fit_peak(x, y, display=False, logger=_log):
     '''
 
     logger.debug('> fit Gaussian peak')
-    
+
     # fit: Gaussian + constant
     g_init = models.Gaussian1D(amplitude=y.max(), mean=x[np.argmax(y)]) + models.Linear1D(slope=0, intercept=0)
     fitter = fitting.LevMarLSQFitter()
@@ -410,22 +407,22 @@ class Reduction(object):
         clean_start : bool
             Remove all results from previous reductions for a clean start.
             Default is True
-        
+
         log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
         user_config : str
             Path to a user-provided configuration. Default is None, i.e. the
             reduction will use the package default configuration parameters
-        
+
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
         '''
-        
+
         #
         # make sure we are dealing with a proper reduction directory
         #
-        
+
         # init path
         path = Path(path).expanduser().resolve()
 
@@ -436,14 +433,14 @@ class Reduction(object):
             return None
         else:
             reduction = super(Reduction, cls).__new__(cls)
-    
+
         #
         # basic init
         #
 
         # init path
         reduction._path = utils.ReductionPath(path)
-        
+
         # instrument and mode
         reduction._instrument = 'IFS'
         reduction._mode = 'Unknown'
@@ -456,18 +453,18 @@ class Reduction(object):
         if logger.hasHandlers():
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
-        
+
         handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
-        formatter.default_msec_format = '%s.%03d'        
+        formatter.default_msec_format = '%s.%03d'
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
+
         if sphere_handler:
             logger.addHandler(sphere_handler)
-        
+
         reduction._logger = logger
-        
+
         reduction._logger.info(f'Creating IFS reduction at path {path}')
 
         #
@@ -494,7 +491,7 @@ class Reduction(object):
             config_file = reduction._path.root / 'reduction_config.ini'
             if config_file.exists():
                 config_file.unlink()
-        
+
         #
         # configuration
         #
@@ -512,7 +509,7 @@ class Reduction(object):
         # calibration
         reduction._wave_cal_lasers = np.array(eval(cfgparser.get('calibration', 'wave_cal_lasers')))
         reduction._default_center = np.array(eval(cfgparser.get('calibration', 'default_center')))
-        reduction._orientation_offset = eval(cfgparser.get('calibration', 'orientation_offset'))            
+        reduction._orientation_offset = eval(cfgparser.get('calibration', 'orientation_offset'))
 
         # reduction parameters
         cfg = {}
@@ -530,7 +527,7 @@ class Reduction(object):
             user_config = Path(user_config).expanduser()
 
             reduction._config.load_from_file(user_config)
-        
+
         #
         # reduction adn recipes status
         #
@@ -539,14 +536,14 @@ class Reduction(object):
 
         for recipe in reduction.recipe_requirements.keys():
             reduction._update_recipe_status(recipe, sphere.NOTSET)
-        
+
         # reload any existing data frames
         reduction._read_info()
-        
+
         #
         # return instance
         #
-        return reduction        
+        return reduction
 
     ##################################################
     # Representation
@@ -569,7 +566,7 @@ class Reduction(object):
     @loglevel.setter
     def loglevel(self, level):
         self._logger.setLevel(level.upper())
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -605,7 +602,7 @@ class Reduction(object):
     @property
     def status(self):
         return self._status
-    
+
     @property
     def config(self):
         return self._config
@@ -624,7 +621,7 @@ class Reduction(object):
         '''
 
         self._logger.info('====> Init <====')
-        
+
         self.sort_files()
         self.sort_frames()
         self.check_files_association()
@@ -635,8 +632,8 @@ class Reduction(object):
         Create static calibrations, mainly with esorex
         '''
 
-        self._logger.info('====> Static calibrations <====')        
-        
+        self._logger.info('====> Static calibrations <====')
+
         config = self.config
 
         self.sph_ifs_cal_dark(silent=config['misc_silent_esorex'])
@@ -652,7 +649,7 @@ class Reduction(object):
         '''
 
         self._logger.info('====> Science pre-processing <====')
-        
+
         config = self.config
 
         self.sph_ifs_preprocess_science(subtract_background=config['preproc_subtract_background'],
@@ -674,7 +671,7 @@ class Reduction(object):
         '''
 
         self._logger.info('====> Science processing <====')
-        
+
         config = self.config
 
         self.sph_ifs_wavelength_recalibration(high_pass=config['center_high_pass_waffle'],
@@ -704,7 +701,7 @@ class Reduction(object):
         '''
 
         self._logger.info('====> Clean-up <====')
-        
+
         config = self.config
 
         if config['clean']:
@@ -718,7 +715,7 @@ class Reduction(object):
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
-        
+
         self._logger.info('====> Full reduction <====')
 
         self.init_reduction()
@@ -749,18 +746,18 @@ class Reduction(object):
         '''
 
         self._logger.info('Read existing reduction information')
-        
+
         # path
         path = self.path
 
         # load existing configuration
         self.config.load()
-        
+
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
-            
+
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -789,7 +786,7 @@ class Reduction(object):
         fname = path.preproc / 'frames.csv'
         if fname.exists():
             self._logger.debug('> read frames.csv')
-            
+
             frames_info = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -808,7 +805,7 @@ class Reduction(object):
         fname = path.preproc / 'frames_preproc.csv'
         if fname.exists():
             self._logger.debug('> read frames_preproc.csv')
-            
+
             frames_info_preproc = pd.read_csv(fname, index_col=(0, 1))
 
             # convert times
@@ -838,7 +835,7 @@ class Reduction(object):
             if done:
                 self._update_recipe_status('sph_ifs_cal_wave', sphere.SUCCESS)
             self._logger.debug(f'> sph_ifs_cal_wave status = {done}')
-            
+
             done = (path.preproc / 'wavelength_recalibrated.fits').exists()
             if done:
                 self._update_recipe_status('sph_ifs_wavelength_recalibration', sphere.SUCCESS)
@@ -854,7 +851,7 @@ class Reduction(object):
             if done:
                 self._update_recipe_status('sph_ifs_preprocess_science', sphere.SUCCESS)
             self._logger.debug(f'> sph_ifs_preprocess_science status = {done}')
-            
+
             done = True
             files = frames_info_preproc.index
             for file, idx in files:
@@ -896,7 +893,7 @@ class Reduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-    
+
     ##################################################
     # SPHERE/IFS methods
     ##################################################
@@ -913,7 +910,7 @@ class Reduction(object):
 
         # update recipe execution
         self._update_recipe_status('sort_files', sphere.NOTSET)
-        
+
         # parameters
         path = self.path
 
@@ -975,8 +972,8 @@ class Reduction(object):
 
         # make sure some columns are float
         float_columns = ['DET SEQ1 DIT', 'DET NDIT', 'OBS ID', 'DET DITDELAY', 'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'TEL ALT', 'TEL AZ',
-                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG', 
-                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM', 
+                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG',
+                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM',
                          'TEL AMBI TAU0', 'TEL AMBI TEMP', 'TEL AMBI WINDSP', 'TEL AMBI WINDDIR']
         for col in float_columns:
             files_info[col] = files_info[col].astype(float)
@@ -1001,7 +998,7 @@ class Reduction(object):
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
             return
-        
+
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
@@ -1042,7 +1039,7 @@ class Reduction(object):
         self._logger.info('Extract frames information')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sort_frames', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sort_frames',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1113,7 +1110,7 @@ class Reduction(object):
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
         posangs = [f'{p:.2f}°' for p in posang]
-        
+
         date = str(cinfo['DATE'].iloc[0])[0:10]
 
         self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
@@ -1141,7 +1138,7 @@ class Reduction(object):
         # reduction status
         self._status = sphere.INCOMPLETE
 
-    
+
     def check_files_association(self):
         '''
         Performs the calibration files association as a sanity check
@@ -1153,10 +1150,10 @@ class Reduction(object):
         self._logger.info('File association for calibrations')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'check_files_association', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'check_files_association',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # parameters
         path = self.path
         files_info = self.files_info
@@ -1183,7 +1180,7 @@ class Reduction(object):
         else:
             self._logger.error(f'Unknown IFS mode {mode}')
             self._update_recipe_status('check_files_association', sphere.ERROR)
-            return        
+            return
 
         # specific data frame for calibrations
         # keep static calibrations and sky backgrounds
@@ -1387,7 +1384,7 @@ class Reduction(object):
         if error_flag:
             self._logger.error(f'There are {warning_flag} warning(s) and {error_flag} error(s) in the classification of files')
             self._update_recipe_status('check_files_association', sphere.ERROR)
-            return            
+            return
         else:
             self._logger.warning(f'There are {warning_flag} warning(s) and {error_flag} error(s) in the classification of files')
 
@@ -1395,10 +1392,10 @@ class Reduction(object):
         self._logger.debug('> save files.csv')
         files_info.to_csv(path.preproc / 'files.csv')
         self._files_info = files_info
-        
+
         # update recipe execution
         self._update_recipe_status('check_files_association', sphere.SUCCESS)
-        
+
         # reduction status
         self._status = sphere.INCOMPLETE
 
@@ -1414,9 +1411,9 @@ class Reduction(object):
         '''
 
         self._logger.info('Darks and backgrounds')
-        
+
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_dark', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_dark',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1479,7 +1476,7 @@ class Reduction(object):
                 if shutil.which('esorex') is None:
                     self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
                     self._update_recipe_status('sph_ifs_cal_dark', sphere.ERROR)
-                    return                    
+                    return
 
                 # execute esorex
                 self._logger.debug(f"> execute {' '.join(args)}")
@@ -1491,7 +1488,7 @@ class Reduction(object):
                 if proc.returncode != 0:
                     self._logger.error('esorex process was not successful')
                     self._update_recipe_status('sph_ifs_cal_dark', sphere.ERROR)
-                    return                    
+                    return
 
                 # store products
                 self._logger.debug('> update files_info data frame')
@@ -1516,7 +1513,7 @@ class Reduction(object):
 
         # update recipe execution
         self._update_recipe_status('sph_ifs_cal_dark', sphere.SUCCESS)
-        
+
         # reduction status
         self._status = sphere.INCOMPLETE
 
@@ -1534,7 +1531,7 @@ class Reduction(object):
         self._logger.info('Detector flats')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_detector_flat', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_detector_flat',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1556,7 +1553,7 @@ class Reduction(object):
         else:
             self._logger.error(f'Unknown IFS mode {mode}')
             self._update_recipe_status('sph_ifs_cal_detector_flat', sphere.ERROR)
-            return                    
+            return
 
         # bpm files
         cfiles = files_info[files_info['PRO CATG'] == 'IFS_STATIC_BADPIXELMAP'].index
@@ -1582,7 +1579,7 @@ class Reduction(object):
             elif len(files) != 2:
                 self._logger.error(f'There should be exactly 2 raw flat files. Found {len(files)}.')
                 self._update_recipe_status('sph_ifs_cal_detector_flat', sphere.ERROR)
-                return                    
+                return
 
             # create the flat and bpm
             flat, bpm = compute_detector_flat(files, bpm_files=bpm_files, mask_vignetting=True, logger=self._logger)
@@ -1641,7 +1638,7 @@ class Reduction(object):
         self._logger.info('Microspectra positions')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_specpos', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_specpos',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1654,14 +1651,14 @@ class Reduction(object):
         if len(specpos_file) != 1:
             self._logger.error(f'There should be exactly 1 raw specpos files. Found {len(specpos_file)}.')
             self._update_recipe_status('sph_ifs_cal_specpos', sphere.ERROR)
-            return                    
+            return
 
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
             self._update_recipe_status('sph_ifs_cal_specpos', sphere.ERROR)
-            return                    
+            return
 
         # IFS obs mode
         mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
@@ -1672,7 +1669,7 @@ class Reduction(object):
         else:
             self._logger.error(f'Unknown IFS mode {mode}')
             self._update_recipe_status('sph_ifs_cal_specpos', sphere.ERROR)
-            return                    
+            return
 
         # create sof
         self._logger.debug('> create sof file')
@@ -1698,7 +1695,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
             self._update_recipe_status('sph_ifs_cal_specpos', sphere.ERROR)
-            return                    
+            return
 
         # execute esorex
         self._logger.debug(f"> execute {' '.join(args)}")
@@ -1710,7 +1707,7 @@ class Reduction(object):
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
             self._update_recipe_status('sph_ifs_cal_specpos', sphere.ERROR)
-            return                    
+            return
 
         # store products
         self._logger.debug('> update files_info data frame')
@@ -1746,7 +1743,7 @@ class Reduction(object):
         self._logger.info('Wavelength calibration')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_wave', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_wave',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1759,20 +1756,20 @@ class Reduction(object):
         if len(wave_file) != 1:
             self._logger.error(f'There should be exactly 1 raw wavelength calibration file. Found {len(wave_file)}.')
             self._update_recipe_status('sph_ifs_cal_wave', sphere.ERROR)
-            return                    
+            return
 
         specpos_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_SPECPOS')]
         if len(specpos_file) != 1:
             self._logger.error(f'There should be exactly 1 specpos file. Found {len(specpos_file)}.')
             self._update_recipe_status('sph_ifs_cal_wave', sphere.ERROR)
-            return                    
-        
+            return
+
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
             self._update_recipe_status('sph_ifs_cal_wave', sphere.ERROR)
-            return                    
+            return
 
         # IFS obs mode
         mode = files_info.loc[files_info['DPR CATG'] == 'SCIENCE', 'INS2 COMB IFS'].unique()[0]
@@ -1819,7 +1816,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
             self._update_recipe_status('sph_ifs_cal_wave', sphere.ERROR)
-            return                    
+            return
 
         # execute esorex
         self._logger.debug(f"> execute {' '.join(args)}")
@@ -1831,7 +1828,7 @@ class Reduction(object):
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
             self._update_recipe_status('sph_ifs_cal_wave', sphere.ERROR)
-            return                    
+            return
 
         # store products
         self._logger.debug('> update files_info data frame')
@@ -1854,10 +1851,10 @@ class Reduction(object):
         wave_min = hdr['HIERARCH ESO DRS IFS MIN LAMBDA']*1000
         wave_max = hdr['HIERARCH ESO DRS IFS MAX LAMBDA']*1000
         wave_drh = np.linspace(wave_min, wave_max, self._nwave)
-        
+
         self._logger.debug('> save default wavelength calibration')
         fits.writeto(path.preproc / 'wavelength_default.fits', wave_drh, overwrite=True)
-        
+
         # update recipe execution
         self._update_recipe_status('sph_ifs_cal_wave', sphere.SUCCESS)
 
@@ -1878,7 +1875,7 @@ class Reduction(object):
         self._logger.info('Integral-field unit flat')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_ifu_flat', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_cal_ifu_flat',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1895,7 +1892,7 @@ class Reduction(object):
         else:
             self._logger.error(f'Unknown IFS mode {mode}')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         # get list of files
         ifu_flat_file = files_info[np.logical_not(files_info['PROCESSED']) & (files_info['DPR TYPE'] == 'FLAT,LAMP') &
@@ -1903,48 +1900,48 @@ class Reduction(object):
         if len(ifu_flat_file) != 1:
             self._logger.error(f'There should be exactly 1 raw IFU flat file. Found {len(ifu_flat_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                                
+            return
 
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
         if len(wave_file) != 1:
             self._logger.error(f'There should be exactly 1 wavelength calibration file. Found {len(wave_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         dark_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DARK') &
                                 (files_info['DPR CATG'] == 'CALIB') & (files_info['DET SEQ1 DIT'].round(2) == 1.65)]
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                       (files_info['INS2 COMB IFS'] == f'CAL_BB_2_{mode_short}')]
         if len(flat_white_file) != 1:
             self._logger.error(f'There should be exactly 1 white flat file. Found {len(flat_white_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB1_1_{mode_short}')]
         if len(flat_1020_file) != 1:
             self._logger.error(f'There should be exactly 1 1020 nm flat file. Found {len(flat_1020_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB2_1_{mode_short}')]
         if len(flat_1230_file) != 1:
             self._logger.error(f'There should be exactly 1 1230 nm flat file. Found {len(flat_1230_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB3_1_{mode_short}')]
         if len(flat_1300_file) != 1:
             self._logger.error(f'There should be exactly 1 1300 nm flat file. Found {len(flat_1300_file)}.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         if mode == 'OBS_H':
             flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
@@ -1952,7 +1949,7 @@ class Reduction(object):
             if len(flat_1550_file) != 1:
                 self._logger.error(f'There should be exactly 1 1550 nm flat file. Found {len(flat_1550_file)}.')
                 self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-                return                    
+                return
 
         # create sof
         self._logger.debug('> create sof file')
@@ -1986,7 +1983,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         # execute esorex
         self._logger.debug(f"> execute {' '.join(args)}")
@@ -1998,7 +1995,7 @@ class Reduction(object):
         if proc.returncode != 0:
             self._logger.error('esorex process was not successful')
             self._update_recipe_status('sph_ifs_cal_ifu_flat', sphere.ERROR)
-            return                    
+            return
 
         # store products
         self._logger.debug('> update files_info data frame')
@@ -2081,7 +2078,7 @@ class Reduction(object):
         self._logger.info('Pre-process science files')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_preprocess_science', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_preprocess_science',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -2105,7 +2102,7 @@ class Reduction(object):
                 self._logger.error('Could not fin any bad pixel maps')
                 self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
                 return
-    
+
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
         # final dataframe
@@ -2151,7 +2148,7 @@ class Reduction(object):
                         # FIXME: handle cases when multiple backgrounds are found?
                         self._logger.error(f'Unexpected number of background files ({len(dfiles)})')
                         self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
-                        return                    
+                        return
 
                 # process files
                 for idx, (fname, finfo) in enumerate(sfiles.iterrows()):
@@ -2195,7 +2192,7 @@ class Reduction(object):
                                 if (not isinstance(coadd_value, int)) or (coadd_value <= 1):
                                     self._logger.error('coadd_value must be an integer >1')
                                     self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
-                                    return                    
+                                    return
 
                                 coadd_value = int(coadd_value)
                                 NDIT = len(img)
@@ -2219,7 +2216,7 @@ class Reduction(object):
                             else:
                                 self._logger.error(f'Unknown collapse type {collapse_type}')
                                 self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
-                                return                    
+                                return
                         else:
                             frames_info_new = toolbox.collapse_frames_info(finfo, fname, true_north, 'none', logger=self._logger)
 
@@ -2228,7 +2225,7 @@ class Reduction(object):
                         self._logger.error('An error occured when collapsing frames info')
                         self._update_recipe_status('sph_ifs_preprocess_science', sphere.ERROR)
                         return
-                    
+
                     # merge frames_info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
 
@@ -2298,7 +2295,7 @@ class Reduction(object):
         self._logger.info('Pre-process wavelength calibration file')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_preprocess_wave', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_preprocess_wave',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -2313,7 +2310,7 @@ class Reduction(object):
             self._logger.error('Could not fin any bad pixel maps')
             self._update_recipe_status('sph_ifs_preprocess_wave', sphere.ERROR)
             return
-        
+
         bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
         # dark
@@ -2322,7 +2319,7 @@ class Reduction(object):
         if len(dark_file) == 0:
             self._logger.error('There should at least 1 dark file for calibrations. Found none.')
             self._update_recipe_status('sph_ifs_preprocess_wave', sphere.ERROR)
-            return                    
+            return
         bkg = fits.getdata(path.calib / f'{dark_file.index[0]}.fits')
 
         # wavelength calibration
@@ -2330,7 +2327,7 @@ class Reduction(object):
         if len(wave_file) != 1:
             self._logger.error(f'There should be exactly 1 raw wavelength calibration file. Found {len(wave_file)}.')
             self._update_recipe_status('sph_ifs_preprocess_wave', sphere.ERROR)
-            return                    
+            return
         fname = wave_file.index[0]
 
         # read data
@@ -2383,7 +2380,7 @@ class Reduction(object):
         self._logger.info('Create science cubes')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_science_cubes', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_science_cubes',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -2406,7 +2403,7 @@ class Reduction(object):
         else:
             self._logger.error(f'Unknown IFS mode {mode}')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         # get list of science files
         sci_files = sorted(list(path.preproc.glob('*_preproc.fits')))
@@ -2420,41 +2417,41 @@ class Reduction(object):
         if len(ifu_flat_file) != 1:
             self._logger.error(f'There should be exactly 1 IFU flat file. Found {len(ifu_flat_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         wave_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_WAVECALIB')]
         if len(wave_file) != 1:
             self._logger.error(f'There should be exactly 1 wavelength calibration file. Found {len(wave_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         flat_white_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                       (files_info['INS2 COMB IFS'] == f'CAL_BB_2_{mode_short}')]
         if len(flat_white_file) != 1:
             self._logger.error(f'There should be exactly 1 white flat file. Found {len(flat_white_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         flat_1020_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB1_1_{mode_short}')]
         if len(flat_1020_file) != 1:
             self._logger.error(f'There should be exactly 1 1020 nm flat file. Found {len(flat_1020_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         flat_1230_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB2_1_{mode_short}')]
         if len(flat_1230_file) != 1:
             self._logger.error(f'There should be exactly 1 1230 nm flat file. Found {len(flat_1230_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         flat_1300_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
                                      (files_info['INS2 COMB IFS'] == f'CAL_NB3_1_{mode_short}')]
         if len(flat_1300_file) != 1:
             self._logger.error(f'There should be exactly 1 1300 nm flat file. Found {len(flat_1300_file)}.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         if mode == 'OBS_H':
             flat_1550_file = files_info[files_info['PROCESSED'] & (files_info['PRO CATG'] == 'IFS_MASTER_DFF') &
@@ -2462,7 +2459,7 @@ class Reduction(object):
             if len(flat_1550_file) != 1:
                 self._logger.error(f'There should be exactly 1 1550 nm flat file. Found {len(flat_1550_file)}.')
                 self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-                return                    
+                return
 
         # create sof
         self._logger.debug('> create sof file')
@@ -2496,7 +2493,7 @@ class Reduction(object):
         if shutil.which('esorex') is None:
             self._logger.error('esorex does not appear to be in your PATH. Please make sure that the ESO pipeline is properly installed before running vlt-sphere.')
             self._update_recipe_status('sph_ifs_science_cubes', sphere.ERROR)
-            return                    
+            return
 
         # execute esorex
         self._logger.debug(f"> execute {' '.join(args)}")
@@ -2561,7 +2558,7 @@ class Reduction(object):
         self._logger.info('Wavelength recalibration')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_wavelength_recalibration', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_wavelength_recalibration',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -2579,7 +2576,7 @@ class Reduction(object):
         wfile = path.preproc / 'wavelength_recalibrated.fits'
         if wfile.exists():
             wfile.unlink()
-        
+
         #
         # DRH wavelength
         #
@@ -2629,7 +2626,7 @@ class Reduction(object):
             save_path = None
         spot_center, spot_dist, img_center \
             = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
-                                                        pixel, orientation_offset, high_pass=high_pass, 
+                                                        pixel, orientation_offset, high_pass=high_pass,
                                                         center_offset=offset, box_size=box_waffle, coro=coro,
                                                         save_path=save_path, logger=self._logger)
 
@@ -2804,7 +2801,7 @@ class Reduction(object):
         self._logger.info('Star centers determination')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_star_center', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_star_center',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -2879,7 +2876,7 @@ class Reduction(object):
                     save_path = None
                 spot_center, spot_dist, img_center \
                     = toolbox.star_centers_from_waffle_img_cube(cube, wave_drh, waffle_orientation, center_guess,
-                                                                pixel, orientation_offset, high_pass=high_pass_waffle, 
+                                                                pixel, orientation_offset, high_pass=high_pass_waffle,
                                                                 center_offset=offset, box_size=box_waffle,
                                                                 save_path=save_path, logger=self._logger)
 
@@ -2907,10 +2904,10 @@ class Reduction(object):
           - *_cube: the (x,y,time,lambda) cube
 
           - *_derot: the derotation angles vector. This vector takes
-                     into account the parallactic angle, the default 
-                     -1.75° true North offset, and any instrumental 
-                     pupil offset. This is the values that need to be 
-                     used for aligning the images with North up and 
+                     into account the parallactic angle, the default
+                     -1.75° true North offset, and any instrumental
+                     pupil offset. This is the values that need to be
+                     used for aligning the images with North up and
                      East left.
 
           - *_frames: a csv file with all the information for every
@@ -2937,8 +2934,8 @@ class Reduction(object):
           - no saving of the rescaled frames (save_scaled=False)
 
         This option is useful if the user wants to perform a
-        posteriori centering of the frames, e.g. to fully preserve 
-        photometry. 
+        posteriori centering of the frames, e.g. to fully preserve
+        photometry.
 
         If there was no OBJECT,CENTER acquired in the sequence, then
         the centering will be performed with respect to a default,
@@ -2972,13 +2969,13 @@ class Reduction(object):
             frames. This should be an array of either 2 or nwave*2
             values. Default is None
 
-        center_selection : str        
+        center_selection : str
             Specify which star center to use when multiple are
             available. Possible values are first, last, and time. The
             time option indicates to use the star center file that is
             closest in time with respect to each science file. Default
             is first
-        
+
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
@@ -3002,7 +2999,7 @@ class Reduction(object):
         self._logger.info('Combine science data')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_combine_data', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_combine_data',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -3028,7 +3025,7 @@ class Reduction(object):
         hdu = fits.PrimaryHDU(wave)
         hdu.header['UNIT'] = 'nm'
         hdu.writeto(path.products / 'wavelength.fits', overwrite=True)
-        
+
         # max images size
         if psf_dim > 290:
             self._logger.warning('psf_dim cannot be larger than 290 pix. A value of 290 will be used.')
@@ -3048,11 +3045,11 @@ class Reduction(object):
 
         if manual_center is not None:
             manual_center = np.array(manual_center)
-            
+
             if (manual_center.shape != (2,)) and (manual_center.shape != (nwave, 2)):
                 self._logger.error('manual_center does not have the right number of dimensions.')
                 self._update_recipe_status('sph_ifs_combine_data', sphere.ERROR)
-                return                    
+                return
 
             if manual_center.shape == (2,):
                 manual_center = np.full((nwave, 2), manual_center, dtype=float)
@@ -3079,7 +3076,7 @@ class Reduction(object):
                 cc = psf_dim // 2
             else:
                 cc = (psf_dim - 1) / 2
-                
+
             # read and combine files
             for file_idx, (file, idx) in enumerate(flux_files.index):
                 self._logger.info(f'   ==> file {file_idx + 1}/{len(flux_files)}: {file}, DIT #{idx}')
@@ -3089,7 +3086,7 @@ class Reduction(object):
                 fname = f'{file}_DIT{idx:03d}_preproc_'
                 files = list(path.preproc.glob(fname+'?????.fits'))
                 cube = fits.getdata(files[0])
-                
+
                 # centers
                 self._logger.debug('> read centers')
                 cfile = path.preproc / f'{fname}centers.fits'
@@ -3102,7 +3099,7 @@ class Reduction(object):
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(int)
-                
+
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
 
@@ -3196,7 +3193,7 @@ class Reduction(object):
                 fname = f'{file}_DIT{idx:03d}_preproc_'
                 files = list(path.preproc.glob(fname+'?????.fits'))
                 cube = fits.getdata(files[0])
-                
+
                 # use manual center if explicitely requested
                 self._logger.debug('> read centers')
                 if manual_center is not None:
@@ -3204,11 +3201,11 @@ class Reduction(object):
                 else:
                     # otherwise read center data
                     centers = fits.getdata(path.preproc / f'{fname}centers.fits')
-                
+
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(int)
-                
+
                 # mask values outside of IFS FoV
                 cube[cube == 0] = np.nan
 
@@ -3334,7 +3331,7 @@ class Reduction(object):
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(int)
-                
+
                 # read data
                 self._logger.debug('> read data')
                 fname = f'{file}_DIT{idx:03d}_preproc_'
@@ -3428,12 +3425,12 @@ class Reduction(object):
         '''
 
         self._logger.info('Clean reduction data')
-        
+
         # check if recipe can be executed
         if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_ifs_clean',
                                          self.recipe_requirements, logger=self._logger):
             return
-        
+
         # remove sub-directories
         self.path.remove(delete_raw=delete_raw, delete_products=delete_products, logger=self._logger)
 

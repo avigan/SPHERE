@@ -1,10 +1,8 @@
 import os
-import glob
 import shutil
 import math
 import logging
 import numpy as np
-import pandas as pd
 import xml.etree.ElementTree as etree
 
 import sphere.IRDIS as IRDIS
@@ -40,7 +38,7 @@ def process_mainFiles(mainFiles, files, logger=_log):
         files.append(fname)
 
         logger.debug(f' ==> {fname}')
-        
+
 
 def process_association(tree, files, logger=_log):
     '''
@@ -117,14 +115,14 @@ def sort_files_from_xml(path, logger=_log):
 
     logger.info('Sort data based on XML files (ESO automated calibration selection)')
     logger.info(f' * {len(xml_files)} XML files\n')
-    
+
     # sort files
     for file in xml_files:
         tree = etree.parse(file)
-        root = tree.getroot()            
+        root = tree.getroot()
 
         logger.info(f' * {file.name}')
-        
+
         # process only IFS and IRDIS science data
         catg = root.attrib['category']
         if (catg.find('ACQUISITION') != -1):
@@ -133,18 +131,18 @@ def sort_files_from_xml(path, logger=_log):
         # get target name from first mainFile element
         scifiles = root.find('mainFiles')
         filename = scifiles[0].attrib['name']
-        
+
         # Mac OS X replaces : by _ in file names...
         if not (path / f'{filename}.fits').exists():
             filename = filename.replace(':', '_')
-        
+
         if not (path / f'{filename}.fits').exists():
             logger.info(f'   ==> file {filename} does not exist. Skipping')
             continue
 
         fpath = path / f'{filename}.fits'
         hdr = fits.getheader(fpath)
-        
+
         # target and arm
         target = hdr['HIERARCH ESO OBS NAME']
         obs_id = hdr['HIERARCH ESO OBS ID']
@@ -158,11 +156,11 @@ def sort_files_from_xml(path, logger=_log):
             except KeyError:
                 logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {fpath}')
                 continue
-                
+
             if arm == 'IRDIS':
                 instrument = 'IRDIS'
             elif arm == 'IFS':
-                instrument = 'IFS'                
+                instrument = 'IFS'
             else:
                 logger.error(f'Unknown arm {arm}')
                 continue
@@ -180,17 +178,17 @@ def sort_files_from_xml(path, logger=_log):
         # copy files
         for filename in files:
             fpath = path / f'{filename}.fits'
-            
+
             # Mac OS X replaces : by _ in file names...
             if not fpath.exists():
                 filename = filename.replace(':', '_')
                 fpath  = path / f'{filename}.fits'
-            
+
             # check if file actually exists
             if not fpath.exists():
                 logger.info(f' ==> file {fpath} does not exist. Skipping.')
                 continue
-            
+
             # copy if needed
             nfpath = target_path / f'{filename}.fits'
             if not nfpath.exists():
@@ -247,7 +245,7 @@ def sort_files_from_fits(path, logger=_log):
     # sort files
     for file in fits_files:
         logger.info(f' * {file.name}')
-        
+
         # target and arm
         hdr = fits.getheader(file)
 
@@ -267,11 +265,11 @@ def sort_files_from_fits(path, logger=_log):
             except KeyError:
                 logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {file}')
                 continue
-            
+
             if arm == 'IRDIS':
                 instrument = 'IRDIS'
             elif arm == 'IFS':
-                instrument = 'IFS'                
+                instrument = 'IFS'
             else:
                 logger.error(f'Unknown arm {arm}')
                 continue
@@ -299,7 +297,7 @@ def sort_files_from_fits(path, logger=_log):
         for file in files:
             file.rename(path_new / file.name)
 
-            
+
 def classify_irdis_dataset(path, logger=_log):
     '''Classify an IRDIS dataset based on the science files
 
@@ -318,7 +316,7 @@ def classify_irdis_dataset(path, logger=_log):
         of failure.
 
     '''
-    
+
     # zeroth-order reduction validation
     raw = path / 'raw'
     if not raw.exists():
@@ -354,7 +352,7 @@ def classify_irdis_dataset(path, logger=_log):
         return 'pola'
     else:
         return 'spectro'
-                
+
 
 class Dataset:
     '''
@@ -376,7 +374,7 @@ class Dataset:
 
         if not isinstance(path, str):
             raise ValueError('path must be a string')
-        
+
         # path
         path = Path(path).expanduser().resolve()
         self._path = path
@@ -387,24 +385,24 @@ class Dataset:
         if logger.hasHandlers():
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
-        
+
         handler = logging.FileHandler(self.path / 'dataset.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
-        formatter.default_msec_format = '%s.%03d'        
+        formatter.default_msec_format = '%s.%03d'
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
+
         self._log_level = log_level
         self._handler   = handler
         self._logger    = logger
-        
+
         self._logger.info(f'Looking for SPHERE data sets at path {path}')
-        
+
         # list of reductions
         self._IFS_reductions    = []
         self._IRDIS_reductions  = []
         self._SPARTA_reductions = []
-        
+
         # search for data with calibrations downloaded from ESO archive
         xml_files = list(path.glob('*.xml'))
         if len(xml_files) != 0:
@@ -414,21 +412,21 @@ class Dataset:
         fits_files = list(path.glob('*.fits'))
         if len(fits_files) != 0:
             sort_files_from_fits(path, logger=self._logger)
-        
+
         # recursively look for valid reduction
         self._create_reductions()
-        
+
     ##################################################
     # Representation
     ##################################################
-    
+
     def __repr__(self):
         return f'<SPHERE datasets: {len(self.IFS_reductions)} IFS, {len(self.IRDIS_reductions)} IRDIS, {len(self.SPARTA_reductions)} SPARTA>'
-    
+
     ##################################################
     # Properties
     ##################################################
-    
+
     @property
     def reductions(self):
         return self._reductions
@@ -448,11 +446,11 @@ class Dataset:
     @property
     def path(self):
         return self._path
-    
+
     ##################################################
     # Generic class methods
     ##################################################
-    
+
     def init_reduction(self):
         '''
         Sort files and frames, perform sanity check
@@ -460,7 +458,7 @@ class Dataset:
 
         for r in self.reductions:
             self._logger.info(f'Init: {str(r)}')
-            
+
             r.init_reduction()
 
 
@@ -471,63 +469,63 @@ class Dataset:
 
         for r in self.reductions:
             self._logger.info(f'Static calibrations: {str(r)}')
-            
+
             r.create_static_calibrations()
 
-            
+
     def preprocess_science(self):
         '''
         Clean and collapse images
         '''
-        
+
         for r in self.reductions:
             self._logger.info(f'Science pre-processing: {str(r)}')
-            
+
             r.preprocess_science()
 
-            
+
     def process_science(self):
         '''
         Perform star center, combine cubes into final (x,y,time,lambda)
         cubes, correct anamorphism and scale the images
         '''
-        
+
         for r in self.reductions:
             self._logger.info(f'Science processing: {str(r)}')
 
             r.process_science()
 
-    
+
     def clean(self):
         '''
         Clean the reduction directory, leaving only the raw and products
         sub-directory
         '''
-        
+
         for r in self.reductions:
             print(r)
             self._logger.info(f'Clean-up: {str(r)}')
 
             r.clean()
-        
-        
+
+
     def full_reduction(self):
         '''
         Performs a full reduction of a data set, from the static
         calibrations to the final (x,y,time,lambda) cubes
         '''
-        
+
         for r in self.reductions:
             self._logger.info('###########################################################################')
             self._logger.info(f'# Full reduction: {str(r)}')
             self._logger.info('###########################################################################')
-            
+
             r.full_reduction()
 
     ##################################################
     # Class methods
     ##################################################
-        
+
     def _create_reductions(self):
         '''
         Detect and create valid reductions in path
@@ -554,14 +552,14 @@ class Dataset:
                             arm = hdr['HIERARCH ESO SEQ ARM']
                         except KeyError:
                             self._logger.error(f'No \'HIERARCH ESO SEQ ARM\' keyword in {fits_files[0]}')
-                        
+
                     if arm == 'IRDIS':
                         mode = classify_irdis_dataset(reduction_path, logger=self._logger)
 
                         # an error occured in dataset classification
                         if mode is None:
                             continue
-                        
+
                         if mode == 'imaging':
                             self._logger.info(f' * IRDIS imaging reduction at path {reduction_path}')
                             reduction  = IRDIS.ImagingReduction(reduction_path, log_level=self._log_level,
@@ -578,7 +576,7 @@ class Dataset:
                             self.IRDIS_reductions.append(reduction)
                     elif arm == 'IFS':
                         self._logger.info(f' * IFS reduction at path {reduction_path}')
-                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level, 
+                        reduction  = IFS.Reduction(reduction_path, log_level=self._log_level,
                                                    sphere_handler=self._handler)
 
                         # save if reduction was successfully created
@@ -586,12 +584,12 @@ class Dataset:
                             self.IFS_reductions.append(reduction)
                     elif arm == 'SPARTA':
                         self._logger.info(f' * SPARTA reduction at path {reduction_path}')
-                        reduction  = SPARTA.Reduction(reduction_path, log_level=self._log_level, 
+                        reduction  = SPARTA.Reduction(reduction_path, log_level=self._log_level,
                                                       sphere_handler=self._handler)
 
                         # save if reduction was successfully created
                         if reduction is not None:
-                            self.SPARTA_reductions.append(reduction)                        
+                            self.SPARTA_reductions.append(reduction)
                     else:
                         self._logger.error(f'Unknown arm {arm}')
                         continue
@@ -601,5 +599,5 @@ class Dataset:
 
         # merge all reductions into a single list
         self._reductions = self.IFS_reductions + self.IRDIS_reductions
-        
-    
+
+

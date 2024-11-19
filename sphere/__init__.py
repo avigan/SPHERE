@@ -1,7 +1,7 @@
 __author__    = 'Arthur Vigan'
 __copyright__ = 'Copyright (C) 2017-2021 Arthur Vigan'
 __license__   = 'MIT'
-__version__   = '1.7'
+__version__   = '1.8'
 
 import logging
 import enum
@@ -68,5 +68,5 @@ def set_loglevel(level):
     level : {"notset", "debug", "info", "warning", "error", "critical"}
         The log level of the handler
     '''
-    
+
     _log.setLevel(level.upper())

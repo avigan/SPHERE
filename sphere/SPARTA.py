@@ -3,7 +3,6 @@ import logging
 import numpy as np
 import collections
 import configparser
-import shutil
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
@@ -74,7 +73,7 @@ class Reduction(object):
         clean_start : bool
             Remove all results from previous reductions for a clean start.
             Default is True
-        
+
         log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
@@ -89,7 +88,7 @@ class Reduction(object):
         #
         # make sure we are dealing with a proper reduction directory
         #
-        
+
         # init path
         path = Path(path).expanduser().resolve()
 
@@ -107,7 +106,7 @@ class Reduction(object):
 
         # init path
         reduction._path = utils.ReductionPath(path)
-        
+
         # instrument and mode
         reduction._instrument = 'SPARTA'
 
@@ -119,18 +118,18 @@ class Reduction(object):
         if logger.hasHandlers():
             for hdlr in logger.handlers:
                 logger.removeHandler(hdlr)
-        
+
         handler = logging.FileHandler(reduction._path.products / 'reduction.log', mode='w', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s\t%(levelname)8s\t%(message)s')
-        formatter.default_msec_format = '%s.%03d'        
+        formatter.default_msec_format = '%s.%03d'
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-        
+
         if sphere_handler:
             logger.addHandler(sphere_handler)
-        
+
         reduction._logger = logger
-        
+
         reduction._logger.info(f'Creating SPARTA reduction at path {path}')
 
         #
@@ -178,7 +177,7 @@ class Reduction(object):
 
         for recipe in reduction.recipe_requirements.keys():
             reduction._update_recipe_status(recipe, sphere.NOTSET)
-        
+
         # reload any existing data frames
         reduction._read_info()
 
@@ -189,7 +188,7 @@ class Reduction(object):
         reduction._logger.warning('# of the pipeline until an appropriate format is found. #')
         reduction._logger.warning('# Please do not blindly rely on the current format.     #')
         reduction._logger.warning('#########################################################')
-        
+
         #
         # return instance
         #
@@ -216,7 +215,7 @@ class Reduction(object):
     @loglevel.setter
     def loglevel(self, level):
         self._logger.setLevel(level.upper())
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -232,19 +231,19 @@ class Reduction(object):
     @property
     def dtts_info(self):
         return self._dtts_info
-        
+
     @property
     def visloop_info(self):
         return self._visloop_info
-        
+
     @property
     def irloop_info(self):
         return self._irloop_info
-        
+
     @property
     def atmospheric_info(self):
         return self._atmos_info
-    
+
     @property
     def recipe_status(self):
         return self._recipes_status
@@ -256,7 +255,7 @@ class Reduction(object):
     @property
     def status(self):
         return self._status
-        
+
     ##################################################
     # Private methods
     ##################################################
@@ -272,18 +271,18 @@ class Reduction(object):
         '''
 
         self._logger.info('Read existing reduction information')
-        
+
         # path
         path = self.path
 
         # load existing configuration
         self.config.load()
-        
+
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
             self._logger.debug('> read files.csv')
-            
+
             files_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -299,7 +298,7 @@ class Reduction(object):
         fname = path.products / 'dtts_frames.csv'
         if fname.exists():
             self._logger.debug('> read dtts_frames.csv')
-            
+
             dtts_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -317,7 +316,7 @@ class Reduction(object):
         visloop = False
         if fname.exists():
             self._logger.debug('> read visloop_info.csv')
-            
+
             visloop_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -334,7 +333,7 @@ class Reduction(object):
         irloop = False
         if fname.exists():
             self._logger.debug('> read irloop_info.csv')
-            
+
             irloop_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -356,7 +355,7 @@ class Reduction(object):
         fname = path.products / 'atmospheric_info.csv'
         if fname.exists():
             self._logger.debug('> read atmospheric_info.csv')
-            
+
             atmos_info = pd.read_csv(fname, index_col=0)
 
             # convert times
@@ -396,7 +395,7 @@ class Reduction(object):
         self._logger.debug('> update recipe execution')
 
         self._recipes_status[recipe] = status
-    
+
     ##################################################
     # Generic class methods
     ##################################################
@@ -410,13 +409,13 @@ class Reduction(object):
 
         self.sort_files()
 
-        
+
     def create_static_calibrations(self):
         '''
         Create static calibrations
         '''
-        
-        self._logger.info('====> Static calibrations <====')                
+
+        self._logger.info('====> Static calibrations <====')
         self._logger.warning('No static calibrations for SPARTA data')
 
 
@@ -433,7 +432,7 @@ class Reduction(object):
         '''
         Process the SPARTA files
         '''
-        
+
         self._logger.info('====> Science processing <====')
 
         config = self._config
@@ -454,27 +453,27 @@ class Reduction(object):
         self._logger.info('====> Clean-up <====')
 
         config = self._config
-        
+
         if config['clean']:
             self.sph_sparta_clean(delete_raw=config['clean_delete_raw'],
                                   delete_products=config['clean_delete_products'],
                                   delete_config=config['clean_delete_config'])
-    
+
     def full_reduction(self):
         '''
         Performs a full reduction of a SPARTA data set
         '''
-        
+
         self._logger.info('====> Full reduction <====')
 
         self.init_reduction()
         self.process_science()
         self.clean()
-        
+
     ##################################################
     # SPHERE/SPARTA methods
     ##################################################
-    
+
     def sort_files(self):
         '''
         Sort all raw files and save result in a data frame
@@ -487,7 +486,7 @@ class Reduction(object):
 
         # update recipe execution
         self._update_recipe_status('sort_files', sphere.NOTSET)
-        
+
         # parameters
         path = self.path
 
@@ -500,7 +499,7 @@ class Reduction(object):
             self._update_recipe_status('sort_files', sphere.ERROR)
             self._status = sphere.FATAL
             return
-        
+
         self._logger.info(f' * found {len(files)} raw FITS files')
 
         # read list of keywords
@@ -524,7 +523,7 @@ class Reduction(object):
 
         # files table
         self._logger.debug('> create files_info data frame')
-        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short, dtype='float')
+        files_info = pd.DataFrame(index=pd.Index(files, name='FILE'), columns=keywords_short)
 
         self._logger.debug('> read FITS keywords')
         for f in files:
@@ -536,9 +535,15 @@ class Reduction(object):
 
             hdu.close()
 
+        # make sure some columns are float
+        float_columns = ['INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG',
+                         'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'OBS ID']
+        for col in float_columns:
+            files_info[col] = files_info[col].astype(float)
+
         # artificially add arm keyword
         files_info.insert(files_info.columns.get_loc('DPR TECH')+1, 'SEQ ARM', 'SPARTA')
-            
+
         # drop files that are not handled, based on DPR keywords
         self._logger.debug('> drop unsupported file types')
         files_info.dropna(subset=['DPR TYPE'], inplace=True)
@@ -566,13 +571,13 @@ class Reduction(object):
         self._logger.debug('> print observation info')
         cinfo = files_info
 
-        ra_drot   = cinfo['INS4 DROT2 RA'][0]
+        ra_drot   = cinfo['INS4 DROT2 RA'].iloc[0]
         ra_drot_h = np.floor(ra_drot/1e4)
         ra_drot_m = np.floor((ra_drot - ra_drot_h*1e4)/1e2)
         ra_drot_s = ra_drot - ra_drot_h*1e4 - ra_drot_m*1e2
         RA = f'{ra_drot_h:02.0f}:{ra_drot_m:02.0f}:{ra_drot_s:02.3f}'
 
-        dec_drot  = cinfo['INS4 DROT2 DEC'][0]
+        dec_drot  = cinfo['INS4 DROT2 DEC'].iloc[0]
         sign = np.sign(dec_drot)
         udec_drot  = np.abs(dec_drot)
         dec_drot_d = np.floor(udec_drot/1e4)
@@ -581,18 +586,18 @@ class Reduction(object):
         dec_drot_d *= sign
         DEC = f'{dec_drot_d:02.0f}:{dec_drot_m:02.0f}:{dec_drot_s:02.2f}'
 
-        date = str(cinfo['DATE'][0])[0:10]
+        date = str(cinfo['DATE'].iloc[0])[0:10]
 
         self._logger.info('Extract frames information')
-        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'][0]}")
-        self._logger.info(f" * OB name:      {cinfo['OBS NAME'][0]}")
-        self._logger.info(f" * OB ID:        {cinfo['OBS ID'][0]}")
+        self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
+        self._logger.info(f" * OB name:      {cinfo['OBS NAME'].iloc[0]}")
+        self._logger.info(f" * OB ID:        {cinfo['OBS ID'].iloc[0]}")
         self._logger.info(f' * RA / DEC:     {RA} / {DEC}')
         self._logger.info(f' * Date:         {date}')
-        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'][0]}")
-        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'][0]}")
-        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'][0]}")
-        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'][0]}")
+        self._logger.info(f" * Instrument:   {cinfo['SEQ ARM'].iloc[0]}")
+        self._logger.info(f" * Derotator:    {cinfo['INS4 DROT2 MODE'].iloc[0]}")
+        self._logger.info(f" * VIS WFS mode: {cinfo['AOS VISWFS MODE'].iloc[0]}")
+        self._logger.info(f" * IR WFS mode:  {cinfo['AOS IRWFS MODE'].iloc[0]}")
 
         # update recipe execution
         self._update_recipe_status('sort_files', sphere.SUCCESS)
@@ -610,11 +615,11 @@ class Reduction(object):
         plot : bool
             Display and save diagnostic plot for quality check. Default is True
         '''
-        
+
         self._logger.info('Process DTTS images')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_dtts', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_dtts',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -628,10 +633,10 @@ class Reduction(object):
         for file, finfo in files_info.iterrows():
             self._logger.debug(f' * {file}')
             hdu = fits.open(f'{path.raw}/{file}.fits')
-            
+
             ext  = hdu['IRPixelAvgFrame']
             NDIT = ext.header['NAXIS2']
-            
+
             files.extend(np.repeat(file, NDIT))
             img.extend(list(np.arange(NDIT)))
 
@@ -658,7 +663,7 @@ class Reduction(object):
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
-                dtts_info.loc[file, 'TIME']        = [str(t) for t in time]
+                dtts_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # DTTS images
                 dtts_cube[nimg:nimg+NDIT] = pixels
@@ -666,7 +671,7 @@ class Reduction(object):
                 nimg += NDIT
 
             hdu.close()
-            
+
         # updates times and compute timestamps
         toolbox.compute_times(dtts_info, logger=self._logger)
 
@@ -677,17 +682,17 @@ class Reduction(object):
             self._update_recipe_status('sph_sparta_dtts', sphere.ERROR)
             self._status = sphere.FATAL
             return
-        
+
         # save
         self._logger.debug('> save dtts_frames.csv')
         dtts_info.to_csv(path.products / 'dtts_frames.csv')
         fits.writeto(path.products / 'dtts_cube.fits', dtts_cube, overwrite=True)
         self._dtts_info = dtts_info
-        
+
         # plot
         if plot:
             self._logger.debug('> plot DTTS images')
-            
+
             ncol  = 10
             nrow  = 10
             npage = int(np.ceil(nimg / (ncol*nrow)))+1
@@ -699,19 +704,19 @@ class Reduction(object):
 
                     plt.figure(figsize=(3*ncol, 3*nrow))
                     plt.subplot(111)
-                    
+
                     # master image
                     dtts_master = np.full((nrow*32, ncol*32), np.nan)
                     for row in range(nrow):
                         for col in range(ncol):
                             idx = page*nrow*ncol + row*ncol + col
-                            
+
                             if idx < nimg:
                                 xmin = col*32
                                 xmax = (col+1)*32
                                 ymin = (nrow-row-1)*32
                                 ymax = (nrow-row)*32
-                                
+
                                 dtts_master[ymin:ymax, xmin:xmax] = dtts_cube[idx]
 
                                 ts  = dtts_info['TIME'].values[idx]
@@ -726,7 +731,7 @@ class Reduction(object):
                     plt.yticks([])
 
                     plt.subplots_adjust(left=0.02, right=0.98, bottom=0.02, top=0.98)
-                    
+
                     pdf.savefig()
                     plt.close()
 
@@ -736,14 +741,14 @@ class Reduction(object):
         # reduction status
         self._status = sphere.INCOMPLETE
 
-        
+
     def sph_sparta_wfs_parameters(self):
         '''
         Process SPARTA files for Vis and IR WFS fluxes
         '''
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_wfs_parameters', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_wfs_parameters',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -754,15 +759,15 @@ class Reduction(object):
         #
         # VisLoop
         #
-        
+
         self._logger.info('Process visible loop parameters')
-        
+
         # build indices
         files = []
         img   = []
         for file, finfo in files_info.iterrows():
             hdu = fits.open(f'{path.raw}/{file}.fits')
-            
+
             data = hdu['VisLoopParams']
             NDIT = data.header['NAXIS2']
 
@@ -786,7 +791,7 @@ class Reduction(object):
 
             ext  = hdu['VisLoopParams']
             NDIT = ext.header['NAXIS2']
-            
+
             if NDIT:
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
@@ -794,15 +799,55 @@ class Reduction(object):
                 visloop_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # VisLoop parameters
-                visloop_info.loc[file, 'focus_avg']      = ext.data['Focus_avg']
-                visloop_info.loc[file, 'TTx_avg']        = ext.data['TTx_avg']
-                visloop_info.loc[file, 'TTy_avg']        = ext.data['TTy_avg']
-                visloop_info.loc[file, 'DMPos_avg']      = ext.data['DMPos_avg']
-                visloop_info.loc[file, 'ITTMPos_avg']    = ext.data['ITTMPos_avg']
-                visloop_info.loc[file, 'DMSatur_avg']    = ext.data['DMSatur_avg']
-                visloop_info.loc[file, 'DMAberr_avg']    = ext.data['DMAberr_avg']
-                visloop_info.loc[file, 'flux_total_avg'] = ext.data['Flux_avg']
-                
+                data = ext.data['Focus_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'focus_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'focus_avg'] = data
+
+
+                data = ext.data['TTx_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'TTx_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'TTx_avg'] = data
+
+                data = ext.data['TTy_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'TTy_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'TTy_avg'] = data
+
+                data = ext.data['DMPos_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMPos_avg'] = data
+
+                data = ext.data['ITTMPos_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'ITTMPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'ITTMPos_avg'] = data
+
+                data = ext.data['DMSatur_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMSatur_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMSatur_avg'] = data
+
+                data = ext.data['DMAberr_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMAberr_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMAberr_avg'] = data
+
+                data = ext.data['Flux_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'flux_total_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'flux_total_avg'] = data
+
             hdu.close()
 
         # convert VisWFS flux in photons per subaperture. Flux_avg is the flux on the whole pupil made of 1240 subapertures
@@ -825,23 +870,23 @@ class Reduction(object):
         self._logger.debug('> save visloop_info.csv')
         visloop_info.to_csv(path.products / 'visloop_info.csv')
         self._visloop_info = visloop_info
-    
+
         #
         # IRLoop
         #
 
         self._logger.info('Process IR loop parameters')
-        
+
         # build indices
         files = []
         img   = []
         for file, finfo in files_info.iterrows():
             self._logger.debug(f' * {file}')
             hdu = fits.open(f'{path.raw}/{file}.fits')
-            
+
             data = hdu['IRLoopParams']
             NDIT = data.header['NAXIS2']
-            
+
             files.extend(np.repeat(file, NDIT))
             img.extend(list(np.arange(NDIT)))
 
@@ -866,14 +911,28 @@ class Reduction(object):
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
                 time.format = 'isot'
                 irloop_info.loc[file, 'TIME'] = [str(t) for t in time]
-                
+
                 # VisLoop parameters
-                irloop_info.loc[file, 'DTTPPos_avg'] = ext.data['DTTPPos_avg']
-                irloop_info.loc[file, 'DTTPRes_avg'] = ext.data['DTTPRes_avg']
-                irloop_info.loc[file, 'flux_avg']    = ext.data['Flux_avg']
-                
+                data = ext.data['DTTPPos_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'DTTPPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'DTTPPos_avg'] = data
+
+                data = ext.data['DTTPRes_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'DTTPRes_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'DTTPRes_avg'] = data
+
+                data = ext.data['Flux_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'flux_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'flux_avg'] = data
+
             hdu.close()
-    
+
         # updates times and compute timestamps
         toolbox.compute_times(irloop_info, logger=self._logger)
 
@@ -895,7 +954,7 @@ class Reduction(object):
 
         # reduction status
         self._status = sphere.INCOMPLETE
-        
+
 
     def sph_sparta_atmospheric_parameters(self):
         '''
@@ -905,24 +964,24 @@ class Reduction(object):
         self._logger.info('Process atmospheric parameters')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_atmospheric_parameters', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_atmospheric_parameters',
                                          self.recipe_requirements, logger=self._logger):
             return
 
         # parameters
         path = self.path
         files_info = self.files_info
-    
+
         #
         # Atmospheric parameters
         #
-        
+
         # build indices
         files = []
         img   = []
         for file, finfo in files_info.iterrows():
             hdu = fits.open(f'{path.raw}/{file}.fits')
-            
+
             data = hdu['AtmPerfParams']
             NDIT = data.header['NAXIS2']
 
@@ -946,7 +1005,7 @@ class Reduction(object):
 
             ext  = hdu['AtmPerfParams']
             NDIT = ext.header['NAXIS2']
-            
+
             if NDIT:
                 # timestamps
                 time = Time(ext.data['Sec'] + ext.data['USec']*1e-6, format='unix')
@@ -954,10 +1013,24 @@ class Reduction(object):
                 atmos_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # Atm parameters
-                atmos_info.loc[file, 'r0']        = ext.data['R0']
-                atmos_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
-                atmos_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
-                
+                data = ext.data['R0']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'r0'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'r0'] = data
+
+                data = ext.data['WindSpeed']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'windspeed'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'windspeed'] = data
+
+                data = ext.data['StrehlRatio']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'strehl'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'strehl'] = data
+
             hdu.close()
 
         # updates times and compute timestamps
@@ -985,18 +1058,18 @@ class Reduction(object):
         atmos_info['seeing_zenith'] = atmos_info['seeing'] / np.power(atmos_info['AIRMASS'], 3/5)
         atmos_info['r0_zenith']     = atmos_info['r0'] * np.power(atmos_info['AIRMASS'], 3/5)
         atmos_info['tau0_zenith']   = atmos_info['tau0'] * np.power(atmos_info['AIRMASS'], 3/5)
-        
+
         # save
         self._logger.debug('> save atmospheric_info.csv')
         atmos_info.to_csv(path.products / 'atmospheric_info.csv')
         self._atmos_info = atmos_info
-        
+
         # update recipe execution
         self._update_recipe_status('sph_sparta_atmospheric_parameters', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.INCOMPLETE
-        
+
 
     def sph_query_databases(self, timeout=5):
         '''
@@ -1017,11 +1090,11 @@ class Reduction(object):
         timeout : float
             Network request timeout, in seconds. Default is 5
         '''
-        
+
         self._logger.info('Query ESO databases')
 
         # check if recipe can be executed
-        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_query_databases', 
+        if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_query_databases',
                                          self.recipe_requirements, logger=self._logger):
             return
 
@@ -1139,11 +1212,14 @@ class Reduction(object):
 
                 data = io.StringIO(req.text)
                 sphere_info = pd.read_csv(data, index_col=6, comment='#')
-                
+
                 keys_to_drop = ['Release Date', 'Object', 'RA', 'DEC', 'Target Ra Dec', 'Target l b', 'OBS Target Name']
                 for key in keys_to_drop:
-                    sphere_info.drop(key, axis=1, inplace=True)
-                    
+                    try:
+                        sphere_info.drop(key, axis=1, inplace=True)
+                    except KeyError:
+                        continue
+
                 sphere_info.to_csv(path.products / 'ambi_info.csv')
             else:
                 self._logger.debug('  ==> Query error')
@@ -1178,7 +1254,7 @@ class Reduction(object):
             self._logger.error('  ==> Request to meteo tower timed out')
         except pd.errors.EmptyDataError:
             self._logger.error('  ==> Empty meteo tower data')
-        
+
         #
         # LATHPRO
         #
@@ -1210,7 +1286,7 @@ class Reduction(object):
 
         # reduction status
         self._status = sphere.INCOMPLETE
-    
+
 
     def sph_sparta_plot(self):
         '''
@@ -1218,7 +1294,7 @@ class Reduction(object):
         '''
 
         self._logger.info('Plot SPARTA and atmospheric data')
-        
+
         # check if recipe can be executed
         if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_plot',
                                          self.recipe_requirements, logger=self._logger):
@@ -1236,7 +1312,7 @@ class Reduction(object):
         atmos_info['TIME']   = pd.to_datetime(atmos_info['TIME'], utc=False)
         visloop_info['TIME'] = pd.to_datetime(visloop_info['TIME'], utc=False)
         irloop_info['TIME']  = pd.to_datetime(irloop_info['TIME'], utc=False)
-        
+
         # additional databases
         file = path.products / 'mass-dimm_info.csv'
         if file.exists():
@@ -1282,7 +1358,7 @@ class Reduction(object):
         # plot
         #
         dateFormatter = mdates.DateFormatter('%H:%M')
-        
+
         fig = plt.figure(1, figsize=(12, 10))
         plt.rcParams.update({'font.size': 14})
 
@@ -1307,10 +1383,10 @@ class Reduction(object):
         ax.set_ylabel('Seeing ["]')
         ax.xaxis.set_ticklabels([])
         # ax.xaxis.set_major_formatter(dateFormatter)
-        
+
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-        
+
         # r0
         ax = plt.subplot(gs[0, 1])
 
@@ -1327,19 +1403,19 @@ class Reduction(object):
 
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-            
+
         # Vis and NIR WFS fluxes
         ax = plt.subplot(gs[1, 0])
 
         flux_visloop = visloop_info['flux_subap_avg']
         flux_irloop  = irloop_info['flux_avg']
-        
+
         ax.plot_date(Time(visloop_info['TIME']).plot_date, flux_visloop, '.', color='blue', markeredgecolor='none', label='Vis WFS')
         ax.plot_date(Time(irloop_info['TIME']).plot_date, flux_irloop, '.', color='red', markeredgecolor='none', label='IR DTTS')
 
         ymin = np.percentile(np.append(flux_irloop, flux_visloop), 10)/10
         ymax = np.percentile(np.append(flux_irloop, flux_visloop), 90)*10
-        
+
         ax.tick_params(axis='x', labelrotation=45, labelsize='small')
         ax.set_xlim(time_start.plot_date, time_end.plot_date)
         ax.set_ylim(ymin, ymax)
@@ -1350,7 +1426,7 @@ class Reduction(object):
 
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-        
+
         # Strehl
         ax = plt.subplot(gs[1, 1])
 
@@ -1365,7 +1441,7 @@ class Reduction(object):
 
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
-        
+
         # ground-layer fraction
         ax = plt.subplot(gs[2, 0])
 
@@ -1398,7 +1474,7 @@ class Reduction(object):
         ax.set_xlim(time_start.plot_date, time_end.plot_date)
         ax.set_ylabel('Wind speed [m/s]')
         ax.xaxis.set_major_formatter(dateFormatter)
-        
+
         ax.grid(True)
         ax.legend(frameon=True, loc='best', fontsize='x-small')
 
@@ -1406,13 +1482,13 @@ class Reduction(object):
         plt.subplots_adjust(left=0.07, right=0.98, bottom=0.07, top=0.98, wspace=0.25, hspace=0.12)
 
         plt.savefig(path.products / 'sparta_plot.pdf')
-        
+
         # update recipe execution
         self._update_recipe_status('sph_query_databases', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.COMPLETE
-    
+
 
     def sph_sparta_clean(self, delete_raw=False, delete_products=False, delete_config=False):
         '''
@@ -1431,7 +1507,7 @@ class Reduction(object):
         '''
 
         self._logger.info('Clean reduction data')
-        
+
         # check if recipe can be executed
         if not toolbox.recipe_executable(self._recipes_status, self._status, 'sph_sparta_clean',
                                          self.recipe_requirements, logger=self._logger):

@@ -48,14 +48,14 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
     execute_recipe : bool
         Current recipe can be executed safely
     '''
-    
+
     if reduction_status == sphere.FATAL:
         logger.critical('   ==> reduction is in a FATAL state! See log file for details')
         return False
-    
+
     recipes = recipes_status.keys()
     requirements = requirements[recipe]
-    
+
     execute_recipe = True
     missing = []
     for r in requirements:
@@ -71,7 +71,7 @@ def recipe_executable(recipes_status, reduction_status, recipe, requirements, lo
         recipes_status[recipe] = sphere.ERROR
 
     logger.debug(f'> execution requirements check for {recipe}: {execute_recipe}')
-    
+
     return execute_recipe
 
 
@@ -122,17 +122,17 @@ def compute_times(frames_info, logger=_log):
 
     # get instrument
     instrument = frames_info['SEQ ARM'].unique()
-    
+
     if (instrument == 'IRDIS') or (instrument == 'IFS'):
         logger.debug('   ==> IRDIFS mode')
-        
+
         # get necessary values
         time_start = frames_info['DATE-OBS'].values
         time_end   = frames_info['DET FRAM UTC'].values
         time_delta = (time_end - time_start) / frames_info['DET NDIT'].values.astype(int)
         DIT        = np.array(frames_info['DET SEQ1 DIT'].values.astype(float)*1000, dtype='timedelta64[ms]')
         DITDELAY   = np.array(frames_info['DET DITDELAY'].values.astype(float)*1000, dtype='timedelta64[ms]')
-        
+
         # calculate UTC time stamps
         idx = frames_info.index.get_level_values(1).values
         ts_start = time_start + time_delta * idx + DITDELAY
@@ -142,7 +142,7 @@ def compute_times(frames_info, logger=_log):
         # mjd
         utc = Time(ts_start.astype(str), scale='utc', location=sphere.location)
         mjd_start = utc.mjd
-        
+
         utc = Time(ts.astype(str), scale='utc', location=sphere.location)
         mjd = utc.mjd
 
@@ -195,7 +195,7 @@ def compute_angles(frames_info, true_north, logger=_log):
 
     # get instrument
     instrument = frames_info['SEQ ARM'].unique()
-    
+
     # derotator drift check and correction
     date_fix = Time('2016-07-12')
     if np.any(frames_info['MJD'].values <= date_fix.mjd):
@@ -237,7 +237,7 @@ def compute_angles(frames_info, true_north, logger=_log):
     frames_info['PARANG'] = pa.value + pa_correction
     frames_info['HOUR ANGLE'] = ha.value
     frames_info['LST'] = lst.value
-    
+
     # Altitude and airmass
     j2000 = coordinates.SkyCoord(ra=ra_hour, dec=dec, frame='icrs', obstime=utc)
     altaz = j2000.transform_to(coordinates.AltAz(location=sphere.location))
@@ -306,7 +306,7 @@ def compute_angles(frames_info, true_north, logger=_log):
 
     # final derotation value
     frames_info['DEROT ANGLE'] = frames_info['PARANG'] + pupoff + instru_offset + true_north
-    
+
     return sphere.SUCCESS
 
 
@@ -332,7 +332,7 @@ def compute_bad_pixel_map(bpm_files, dtype=np.uint8, logger=_log):
     '''
 
     logger.debug(f'> compute master bad pixel map from {len(bpm_files)} files')
-    
+
     # get shape
     shape = fits.getdata(bpm_files[0]).shape
 
@@ -392,7 +392,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
         logger.debug('> type=mean: extract min/max values')
-        
+
         # get min/max indices
         imin = finfo.index.get_level_values(1).min()
         imax = finfo.index.get_level_values(1).max()
@@ -406,7 +406,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         nfinfo.loc[(fname, 0), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
         nfinfo.loc[(fname, 0), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
                                          (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
-        
+
         # recompute angles
         ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
@@ -417,7 +417,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
         NDIT_new = NDIT // coadd_value
 
         logger.debug(f'> type=coadd: extract sub-groups of {coadd_value} frames')
-        
+
         index = pd.MultiIndex.from_arrays([np.full(NDIT_new, fname), np.arange(NDIT_new)], names=['FILE', 'IMG'])
         nfinfo = pd.DataFrame(columns=finfo.columns, index=index)
 
@@ -435,7 +435,7 @@ def collapse_frames_info(finfo, fname, true_north, collapse_type, coadd_value=2,
             nfinfo.loc[(fname, f), 'TIME END'] = finfo.loc[(fname, imax), 'TIME END']
             nfinfo.loc[(fname, f), 'TIME'] = finfo.loc[(fname, imin), 'TIME START'] + \
                                              (finfo.loc[(fname, imax), 'TIME END'] - finfo.loc[(fname, imin), 'TIME START']) / 2
-            
+
         # recompute angles
         ret = compute_angles(nfinfo, true_north, logger=logger)
         if ret == sphere.ERROR:
@@ -542,8 +542,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
     xx, yy = np.meshgrid(np.arange(2*box), np.arange(2*box))
 
     # loop over images
-    img_centers    = np.zeros((nwave, 2))
-    failed_centers = np.zeros(nwave, dtype=bool)
+    img_centers = np.zeros((nwave, 2))
     for idx, (cwave, img) in enumerate(zip(wave, cube)):
         logger.info(f'   ==> wave {idx + 1:2d}/{nwave:2d} ({cwave:4.0f} nm)')
 
@@ -574,7 +573,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
 
         # sub-image
         sub = img[cy-box:cy+box, cx-box:cx+box]
-        
+
         # fit peak with Gaussian + constant
         imax = np.unravel_index(np.argmax(sub), sub.shape)
         g_init = models.Gaussian2D(amplitude=sub.max(), x_mean=imax[1], y_mean=imax[0],
@@ -582,7 +581,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
                                    models.Const2D(amplitude=sub.min())
         fitter = fitting.LevMarLSQFitter()
         par = fitter(g_init, xx, yy, sub)
-        
+
         cx_final = cx - box + par[0].x_mean
         cy_final = cy - box + par[0].y_mean
 
@@ -594,14 +593,13 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
     ibad = []
     if nwave > 2:
         c_med = np.median(img_centers, axis=0)
-        c_std = np.std(img_centers, axis=0)
-        bad   = np.any(np.logical_or(img_centers < (c_med-3*c_std),
-                                     img_centers > (c_med+3*c_std)), axis=1)
+        c_std = 5  # all centers should be within a couples of pixels (taking some margin here)
+        bad   = np.any(np.logical_or(img_centers < (c_med-c_std),
+                                     img_centers > (c_med+c_std)), axis=1)
         ibad  = np.where(bad)[0]
         igood = np.where(np.logical_not(bad))[0]
         if len(ibad) != 0:
             logger.info(f'   ==> found {len(ibad)} outliers. Will replace them with a linear fit.')
-            
             idx = np.arange(nwave)
 
             # x
@@ -617,15 +615,15 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
     #
     # Generate summary plot
     #
-    
+
     # multi-page PDF to save result
     if save_path is not None:
         pdf = PdfPages(save_path)
-    
+
         for idx, (cwave, img) in enumerate(zip(wave, cube)):
             cx_final = img_centers[idx, 0]
             cy_final = img_centers[idx, 1]
-            
+
             failed = (idx in ibad)
             if failed:
                 mcolor = 'r'
@@ -633,12 +631,12 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
             else:
                 mcolor = 'b'
                 bcolor = 'w'
-            
+
             plt.figure('PSF center - imaging', figsize=(8.3, 8))
             plt.clf()
 
             plt.subplot(111)
-            plt.imshow(img/np.nanmax(img), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
+            plt.imshow(img/np.nanmax(img), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1),
                        interpolation='nearest', cmap=global_cmap)
             plt.plot([cx_final], [cy_final], marker='D', color=mcolor)
             plt.gca().add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec=bcolor, fc='none'))
@@ -658,7 +656,7 @@ def star_centers_from_PSF_img_cube(cube, wave, pixel, exclude_fraction=0.1, high
             pdf.savefig()
 
         pdf.close()
-    
+
     return img_centers
 
 
@@ -753,7 +751,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
         if save_path:
             plt.subplot(1, 2, fidx+1)
 
-            plt.imshow(img/img.max(), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1), 
+            plt.imshow(img/img.max(), aspect='equal', norm=colors.LogNorm(vmin=1e-6, vmax=1),
                        interpolation='nearest', cmap=global_cmap)
             plt.plot(psf_centers[:, fidx], range(1024), marker='.', color='dodgerblue', linestyle='none',
                      ms=2, alpha=0.5)
@@ -763,7 +761,7 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
             ext = 1000 / pixel
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.xlabel('x position [pix]')
-            
+
             plt.ylim(0, 1024)
             if fidx == 0:
                 plt.ylabel('y position [pix]')
@@ -777,8 +775,8 @@ def star_centers_from_PSF_lss_cube(cube, wave_cube, pixel, high_pass=False, box_
     return psf_centers
 
 
-def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel, 
-                                      orientation_offset, high_pass=False, center_offset=(0, 0), 
+def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center_guess, pixel,
+                                      orientation_offset, high_pass=False, center_offset=(0, 0),
                                       box_size=16, smooth=0, coro=True, save_path=None, logger=_log):
     '''
     Compute star center from waffle images (IRDIS CI, IRDIS DBI, IFS)
@@ -795,7 +793,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
         String giving the waffle orientation '+' or 'x'
 
     center_guess : array
-        Estimation of the image center as a function of wavelength. 
+        Estimation of the image center as a function of wavelength.
         This should be an array of shape nwave*2.
 
     pixel : float
@@ -900,7 +898,7 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
                 norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
                 norm = colors.LogNorm(vmin=1e-2, vmax=1)
-            
+
             col = ['green', 'blue', 'deepskyblue', 'purple']
             ax = fig.add_subplot(111)
             ax.imshow(img/img.max(), aspect='equal', norm=norm, interpolation='nearest',
@@ -946,14 +944,14 @@ def star_centers_from_waffle_img_cube(cube_cen, wave, waffle_orientation, center
                 ax.add_patch(patches.Rectangle((cx-box, cy-box), 2*box, 2*box, ec='white', fc='none'))
 
                 axs = fig.add_axes((0.17+s*0.2, 0.17, 0.1, 0.1))
-                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
+                axs.imshow(sub, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest',
                            cmap=global_cmap)
                 axs.plot([par[0].x_mean.value], [par[0].y_mean.value], marker='D', color=col[s])
                 axs.set_xticks([])
                 axs.set_yticks([])
 
                 axs = fig.add_axes((0.17+s*0.2, 0.06, 0.1, 0.1))
-                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest', 
+                axs.imshow(fit, aspect='equal', vmin=0, vmax=sub.max(), interpolation='nearest',
                            cmap=global_cmap)
                 axs.set_xticks([])
                 axs.set_yticks([])
@@ -1112,21 +1110,21 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             spot_dist[widx, fidx] = np.abs(c1-c0)
 
             img_centers[widx, fidx] = (c0 + c1) / 2
-            
-        if save_path:            
+
+        if save_path:
             if high_pass or (cube_sci is not None):
                 norm = colors.PowerNorm(gamma=1, vmin=-1e-1, vmax=1e-1)
             else:
                 norm = colors.LogNorm(vmin=1e-5, vmax=1)
-            
+
             plt.subplot(1, 2, fidx+1)
             plt.imshow(img/img.max(), aspect='equal', interpolation='nearest', cmap=global_cmap,
                        norm=norm)
-            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='dodgerblue', 
+            plt.plot(spot_centers[:, fidx, 0], range(1024), marker='.', color='dodgerblue',
                      linestyle='none', ms=2, alpha=1)
-            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='dodgerblue', 
+            plt.plot(spot_centers[:, fidx, 1], range(1024), marker='.', color='dodgerblue',
                      linestyle='none', ms=2, alpha=1)
-            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='dodgerblue', 
+            plt.plot(img_centers[:, fidx], range(1024), marker='.', color='dodgerblue',
                      linestyle='none', ms=2, alpha=1)
 
             plt.title(r'Field #{0}'.format(fidx+1))
@@ -1134,7 +1132,7 @@ def star_centers_from_waffle_lss_cube(cube_cen, cube_sci, wave_cube, center_gues
             ext = 1000 / pixel
             plt.xlim(cx_int-ext, cx_int+ext)
             plt.xlabel('x position [pix]')
-            
+
             plt.ylim(0, 1024)
             if fidx == 0:
                 plt.ylabel('y position [pix]')

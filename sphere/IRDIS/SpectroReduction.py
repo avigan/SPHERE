@@ -2,26 +2,19 @@ import pandas as pd
 import subprocess
 import logging
 import numpy as np
-import scipy.ndimage as ndimage
-import scipy.interpolate as interp
-import scipy.optimize as optim
 import shutil
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import matplotlib.colors as colors
 import configparser
 import collections
 
 from pathlib import Path
 from astropy.io import fits
-from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
 import sphere.utils.imutils as imutils
-import sphere.utils.aperture as aperture
 import sphere.utils.toolbox as toolbox
 import sphere.utils.transmission as transmission
 
@@ -120,14 +113,14 @@ class SpectroReduction(object):
         clean_start : bool
             Remove all results from previous reductions for a clean start.
             Default is True
-        
+
         log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
         user_config : str
             Path to a user-provided configuration. Default is None, i.e. the
             reduction will use the package default configuration parameters
-        
+
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
 
@@ -177,7 +170,7 @@ class SpectroReduction(object):
 
         if sphere_handler:
             logger.addHandler(sphere_handler)
-        
+
         reduction._logger = logger
 
         reduction._logger.info(f'Creating IRDIS spectroscopy reduction at path {path}')
@@ -191,7 +184,7 @@ class SpectroReduction(object):
             config_file = reduction._path.root / 'reduction_config.ini'
             if config_file.exists():
                 config_file.unlink()
-        
+
         #
         # configuration
         #
@@ -273,7 +266,7 @@ class SpectroReduction(object):
     @loglevel.setter
     def loglevel(self, level):
         self._logger.setLevel(level.upper())
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -309,7 +302,7 @@ class SpectroReduction(object):
     @property
     def status(self):
         return self._status
-    
+
     @property
     def config(self):
         return self._config
@@ -648,8 +641,8 @@ class SpectroReduction(object):
 
         # make sure some columns are float
         float_columns = ['DET SEQ1 DIT', 'DET NDIT', 'OBS ID', 'DET DITDELAY', 'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'TEL ALT', 'TEL AZ',
-                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG', 
-                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM', 
+                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG',
+                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM',
                          'TEL AMBI TAU0', 'TEL AMBI TEMP', 'TEL AMBI WINDSP', 'TEL AMBI WINDDIR']
         for col in float_columns:
             files_info[col] = files_info[col].astype(float)
@@ -674,7 +667,7 @@ class SpectroReduction(object):
             self._update_recipe_status('sort_frames', sphere.ERROR)
             self._status = sphere.FATAL
             return
-        
+
         # processed column
         files_info.insert(len(files_info.columns), 'PROCESSED', False)
         files_info.insert(len(files_info.columns), 'PRO CATG', ' ')
@@ -786,7 +779,7 @@ class SpectroReduction(object):
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
         posangs = [f'{p:.2f}°' for p in posang]
-        
+
         date = str(cinfo['DATE'].iloc[0])[0:10]
 
         self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
@@ -1561,7 +1554,7 @@ class SpectroReduction(object):
                         self._logger.error('An error occured when collapsing frames info')
                         self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
-                    
+
                     # merge frames info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
 
@@ -1744,7 +1737,7 @@ class SpectroReduction(object):
         # reduction status
         self._status = sphere.INCOMPLETE
 
-        
+
     def sph_ird_wavelength_recalibration(self, fit_scaling=True, plot=True):
         '''Performs a recalibration of the wavelength, if star center frames
         are available. Otherwise simply use the ESO pipeline-calibrated law.
@@ -1886,7 +1879,7 @@ class SpectroReduction(object):
                 elif filter_comb == 'S_MR':
                     xmin = 1024
                     xmax = 0
-                
+
                 plt.figure('Wavelength recalibration', figsize=(10, 10))
                 plt.clf()
 
@@ -2012,13 +2005,13 @@ class SpectroReduction(object):
             OBJECT frames. This should be an array of 2 values (cx for
             the 2 IRDIS fields). Default is None
 
-        center_selection : str        
+        center_selection : str
             Specify which star center to use when multiple are
             available. Possible values are first, last, and time. The
             time option indicates to use the star center file that is
             closest in time with respect to each science file. Default
             is first
-        
+
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
@@ -2129,7 +2122,7 @@ class SpectroReduction(object):
             # final arrays
             psf_cube   = np.zeros((2, nfiles, nwave, psf_dim))
             psf_posang = np.zeros(nfiles)
-            
+
             # final center
             if cpix:
                 cc = psf_dim // 2
@@ -2405,7 +2398,7 @@ class SpectroReduction(object):
                 # make sure we have only integers if user wants coarse centering
                 if coarse_centering:
                     centers = centers.astype(int)
-                
+
                 # read data
                 self._logger.debug('> read data')
                 fname = f'{file}_DIT{idx:03d}_preproc'

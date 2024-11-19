@@ -76,7 +76,7 @@ class ReductionPath(object):
         # create sub-directory if needed
         if not self._sof.exists():
             self._sof.mkdir(exist_ok=True)
-            
+
         return self._sof
 
     @property
@@ -92,7 +92,7 @@ class ReductionPath(object):
         # create sub-directory if needed
         if not self._preproc.exists():
             self._preproc.mkdir(exist_ok=True)
-            
+
         return self._preproc
 
     @property
@@ -100,7 +100,7 @@ class ReductionPath(object):
         # create sub-directory if needed
         if not self._products.exists():
             self._products.mkdir(exist_ok=True)
-            
+
         return self._products
 
     ##################################################
