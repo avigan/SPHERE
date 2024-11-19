@@ -799,14 +799,54 @@ class Reduction(object):
                 visloop_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # VisLoop parameters
-                visloop_info.loc[file, 'focus_avg']      = ext.data['Focus_avg']
-                visloop_info.loc[file, 'TTx_avg']        = ext.data['TTx_avg']
-                visloop_info.loc[file, 'TTy_avg']        = ext.data['TTy_avg']
-                visloop_info.loc[file, 'DMPos_avg']      = ext.data['DMPos_avg']
-                visloop_info.loc[file, 'ITTMPos_avg']    = ext.data['ITTMPos_avg']
-                visloop_info.loc[file, 'DMSatur_avg']    = ext.data['DMSatur_avg']
-                visloop_info.loc[file, 'DMAberr_avg']    = ext.data['DMAberr_avg']
-                visloop_info.loc[file, 'flux_total_avg'] = ext.data['Flux_avg']
+                data = ext.data['Focus_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'focus_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'focus_avg'] = data
+
+
+                data = ext.data['TTx_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'TTx_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'TTx_avg'] = data
+
+                data = ext.data['TTy_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'TTy_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'TTy_avg'] = data
+
+                data = ext.data['DMPos_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMPos_avg'] = data
+
+                data = ext.data['ITTMPos_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'ITTMPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'ITTMPos_avg'] = data
+
+                data = ext.data['DMSatur_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMSatur_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMSatur_avg'] = data
+
+                data = ext.data['DMAberr_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'DMAberr_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'DMAberr_avg'] = data
+
+                data = ext.data['Flux_avg']
+                if data.dtype.byteorder == '>':
+                    visloop_info.loc[file, 'flux_total_avg'] = data.byteswap().newbyteorder()
+                else:
+                    visloop_info.loc[file, 'flux_total_avg'] = data
 
             hdu.close()
 
@@ -873,9 +913,23 @@ class Reduction(object):
                 irloop_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # VisLoop parameters
-                irloop_info.loc[file, 'DTTPPos_avg'] = ext.data['DTTPPos_avg']
-                irloop_info.loc[file, 'DTTPRes_avg'] = ext.data['DTTPRes_avg']
-                irloop_info.loc[file, 'flux_avg']    = ext.data['Flux_avg']
+                data = ext.data['DTTPPos_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'DTTPPos_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'DTTPPos_avg'] = data
+
+                data = ext.data['DTTPRes_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'DTTPRes_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'DTTPRes_avg'] = data
+
+                data = ext.data['Flux_avg']
+                if data.dtype.byteorder == '>':
+                    irloop_info.loc[file, 'flux_avg'] = data.byteswap().newbyteorder()
+                else:
+                    irloop_info.loc[file, 'flux_avg'] = data
 
             hdu.close()
 
@@ -959,9 +1013,23 @@ class Reduction(object):
                 atmos_info.loc[file, 'TIME'] = [str(t) for t in time]
 
                 # Atm parameters
-                atmos_info.loc[file, 'r0']        = ext.data['R0']
-                atmos_info.loc[file, 'windspeed'] = ext.data['WindSpeed']
-                atmos_info.loc[file, 'strehl']    = ext.data['StrehlRatio']
+                data = ext.data['R0']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'r0'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'r0'] = data
+
+                data = ext.data['WindSpeed']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'windspeed'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'windspeed'] = data
+
+                data = ext.data['StrehlRatio']
+                if data.dtype.byteorder == '>':
+                    atmos_info.loc[file, 'strehl'] = data.byteswap().newbyteorder()
+                else:
+                    atmos_info.loc[file, 'strehl'] = data
 
             hdu.close()
 
