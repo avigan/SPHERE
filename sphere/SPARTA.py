@@ -1215,7 +1215,10 @@ class Reduction(object):
 
                 keys_to_drop = ['Release Date', 'Object', 'RA', 'DEC', 'Target Ra Dec', 'Target l b', 'OBS Target Name']
                 for key in keys_to_drop:
-                    sphere_info.drop(key, axis=1, inplace=True)
+                    try:
+                        sphere_info.drop(key, axis=1, inplace=True)
+                    except KeyError:
+                        continue
 
                 sphere_info.to_csv(path.products / 'ambi_info.csv')
             else:
