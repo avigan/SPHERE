@@ -3,7 +3,6 @@ import logging
 import numpy as np
 import collections
 import configparser
-import shutil
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates

@@ -5,7 +5,6 @@ Aperture/pupil utility functions for pyZELDA
 '''
 
 import numpy as np
-import collections
 
 import scipy.ndimage as ndimage
 

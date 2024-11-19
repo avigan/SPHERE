@@ -2,26 +2,19 @@ import pandas as pd
 import subprocess
 import logging
 import numpy as np
-import scipy.ndimage as ndimage
-import scipy.interpolate as interp
-import scipy.optimize as optim
 import shutil
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import matplotlib.colors as colors
 import configparser
 import collections
 
 from pathlib import Path
 from astropy.io import fits
-from astropy.modeling import models, fitting
 from matplotlib.backends.backend_pdf import PdfPages
 
 import sphere
 import sphere.utils as utils
 import sphere.utils.imutils as imutils
-import sphere.utils.aperture as aperture
 import sphere.utils.toolbox as toolbox
 import sphere.utils.transmission as transmission
 
