@@ -24,18 +24,18 @@ def _shift_fft(array, shift_value):
     Ndim  = array.ndim
     dims  = array.shape
     dtype = array.dtype.kind
-    
+
     if (dtype != 'f'):
         raise ValueError('Array must be float')
-    
+
     shifted = array
     if (Ndim == 1):
         Nx = dims[0]
-        
+
         x_ramp = np.arange(Nx, dtype=array.dtype) - Nx//2
-        
+
         tilt = (2*np.pi/Nx) * (shift_value[0]*x_ramp)
-        
+
         cplx_tilt = np.cos(tilt) + 1j*np.sin(tilt)
         cplx_tilt = fft.fftshift(cplx_tilt)
         narray    = fft.fft(fft.ifft(array) * cplx_tilt)
@@ -43,20 +43,20 @@ def _shift_fft(array, shift_value):
     elif (Ndim == 2):
         Nx = dims[0]
         Ny = dims[1]
-        
+
         x_ramp = np.outer(np.full(Nx, 1.), np.arange(Ny, dtype=array.dtype)) - Nx//2
         y_ramp = np.outer(np.arange(Nx, dtype=array.dtype), np.full(Ny, 1.)) - Ny//2
-        
+
         tilt = (2*np.pi/Nx) * (shift_value[0]*x_ramp+shift_value[1]*y_ramp)
-        
-        cplx_tilt = np.cos(tilt) + 1j*np.sin(tilt)        
+
+        cplx_tilt = np.cos(tilt) + 1j*np.sin(tilt)
         cplx_tilt = fft.fftshift(cplx_tilt)
-        
+
         narray    = fft.fft2(fft.ifft2(array) * cplx_tilt)
         shifted   = narray.real
     else:
         raise ValueError('This function can shift only 1D or 2D arrays')
-    
+
     return shifted
 
 
@@ -94,43 +94,43 @@ def _shift_roll(array, shift_value):
         shifted = np.roll(np.roll(array, shift_value[0], axis=1), shift_value[1], axis=0)
     else:
         raise ValueError('This function can shift only 1D or 2D arrays')
-        
+
     return shifted
 
 
 def shift(array, shift_value, method='fft', mode='constant', cval=0):
     '''
     Shift a 1D or 2D input array.
-    
+
     The array can be shift either using FFT or using interpolation.
 
     Note that if the shifting value is an integer, the function uses
     numpy roll procedure to shift the array. The user can force to use
     np.roll, and in that case the function will round the shift value
     to the nearest integer values.
-    
+
     Parameters
     ----------
     array : array
         The array to be shifted
-    
+
     shift_value : float or sequence
-        The shift along the axes. If a float, shift_value is the same for each axis. 
+        The shift along the axes. If a float, shift_value is the same for each axis.
         If a sequence, shift_value should contain one value for each axis.
-    
+
     method : str, optional
         Method for shifting the array, ('fft', 'interp'). Default is 'fft'
-    
+
     mode : str
-        Points outside the boundaries of the input are filled according 
+        Points outside the boundaries of the input are filled according
         to the given mode ('constant', 'nearest', 'reflect' or 'wrap').
         This value is ignored if method='fft' or method='roll'. Default
         is 'constant'.
-    
+
     cval : float, optional
-        Value used for points outside the boundaries of the input if 
+        Value used for points outside the boundaries of the input if
         mode='constant'. Default is 0
-        
+
     Returns
     -------
     shift : array
@@ -139,7 +139,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     '''
 
     method = method.lower()
-    
+
     # array dimensions
     Ndim = array.ndim
     dims = array.shape
@@ -154,7 +154,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     elif isinstance(shift_value, (int, float)):
         shift_value = np.full(Ndim, shift_value)
     else:
-        raise ValueError('Shift value of type \'{0}\' is not allowed'.format(type(shift_value).__name__))    
+        raise ValueError('Shift value of type \'{0}\' is not allowed'.format(type(shift_value).__name__))
 
     # check if shift values are int and automatically change method in case they are
     if (shift_value.dtype.kind == 'i'):
@@ -163,7 +163,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
         # force integer values
         if method == 'roll':
             shift_value = np.round(shift_value)
-        
+
     # FFT limitations
     if method == 'fft':
         if np.mod(np.array(dims), 2).sum() != 0:
@@ -178,10 +178,10 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
 
         mask = np.zeros_like(array)
         mask[nan_mask] = 1
-        
+
         mask = _shift_interp_builtin(mask, shift_value, mode='constant', cval=1)
 
-    # shift with appropriate function                
+    # shift with appropriate function
     if (method == 'fft'):
         shifted = _shift_fft(array, shift_value)
     elif (method == 'interp'):
@@ -195,7 +195,7 @@ def shift(array, shift_value, method='fft', mode='constant', cval=0):
     # puts back NaN
     if mask is not None:
         shifted[mask >= 0.5] = np.nan
-    
+
     return shifted
 
 
@@ -213,24 +213,24 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
     The center of rotation is exactly (dimx/2, dimy/2), i.e. at the
     center of a pixel if dimensions are even or in-between pixels if
     the dimensions are odd.
-    
+
     Parameters
     ----------
     array : array
         The numpy array which has to be rotated
-    
+
     alpha : float
         The rotation angle in degrees
-    
-    pad : int, optional 
+
+    pad : int, optional
         Padding factor. Default is 4
-    
+
     x1,x2 : int, optional
         Borders of the original image in x
-    
+
     y1,y2 : int, optional
         Borders of the original image in y
-    
+
     Returns
     -------
     Rotated array
@@ -266,16 +266,16 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
 
     pad_value = (np.array(array.shape)*(pad-1)/2).astype(int)
     pad_frame = np.lib.pad(array, ((pad_value[0]), (pad_value[1])), mode='constant', constant_values=cval)
-    
+
     pad_mask = np.isnan(array)
     pad_mask = np.lib.pad(pad_mask, ((pad_value[0]), (pad_value[1])), mode='constant', constant_values=cval)
-            
+
     # Rotate the mask, to know what part is actually the image
     pad_mask = ndimage.interpolation.rotate(pad_mask, np.rad2deg(-alpha_rad), reshape=False, order=0, mode='constant', cval=True, prefilter=False)
-    
+
     # remove NaN from original frame
-    array = np.nan_to_num(array)    
-    
+    array = np.nan_to_num(array)
+
     # Replace part outside the image which are NaN by 0, and go into Fourier space.
     pad_frame = np.where(np.isnan(pad_frame), 0, pad_frame)
     if x1 == 0:
@@ -320,7 +320,7 @@ def _rotate_fft(array, alpha, pad=4, x1=0, x2=0, y1=0, y2=0, cval=0):
     rotated = np.real(pad_xyx[
         int(((pad-1)/2)*array.shape[0]):int(((pad+1)/2)*array.shape[0]),
         int(((pad-1)/2)*array.shape[1]):int(((pad+1)/2)*array.shape[1])]).copy()
-    
+
     return rotated
 
 
@@ -341,7 +341,7 @@ def _rotate_interp(array, alpha, center, mode='constant', cval=0):
     yp = -(x-center[0])*np.sin(alpha_rad) + (y-center[1])*np.cos(alpha_rad) + center[1]
 
     rotated = ndimage.map_coordinates(array, [yp, xp], mode=mode, cval=cval, order=3)
-    
+
     return rotated
 
 
@@ -370,9 +370,9 @@ def _rotate_roll(array, alpha):
 
     '''
     k = (alpha / 90) % 4
-    
+
     rotated = np.rot90(array, k=k)
-    
+
     return rotated
 
 
@@ -384,28 +384,28 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     ----------
     array : array
         The numpy array which has to be rotated
-    
+
     value : float
         The rotation angle in degrees
-    
+
     center : array
         Center of rotation. Default value is (dims[1] // 2,
         dims[0] // 2), i.e. always at the center of a pixel.
-    
-    method : str, optional    
+
+    method : str, optional
         Method for shifting the array, ('fft', 'interp'). Default is
         'interp'
 
-    mode : str    
+    mode : str
         Points outside the boundaries of the input are filled
         according to the given mode ('constant', 'nearest', 'reflect'
         or 'wrap').  This value is ignored if method='fft'. Default is
         'constant'.
-    
+
     cval : float, optional
-        Value used for points outside the boundaries of the input if 
+        Value used for points outside the boundaries of the input if
         mode='constant'. Default is 0.0
-        
+
     Returns
     -------
     rotated : array
@@ -416,7 +416,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     method = method.lower()
 
     array = array.copy()
-    
+
     # array dimensions
     Ndim = array.ndim
     dims = array.shape
@@ -430,7 +430,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
         center = np.array(center).ravel()
         if (center.size != 2):
             raise ValueError('You must pass 2 values for center')
-        
+
         if method == 'fft':
             warnings.warn('\'center\' is ignored with method=\'fft\'. ' +
                           'The center of rotation is exactly at (dimx/2, dimy/2).')
@@ -438,7 +438,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     # check rotation value
     if not isinstance(value, (int, float)):
         raise ValueError('Rotation value of type \'{0}\' is not allowed'.format(type(value).__name__))
-            
+
     # clockwise
     value *= -1
 
@@ -450,7 +450,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     if method == 'fft':
         if np.mod(np.array(dims), 2).sum() != 0:
             raise ValueError('FFT rotate only supports square images of even width')
-    
+
     # detects NaN and replace them with real values
     mask = None
     nan_mask = np.isnan(array)
@@ -460,7 +460,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
 
         mask = np.zeros_like(array)
         mask[nan_mask] = 1
-        
+
         mask = _rotate_interp(mask, value, center, mode='constant', cval=1)
 
     # rotate with appropriate function
@@ -476,7 +476,7 @@ def rotate(array, value, center=None, method='interp', mode='constant', cval=0):
     # puts back NaN
     if mask is not None:
         rotated[mask >= 0.5] = np.nan
-    
+
     return rotated
 
 
@@ -511,7 +511,7 @@ def _fft_floating_origin(array, center_direct=None, center_fourier=None, inverse
         sign = 1
     else:
         sign = -1
-    
+
     # centers
     if center_direct is None:
         center_direct = np.array(((dim-1)/2, (dim-1)/2))
@@ -553,7 +553,7 @@ def _fft_floating_origin(array, center_direct=None, center_fourier=None, inverse
 
     return array_f
 
-    
+
 def _scale_fft(array, scale_value, alt_criterion=False):
     dim   = array.shape[0]    # square-even images checked before
     dtype = array.dtype.kind
@@ -566,9 +566,9 @@ def _scale_fft(array, scale_value, alt_criterion=False):
     #   => N" = 2*round(N'/(2*Fechs))
     #   => KF = (N"-N)/2 = round(N'/(2*Fechs) - N/2) = round(N/2*(1/Fechs-1) + KD/2)
     # We call yy=N/2*(1/Fechs-1) +KD/2
-    # We minimize this difference between the `ideal' N" and its closest integer value      
+    # We minimize this difference between the `ideal' N" and its closest integer value
     # Compared to the ALTernate criterion below, this one favors small
-    # values of N" i.e. little truncation in Fourier space.  
+    # values of N" i.e. little truncation in Fourier space.
     kd_array = np.arange(dim/2 + 1, dtype=int)
     yy = dim/2 * (zoom_io - 1) + kd_array.astype(float)*zoom_io
     kf_array = np.round(yy).astype(int)
@@ -587,10 +587,10 @@ def _scale_fft(array, scale_value, alt_criterion=False):
 
         kd_io = kd_array[iminerror]
         kf_io = kf_array[iminerror]
-    
+
     # Extract a part of, or expand, array to dim_p pixels
     dim_p = int(dim + 2*kd_io)
-    
+
     if dim_p > dim:
         # kd is positive
         tmp = np.zeros((dim_p, dim_p), dtype=dtype)
@@ -601,10 +601,10 @@ def _scale_fft(array, scale_value, alt_criterion=False):
 
     # Fourier-transform the result
     array_f = _fft_floating_origin(tmp, ec=True) * dim_p**2
-    
+
     # Extract a part of or expand the result to dim_pp pixels
     dim_pp = int(dim + 2*kf_io)
-    
+
     if dim_pp > dim_p:
         tmp = np.zeros((dim_pp, dim_pp), dtype=np.complex)
         tmp[(dim_pp-dim_p)//2:(dim_pp+dim_p)//2, (dim_pp-dim_p)//2:(dim_pp+dim_p)//2] = array_f
@@ -626,7 +626,7 @@ def _scale_fft(array, scale_value, alt_criterion=False):
         scaled[-kf_io:-kf_io+dim_pp, -kf_io:-kf_io+dim_pp] = array_scaled
 
     return scaled
-    
+
 
 def _scale_interp(array, scale_value, center, mode='constant', cval=0):
     Ndim  = array.ndim
@@ -640,7 +640,7 @@ def _scale_interp(array, scale_value, center, mode='constant', cval=0):
 
         nx = (x - center[0]) / scale_value[0] + center[0]
         ny = (y - center[1]) / scale_value[1] + center[1]
-        
+
         scaled = ndimage.map_coordinates(array, [ny, nx], mode=mode, cval=cval)
 
     return scaled
@@ -650,21 +650,21 @@ def _scale_interp_builtin(array, scale_value, mode='constant', cval=0):
     scaled = ndimage.zoom(array, scale_value, order=3, mode=mode, cval=cval)
 
     return scaled
-    
+
 
 def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='constant', cval=0):
     '''
     Rescale a 2D input array.
-    
+
     The array can be rescaled either using FFT or interpolation. When
     using interpolation, the scaling factor can be different in x and
     y to enable anamorphism correction.
-    
+
     Parameters
     ----------
     array : array
         The array to be shifted
-    
+
     scale_value : float or sequence
         The scaling along the axes. If a float, scale_value is the same for each axis.
         If a sequence, scale_value should contain one value for each axis.
@@ -676,18 +676,18 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     new_dim : array
         Directly specifies the new dimensions of the resulting array. If provided,
         the 'scale_value' and 'center' parameters are ignored.
-    
+
     method : str, optional
         Method for shifting the array, ('fft', 'interp'). Default is 'fft'
-    
-    mode : str    
+
+    mode : str
         Points outside the boundaries of the input are filled
         according to the given mode ('constant', 'nearest', 'reflect'
         or 'wrap').  This value is ignored if method='fft'. Default is
         'constant'.
-    
+
     cval : float, optional
-        Value used for points outside the boundaries of the input if 
+        Value used for points outside the boundaries of the input if
         mode='constant'. Default is 0
 
     Returns
@@ -702,7 +702,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     # no scaling needed
     if scale_value == 1:
         return array
-    
+
     # array dimensions
     Ndim  = array.ndim
     dims = array.shape
@@ -720,7 +720,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
         if method == 'fft':
             warnings.warn('Center is not taken into account with method=\'fft\'. ' +
                           'The center of rotation is exactly at ((dimx-1)/2, dimy/2).')
-    
+
     # check that scale value is fine
     if isinstance(scale_value, collections.abc.Iterable):
         scale_value = np.array(scale_value).ravel()
@@ -753,7 +753,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
 
         if scale_value[0] != scale_value[1]:
             raise ValueError('FFT scale only supports identical factor along the two dimensions')
-        
+
     # detects NaN and replace them with real values
     mask = None
     nan_mask = np.isnan(array)
@@ -765,7 +765,7 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
         mask[nan_mask] = 1
 
         if (method == 'fft'):
-            mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)            
+            mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)
         elif (method == 'interp'):
             mask = _scale_interp(mask, scale_value, center, mode='constant', cval=1)
         elif (method == 'interp_builtin'):
@@ -784,9 +784,9 @@ def scale(array, scale_value, center=None, new_dim=None, method='fft', mode='con
     # puts back NaN
     if mask is not None:
         scaled[mask >= 0.5] = np.nan
-    
+
     return scaled
-    
+
 
 ####################################################################################
 #
@@ -800,38 +800,38 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     Performs sigma-clipping over an image
 
     Adapted from the IDL function with the same name in the astron library.
-    
+
     Parameters
     ----------
     img : array
         The input image
-    
+
     box : int, optional
         Box size for the sigma-clipping. Default is 5 pixel
-    
+
     nsigma : float, optional
         Sigma value. Default if 3.
-    
+
     iterate : bool, optional
         Controls if the filtering is iterative. Default is False
 
     return_mask : bool
         If True, returns a mask to identify the clipped values. Default is False
-    
+
     max_iter : int, optional
         Maximum number of iterations. Default is 20
-    
+
     _iters : int (internal)
         Internal counter to keep track during iterative sigma-clipping
 
     _mask : array_like (internal)
         Keep track of bad pixels over the iterations
-    
+
     Returns
     -------
     return_value : array
         Input image with clipped values
-    
+
     '''
 
     # clip bad pixels
@@ -851,10 +851,10 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
     # imdev = (img - img_clip)**2
     # fact = nsigma**2 / (box2-2)
     # imvar = fact*(ndimage.uniform_filter(imdev, box, mode='constant')*box2 - imdev)
-    
+
     wok = np.nonzero(imdev < imvar)
     nok = wok[0].size
-    
+
     # copy good pixels in clipped image
     if (nok > 0):
         img_clip[wok] = img[wok]
@@ -878,7 +878,7 @@ def sigma_filter(img, box=5, nsigma=3, iterate=False, return_mask=False, max_ite
 
         return sigma_filter(img_clip, box=box, nsigma=nsigma, iterate=iterate,
                             return_mask=return_mask, _iters=_iters, _mask=_mask)
-        
+
     if return_mask:
         return img_clip, _mask
     else:
@@ -901,12 +901,12 @@ def fix_badpix_vip(img, bpm, box=5):
     the bad pixels with NaNs in the image before applying the
     median_filter. This allows to make sure that adjacent bad pixels
     will not be taken into account when calculating the median.
-    
+
     Parameters
     ----------
     img : array_like
         Input 2D image
-    
+
     bpm : array_like, optional
         Input bad pixel map. Good pixels have a value of 0, bad pixels
         a value of 1.
@@ -914,27 +914,27 @@ def fix_badpix_vip(img, bpm, box=5):
     box : odd int, optional
         The size the box (box x box) of adjacent pixels for the
         median filter. Default value is 5
-    
+
     Return
     ------
     img_clean : array_like
         Cleaned image
 
     '''
-    
+
     if not img.ndim == 2:
         raise ValueError('Main input is not a 2D array')
-    
+
     if not bpm.ndim == 2:
         raise ValueError('Bad pixel map input is not a 2D array')
-    
+
     if box % 2 == 0:
         raise ValueError('Box size of the median blur kernel must be an odd integer')
 
     bpm = bpm.astype('bool')
 
     bp = np.where(bpm)
-    
+
     img_clean = img.copy()
     img_clean[bp] = np.nan
 
@@ -944,7 +944,7 @@ def fix_badpix_vip(img, bpm, box=5):
     # replace uncorrected bad pixels with original value
     mask = ~np.isfinite(img_clean)
     img_clean[mask] = img[mask]
-    
+
     return img_clean
 
 
@@ -965,21 +965,21 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
     ----------
     img : array_like
         Input 2D image
-    
-    bpm : array_like, optional    
+
+    bpm : array_like, optional
         Input bad pixel map. Good pixels have a value of 0, bad pixels
         a value of 1.
 
-    npix : int, optional    
+    npix : int, optional
         The number of adjacent good pixels used for the estimation bad
         pixel value. Default value is 8
 
     weight : bool, optional
         Weigh good pixel by inverse of their distance in the averaging
         process. Default is False
-    
+
     dmax : int
-        Maximum distance from the bad pixel over which good pixels are 
+        Maximum distance from the bad pixel over which good pixels are
         searched for. Default is 10 pixels
 
     Return
@@ -994,7 +994,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
 
     # bad pixels
     bp  = np.where(bpm)
-    nbp = bp[0].size    
+    nbp = bp[0].size
     if nbp == 0:
         return img
 
@@ -1009,7 +1009,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
     dist_default = np.sqrt(xx**2 + yy**2)
 
     bpm = np.logical_not(bpm)
-    
+
     for cx, cy in zip(bp[1], bp[0]):
         # default search box is 2*dd+1 pixel
         dd = ddmin
@@ -1024,7 +1024,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
 
             bpm_sub = bpm[y0:y1, x0:x1]
             img_sub = img[y0:y1, x0:x1]
-            
+
             if bpm_sub.sum() < npix:
                 dd = dd + 2
             else:
@@ -1032,7 +1032,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
 
             if dd > ddmax:
                 break
-            
+
         # distance to adjacent good pixels
         if dd == ddmin:
             # get default array if dd unchanged
@@ -1049,7 +1049,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
         # keep good pixels
         good_pix  = img_sub[bpm_sub]
         good_dist = dist[bpm_sub]
-        
+
         # sort them by distance
         ii = np.argsort(good_dist)
         good_pix  = good_pix[ii]
@@ -1067,7 +1067,7 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
         ii = np.argsort(good_pix)
         good_pix  = good_pix[ii]
         good_dist = good_dist[ii]
-        
+
         # calculate new pixel value, tossing the highest and lowest
         # pixels of the bunch, then weighting by the inverse of the
         # distances if desired
@@ -1077,9 +1077,9 @@ def fix_badpix(img, bpm, npix=8, weight=False, dmax=10):
             new_val = new_val / np.sum(1/final_dist)
         else:
             new_val = np.mean(good_pix[1:-1])
-            
+
         img[cy, cx] = new_val
-            
+
     return img
 
 ####################################################################################
@@ -1097,39 +1097,39 @@ def profile(img, ptype='mean', step=1, mask=None, center=None, rmax=0, clip=True
     ----------
     img : array
         Image on which the profiles
-        
+
     ptype : str, optional
         Type of profile. Allowed values are mean, std, var, median, min, max. Default is mean.
-    
+
     mask : array, optional
         Mask for invalid values (must have the same size as image)
-        
+
     center : array_like, optional
         Center of the image
 
     rmax : float
         Maximum radius for calculating the profile, in pixel. Default is 0 (no limit)
-    
+
     clip : bool, optional
         Clip profile to area of image where there is a full set of data
-        
+
     exact : bool, optional
-        Performs an exact estimation of the profile. This can be very long for 
-        large arrays. Default is False, which rounds the radial distance to the 
+        Performs an exact estimation of the profile. This can be very long for
+        large arrays. Default is False, which rounds the radial distance to the
         closest 1 pixel.
-    
+
     Returns
     -------
     prof : array
         1D profile vector
-        
+
     rad : array
         Separation vector, in pixel
     '''
-    
+
     # make sure we work on a copy
     img = img.copy()
-    
+
     # array dimensions
     dimx = img.shape[1]
     dimy = img.shape[0]
@@ -1145,17 +1145,17 @@ def profile(img, ptype='mean', step=1, mask=None, center=None, rmax=0, clip=True
             raise ValueError('Image and mask don''t have the same size. Returning.')
 
         img[mask == 0] = np.nan
-        
+
     # intermediate cartesian arrays
     x = np.arange(dimx, dtype=np.int64) - center[0]
     y = np.arange(dimy, dtype=np.int64) - center[1]
     xx, yy = np.meshgrid(x, y)
     rr = np.sqrt(xx**2 + yy**2)
-    
+
     # rounds for faster calculation
     if not exact:
         rr = np.round(rr, decimals=0)
-    
+
     # find unique radial values
     uniq = np.unique(rr, return_inverse=True, return_counts=True)
     r_uniq_val = uniq[0]
@@ -1175,19 +1175,19 @@ def profile(img, ptype='mean', step=1, mask=None, center=None, rmax=0, clip=True
     if (rmax > 0):
         r_max = rmax
         i_max = int(r_uniq_val[r_uniq_val <= r_max].size)
-        
+
     t_max = r_uniq_cnt[0:i_max].max()
 
     # intermediate polar array
     polar = np.empty((i_max, t_max), dtype=img.dtype)
     polar.fill(np.nan)
-    
+
     img_flat = img.ravel()
     for r in range(i_max):
         cnt = r_uniq_cnt[r]
         val = img_flat[r_uniq_inv == r]
         polar[r, 0:cnt] = val
-            
+
     # calculate profile
     rad  = r_uniq_val[0:i_max]
 
@@ -1214,7 +1214,7 @@ def profile(img, ptype='mean', step=1, mask=None, center=None, rmax=0, clip=True
         for r in range(i_max):
             idx = ((rad[r]-step/2) <= rad) & (rad <= (rad[r]+step/2))
             val = polar[idx, :]
-            
+
             if ptype == 'mean':
                 prof[r] = np.nanmean(val)
             elif ptype == 'std':
@@ -1241,25 +1241,25 @@ def profile(img, ptype='mean', step=1, mask=None, center=None, rmax=0, clip=True
 
 def median(img, dim):
     '''
-    Apply median filtering to an image 
+    Apply median filtering to an image
 
     Parameters
     ----------
     img : array
         Image on which the profiles
-        
+
     dim : int
         Size of the median filter
-    
+
     Returns
     -------
     img_filt : array
         Median filtered image
     '''
     img_filt = img - ndimage.filters.median_filter(img, size=(dim, dim))
-    
+
     return img_filt
-    
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -1272,25 +1272,25 @@ if __name__ == "__main__":
     #
     s = 12.5
     x = np.arange(300)
-    
+
     cos = np.cos(x/299*4*np.pi)
     cos_roll   = shift(cos, shift_value=s, method='roll')
     cos_interp = shift(cos, shift_value=s, method='interp')
     cos_fft    = shift(cos, shift_value=s, method='fft')
 
     fig = plt.figure('Shift - 1D', figsize=(12, 10))
-    plt.clf()    
+    plt.clf()
     ax = fig.add_subplot(111)
-    
+
     ax.plot(x, cos, marker='', label='Original')
     ax.plot(x, cos_roll, marker='', label='Roll', linewidth=8)
     ax.plot(x, cos_interp, marker='', label='Interp', linewidth=4)
     ax.plot(x, cos_fft, marker='', label='FFT', linewidth=1)
 
     ax.legend()
-    
+
     plt.tight_layout()
-    
+
     #
     # 2D - shift
     #
@@ -1298,7 +1298,7 @@ if __name__ == "__main__":
     s = (80.5, -60.2)
 
     # images
-    img = aper.disc(300, 50, center=c, diameter=True)    
+    img = aper.disc(300, 50, center=c, diameter=True)
     img_roll   = shift(img, shift_value=s, method='roll')
     img_interp = shift(img, shift_value=s, method='interp')
     img_fft    = shift(img, shift_value=s, method='fft')
@@ -1345,7 +1345,7 @@ if __name__ == "__main__":
 
     # images
     img = aper.disc(300, 50, center=c, diameter=True)
-    
+
     img_roll   = rotate(img, value=v, method='roll')
     img_interp = rotate(img, value=v, method='interp')
     img_fft    = rotate(img, value=v, method='fft')
@@ -1377,9 +1377,9 @@ if __name__ == "__main__":
     ax.set_xlim(0, 300)
     ax.set_ylim(0, 300)
     ax.set_title('FFT')
-    
+
     plt.tight_layout()
-        
+
     #
     # 2D - scale
     #
@@ -1391,7 +1391,7 @@ if __name__ == "__main__":
     img_interp = scale(img, scale_value=s, center=(300//2, 300/2), method='interp')
     img_interp_newdim = scale(img, 1, new_dim=(250, 75), method='interp')
     img_fft = scale(img, scale_value=s, center=(300//2, 300/2), method='fft')
-    
+
     # plot
     fig = plt.figure('Shift - 2D', figsize=(12, 12))
     plt.clf()
@@ -1421,4 +1421,4 @@ if __name__ == "__main__":
     ax.set_title('FFT')
 
     plt.tight_layout()
-    
+

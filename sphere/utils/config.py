@@ -72,7 +72,7 @@ class Configuration(UserDict):
 
         with open(self._file, 'w') as file:
             file.write('[default]\n\n')
-            
+
             catgs = ['misc', 'cal', 'preproc', 'center', 'combine', 'clean']
             for catg in catgs:
                 keys = [key for key in self if key.startswith(catg)]
@@ -110,7 +110,7 @@ class Configuration(UserDict):
                             val = eval(value)
                         except NameError:
                             val = value
-                        
+
                         self.data[key] = val
         else:
             self.save()
@@ -124,7 +124,7 @@ class Configuration(UserDict):
         filepath : str
             Path of the configuration file
         '''
-        
+
         if filepath.exists():
             self._logger.info(f'Load configuration file at path {filepath}')
 
@@ -150,6 +150,6 @@ class Configuration(UserDict):
                             val = eval(value)
                         except NameError:
                             val = value
-                        
+
                         self.data[key] = val
 

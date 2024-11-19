@@ -68,5 +68,5 @@ def set_loglevel(level):
     level : {"notset", "debug", "info", "warning", "error", "critical"}
         The log level of the handler
     '''
-    
+
     _log.setLevel(level.upper())

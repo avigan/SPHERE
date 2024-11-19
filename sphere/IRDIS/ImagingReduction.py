@@ -64,14 +64,14 @@ class ImagingReduction(object):
         clean_start : bool
             Remove all results from previous reductions for a clean start.
             Default is True
-        
+
         log_level : {'debug', 'info', 'warning', 'error', 'critical'}
             The log level of the handler
 
         user_config : str
             Path to a user-provided configuration. Default is None, i.e. the
             reduction will use the package default configuration parameters
-        
+
         sphere_handler : log handler
             Higher-level SPHERE.Dataset log handler
 
@@ -121,7 +121,7 @@ class ImagingReduction(object):
 
         if sphere_handler:
             logger.addHandler(sphere_handler)
-                
+
         reduction._logger = logger
 
         reduction._logger.info(f'Creating IRDIS imaging reduction at path {path}')
@@ -140,7 +140,7 @@ class ImagingReduction(object):
         reduction._logger.warning('  * either reprocess data previously processed with version <1.4  ')
         reduction._logger.warning('  * or take into account the offset in your astrometric analysis  ')
         reduction._logger.warning('##################################################################')
-        
+
         #
         # clean start
         #
@@ -150,7 +150,7 @@ class ImagingReduction(object):
             config_file = reduction._path.root / 'reduction_config.ini'
             if config_file.exists():
                 config_file.unlink()
-        
+
         #
         # configuration
         #
@@ -188,7 +188,7 @@ class ImagingReduction(object):
             user_config = Path(user_config).expanduser()
 
             reduction._config.load_from_file(user_config)
-        
+
         #
         # reduction and recipes status
         #
@@ -197,7 +197,7 @@ class ImagingReduction(object):
 
         for recipe in reduction.recipe_requirements.keys():
             reduction._update_recipe_status(recipe, sphere.NOTSET)
-        
+
         # reload any existing data frames
         reduction._read_info()
 
@@ -227,7 +227,7 @@ class ImagingReduction(object):
     @loglevel.setter
     def loglevel(self, level):
         self._logger.setLevel(level.upper())
-    
+
     @property
     def instrument(self):
         return self._instrument
@@ -263,7 +263,7 @@ class ImagingReduction(object):
     @property
     def status(self):
         return self._status
-    
+
     @property
     def config(self):
         return self._config
@@ -404,7 +404,7 @@ class ImagingReduction(object):
 
         # load existing configuration
         self.config.load()
-        
+
         # files info
         fname = path.preproc / 'files.csv'
         if fname.exists():
@@ -491,11 +491,11 @@ class ImagingReduction(object):
             if done:
                 self._update_recipe_status('sph_ird_star_center', sphere.SUCCESS)
             self._logger.debug(f'> sph_ird_star_center status = {done}')
-            
+
         # reduction status
         self._status = sphere.INCOMPLETE
 
-        
+
     def _update_recipe_status(self, recipe, status):
         '''Update execution status for reduction and recipe
 
@@ -591,8 +591,8 @@ class ImagingReduction(object):
 
         # make sure some columns are float
         float_columns = ['DET SEQ1 DIT', 'DET NDIT', 'OBS ID', 'DET DITDELAY', 'INS4 DROT2 RA', 'INS4 DROT2 DEC', 'TEL ALT', 'TEL AZ',
-                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG', 
-                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM', 
+                         'INS4 DROT2 BEGIN', 'INS4 DROT2 END', 'INS4 DROT2 POSANG', 'INS4 DROT3 BEGIN', 'INS4 DROT3 END', 'INS4 DROT3 POSANG',
+                         'INS1 PAC X', 'INS1 PAC Y', 'TEL AIRM START', 'TEL AIRM END', 'TEL AMBI FWHM START', 'TEL AMBI FWHM END', 'TEL IA FWHM',
                          'TEL AMBI TAU0', 'TEL AMBI TEMP', 'TEL AMBI WINDSP', 'TEL AMBI WINDDIR']
         for col in float_columns:
             files_info[col] = files_info[col].astype(float)
@@ -645,7 +645,7 @@ class ImagingReduction(object):
         # reduction status
         self._status = sphere.INCOMPLETE
 
-        
+
     def sort_frames(self):
         '''
         Extract the frames information from the science files and save
@@ -689,7 +689,7 @@ class ImagingReduction(object):
         toolbox.compute_times(frames_info, logger=self._logger)
 
         # compute angles (ra, dec, parang)
-        true_north = self.config['cal_true_north']        
+        true_north = self.config['cal_true_north']
         ret = toolbox.compute_angles(frames_info, true_north, logger=self._logger)
         if ret == sphere.ERROR:
             self._update_recipe_status('sort_frames', sphere.ERROR)
@@ -729,9 +729,9 @@ class ImagingReduction(object):
 
         posang  = cinfo['INS4 DROT2 POSANG'].unique()
         posangs = [f'{p:.2f}°' for p in posang]
-        
+
         date = str(cinfo['DATE'].iloc[0])[0:10]
-        
+
         self._logger.info(f" * Programme ID: {cinfo['OBS PROG ID'].iloc[0]}")
         self._logger.info(f" * OB name:      {cinfo['OBS NAME'].iloc[0]}")
         self._logger.info(f" * OB ID:        {cinfo['OBS ID'].iloc[0]}")
@@ -1176,7 +1176,7 @@ class ImagingReduction(object):
                 self._logger.error('Could not fin any bad pixel maps')
                 self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                 return
-            
+
             bpm = toolbox.compute_bad_pixel_map(bpm_files, logger=self._logger)
 
             # mask dead regions
@@ -1321,7 +1321,7 @@ class ImagingReduction(object):
                         self._logger.error('An error occured when collapsing frames info')
                         self._update_recipe_status('sph_ird_preprocess_science', sphere.ERROR)
                         return
-                    
+
                     # merge frames info
                     frames_info_preproc = pd.concat((frames_info_preproc, frames_info_new))
 
@@ -1510,10 +1510,10 @@ class ImagingReduction(object):
           - *_cube: the (x,y,time,lambda) cube
 
           - *_derot: the derotation angles vector. This vector takes
-                     into account the parallactic angle, the default 
-                     -1.75° true North offset, and any instrumental 
-                     pupil offset. This is the values that need to be 
-                     used for aligning the images with North up and 
+                     into account the parallactic angle, the default
+                     -1.75° true North offset, and any instrumental
+                     pupil offset. This is the values that need to be
+                     used for aligning the images with North up and
                      East left.
 
           - *_frames: a csv file with all the information for every
@@ -1575,13 +1575,13 @@ class ImagingReduction(object):
             frames. This should be an array of either 2 or nwave*2
             values. Default is None
 
-        center_selection : str        
+        center_selection : str
             Specify which star center to use when multiple are
             available. Possible values are first, last, and time. The
             time option indicates to use the star center file that is
             closest in time with respect to each science file. Default
             is first
-        
+
         coarse_centering : bool
             Control if images are finely centered or not before being
             combined. However the images are still roughly centered by
@@ -1990,7 +1990,7 @@ class ImagingReduction(object):
             # save final cubes
             self._logger.debug('> save final cubes and metadata')
             object_files.to_csv(path.products / 'science_frames.csv')
-            
+
             hdu = fits.PrimaryHDU(sci_cube)
             hdu.header['UNIT'] = 'ADU/s'
             hdu.writeto(path.products / 'science_cube.fits', overwrite=True)
@@ -2046,10 +2046,10 @@ class ImagingReduction(object):
         # remove config
         if delete_config:
             self.config._file.unlink()
-        
+
         # recipe execution status
         self._update_recipe_status('sph_ird_clean', sphere.SUCCESS)
 
         # reduction status
         self._status = sphere.COMPLETE
-        
+
